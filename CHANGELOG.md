@@ -11,6 +11,31 @@ bump may change the language.
 
 ### Added
 
+**`the run id`, and `--run-id`.** These scripts are run by agents and
+pipelines, where the question afterwards is never "what happened" but "what
+did *that* run do". Each execution now has an identity: supplied with
+`--run-id`, otherwise taken from `FROST_RUN_ID`, otherwise generated. An
+outside id wins, because joining frost's record to the pipeline's is the point.
+
+It reaches the recording (at the top level, so a fixture joins to an audit log
+without being parsed), the trace header, every child process as
+`FROST_RUN_ID`, and the script itself — which is what makes it usable as an
+idempotency key or as a scratch path that cannot collide with a concurrent
+run. A replay reports the id of the run it is replaying, for the same reason
+it serves the recorded clock.
+
+Ids are validated, not trusted: letters, digits, dot, colon, dash, underscore,
+128 characters. The value reaches log lines, child environments and any path
+built from it, so a newline would forge a log entry and a slash would move a
+file.
+
+### Fixed
+
+**`frost s.frost | head` printed a Python traceback.** A reader closing early
+is not an error in the script, and a traceback there says frost broke when the
+shell did what it was asked. It exits 141 quietly now, as a shell reports for
+SIGPIPE.
+
 **The analyser reads what is derivable, not only what is spelled out.** A host
 is read out of a joined URL when the literal closes the authority, so
 `run "curl" with ("https://api.github.com/repos/" & repo)` reaches

@@ -629,7 +629,9 @@ def test_the_trace_goes_to_a_file(tmp_path):
                              cwd=str(tmp_path))
     assert status == 0
     assert log.exists()
-    assert len(log.read_text().strip().split("\n")) == 2
+    lines = log.read_text().strip().split("\n")
+    assert lines[0].startswith("[frost] run "), "no run header on the trace"
+    assert len(lines) == 3, "one header and one line per statement"
 
 
 def test_the_trace_shows_the_line_somebody_wrote(tmp_path):

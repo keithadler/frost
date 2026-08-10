@@ -349,6 +349,41 @@ A script that waits says so in `--explain`, under `Waits:`. It is not a
 capability, since it touches nothing, but a reviewer approving a CI job wants
 to know it sleeps for ten minutes.
 
+### The identity of a run
+
+```
+put "starting" && the run id
+run "curl" with "-H", ("Idempotency-Key: " & the run id), url within 30 seconds
+put "build/" & the run id & "/out.txt" into scratch
+```
+
+A script run by an agent or a pipeline is never asked "what happened" in the
+abstract. It is asked what *that* run did: the one in the incident, the one
+whose fixture is on disk, the one an API saw a duplicate request from. So each
+execution has an id.
+
+`--run-id ID` sets it, otherwise `FROST_RUN_ID`, otherwise frost generates a
+UUID. An id from outside always wins, because joining frost's record to the
+pipeline's is the whole point and a job id is more useful than anything frost
+could invent.
+
+It reaches four places. The recording carries it at the top level, so a
+fixture can be joined to an audit log without being parsed. The trace opens
+with it. Every child process inherits it as `FROST_RUN_ID`. And the script can
+read it, which is what makes it usable as an idempotency key or as a scratch
+path that cannot collide with a concurrent run.
+
+A replay reports the id of the run it is replaying, not a fresh one, for the
+same reason it serves the recorded clock: a fixture that changed on every
+replay would not be a fixture.
+
+Ids are checked rather than trusted: letters, digits, dot, colon, dash and
+underscore, up to 128 characters. The value ends up in log lines, in child
+environments and in any path a script builds from it, so a newline in it would
+forge a log entry and a slash would move a file. That is the ordinary shape of
+trusting text from somewhere else, which is the thing this language exists to
+refuse.
+
 ### Watching a run, and auditing one
 
 Two different questions, and it is worth reaching for the right one.

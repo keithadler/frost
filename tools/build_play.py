@@ -23,7 +23,7 @@ OUT = os.path.join(HERE, "play.html")
 # has no processes, and the only part of frost that wants one is `run`.
 BROWSER_MODULES = ["__init__", "lexer", "ast", "parser", "audit", "interp",
                    "sealed", "structured", "diagnostics", "modules",
-                   "program_audit", "baseline", "journal", "browser"]
+                   "program_audit", "baseline", "journal", "runid", "browser"]
 
 PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"
 

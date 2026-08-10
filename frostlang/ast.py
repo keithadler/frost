@@ -78,6 +78,12 @@ class ValuesOf:
 
 
 @dataclass
+class RunIdRef:
+    """`the run id` — this execution's identity, stable for the whole run."""
+    line: int = 0
+
+
+@dataclass
 class ClockRef:
     """`the current date` and friends. A reading, not a constant."""
     which: str

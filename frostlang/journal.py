@@ -90,7 +90,8 @@ class Recorder:
 
     replaying = False
 
-    def __init__(self):
+    def __init__(self, identity=""):
+        self.identity = identity
         self.events = []
         self.secrets = {}          # plaintext -> name, for scrubbing
         self.stdout = ""
@@ -155,6 +156,10 @@ class Recorder:
         self._append({"kind": "stdin", "content": content})
         return content
 
+    def run_id(self, line, value):
+        self._append({"kind": "run-id", "line": line, "value": value})
+        return value
+
     def clock(self, line, which, read):
         value = read(which)
         self._append({"kind": "clock", "line": line, "which": which,
@@ -171,6 +176,9 @@ class Recorder:
         return {
             "schema": SCHEMA_VERSION,
             "script": script,
+            # Top level as well as in the events, so a recording can be joined
+            # to an audit log without being parsed.
+            "run": self.identity,
             "arguments": list(argv),
             "exit": self.status,
             "stdout": _scrub(self.stdout, self.secrets),
@@ -282,6 +290,16 @@ class Player:
         event = self._next("stdin", None, "read the standard input")
         return event.get("content", "")
 
+    def run_id(self, line, value):
+        """The recorded run's id, not this one's.
+
+        A replay that reported its own id would differ from the recording
+        everywhere the script stamped it, which is exactly what a fixture is
+        supposed to hold still.
+        """
+        event = self._next("run-id", line, "read the run id")
+        return event.get("value", "")
+
     def clock(self, line, which, read):
         """The recorded reading, not a fresh one.
 
@@ -321,6 +339,8 @@ def _describe(event):
         return f"{kind} {event.get('path')}"
     if kind in ("env-read", "env-write"):
         return f"{kind} {event.get('name')}"
+    if kind == "run-id":
+        return "read the run id"
     if kind == "clock":
         return f"read the current {event.get('which')}"
     if kind == "wait":
