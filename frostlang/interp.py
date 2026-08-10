@@ -266,6 +266,10 @@ class Interpreter:
         self.match_groups = []
         self.whole_match = ""
         self._each = []          # the item a sort key is being asked about
+        # plaintext -> name, for every secret this run has revealed. A
+        # program handed a credential often prints it back in an error, and
+        # `put it` then writes it to a log that is kept for a year.
+        self.revealed = {}
         self.argv = argv or []
         self.trace = trace or trace_to is not None
         # Where the trace goes. stderr by default; a file when the run is long
@@ -637,11 +641,11 @@ class Interpreter:
                              hint="check the name, or that it is on your PATH")
 
         if err:
-            sys.stderr.write(err)
+            sys.stderr.write(self.mask_text(err))
             sys.stderr.flush()
-        self.it = "" if node.streaming else out.rstrip("\n")
+        self.it = "" if node.streaming else self.mask(out.rstrip("\n"))
         self.result = code
-        self.error_output = (err or "").rstrip("\n")
+        self.error_output = self.mask((err or "").rstrip("\n"))
         if node.checked and code != 0:
             raise FrostError(
                 f"{program!r} failed with status {code}", node.line,
@@ -655,6 +659,70 @@ class Interpreter:
             return self.sandbox.wrap(argv, folder)
         except SandboxError as e:
             raise FrostError(e.msg, line, hint=e.hint)
+
+    def remember_secret(self, name, plaintext):
+        """Note a plaintext so it can be scrubbed out of what a child prints.
+
+        Short values are skipped. A one-character secret would match
+        everywhere and turn every line into markers, which is a redaction
+        nobody can read and therefore one people switch off.
+        """
+        if plaintext and len(plaintext) >= 4:
+            self.revealed[plaintext] = name
+
+    def mask(self, text):
+        """Re-seal a secret a child printed back, rather than deleting it.
+
+        The leak is ordinary: `psql` answers `authentication failed for user
+        "deploy" with password hunter2` and `put it` writes that into a build
+        log kept for a year. What comes back out of a program is not sealed,
+        because frost did not create it.
+
+        The first version of this replaced the plaintext with a marker, which
+        closed the leak and broke the value: a token fetched from a credential
+        helper would come back redacted and could never be used. Sealing is
+        the mechanism that already solves that. The value keeps its plaintext
+        and redacts when printed, so `put it` is safe and `run "x" with it`
+        still hands over the real thing, exactly as a secret read from the
+        keystore does.
+
+        Exact match, and it says so. A program that transforms a secret before
+        printing it defeats this, and `--explain` already reports the release
+        point where the secret was handed over. It narrows a common leak; it
+        does not detect sensitive data by shape, which is a different job and
+        one that misses quietly.
+
+        One hole worth naming rather than leaving to be found: inside a
+        `pipe`, only the last stage's streams pass through frost. Earlier
+        stages inherit the terminal directly, so what they print is never seen
+        here and cannot be sealed.
+        """
+        if not text or not self.revealed:
+            return text
+        segments = [(text, None)]
+        for plaintext, name in self.revealed.items():
+            if not plaintext:
+                continue
+            out = []
+            for chunk, origin in segments:
+                if origin is not None or plaintext not in chunk:
+                    out.append((chunk, origin))
+                    continue
+                parts = chunk.split(plaintext)
+                for i, part in enumerate(parts):
+                    if i:
+                        out.append((plaintext, name))
+                    if part:
+                        out.append((part, None))
+            segments = out
+        if all(origin is None for _, origin in segments):
+            return text
+        return Sealed(segments=segments)
+
+    def mask_text(self, text):
+        """The same, as plain text, for a stream being written right now."""
+        masked = self.mask(text)
+        return to_text(masked) if isinstance(masked, Sealed) else text
 
     def check_hosts(self, argv, line):
         """Refuse a command whose actual destination the policy forbids.
@@ -795,12 +863,13 @@ class Interpreter:
             raise FrostError(f"{program!r} is not executable", node.line)
 
         if proc.stderr:
-            sys.stderr.write(proc.stderr)
+            sys.stderr.write(self.mask_text(proc.stderr))
             sys.stderr.flush()
 
-        self.it = "" if node.streaming else proc.stdout.rstrip("\n")
+        self.it = ("" if node.streaming
+                   else self.mask(proc.stdout.rstrip("\n")))
         self.result = proc.returncode
-        self.error_output = (proc.stderr or "").rstrip("\n")
+        self.error_output = self.mask((proc.stderr or "").rstrip("\n"))
 
         if node.checked and proc.returncode != 0:
             raise FrostError(
@@ -895,11 +964,11 @@ class Interpreter:
             p.wait()
 
         if err:
-            sys.stderr.write(err)
+            sys.stderr.write(self.mask_text(err))
             sys.stderr.flush()
 
-        self.it = (out or "").rstrip("\n")
-        self.error_output = (err or "").rstrip("\n")
+        self.it = self.mask((out or "").rstrip("\n"))
+        self.error_output = self.mask(err or "").rstrip("\n")
 
         # pipefail by default: the first failing stage wins.
         failed = None
@@ -1280,6 +1349,7 @@ class Interpreter:
     def eval_SecretEnvRef(self, node):
         name = to_text(self.eval(node.name))
         plaintext = self.env.get(name, "")
+        self.remember_secret(name, plaintext)
         if self.journal is not None:
             self.journal.note_secret(name, plaintext)
         return Sealed(plaintext, name)
@@ -1290,6 +1360,7 @@ class Interpreter:
         try:
             with open(resolved) as fh:
                 plaintext = fh.read().rstrip("\n")
+            self.remember_secret(path, plaintext)
             if self.journal is not None:
                 self.journal.note_secret(path, plaintext)
             return Sealed(plaintext, path)
@@ -1308,6 +1379,7 @@ class Interpreter:
                      "script.frost")
         try:
             plaintext = self.keystore.open_secret(name, self.role)
+            self.remember_secret(name, plaintext)
             if self.journal is not None:
                 self.journal.note_secret(name, plaintext)
             return Sealed(plaintext, name)

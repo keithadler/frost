@@ -14,10 +14,16 @@ answer. So the two are checked against each other the way web/chunks.js is
 checked against the interpreter: run the script, observe what actually
 escaped, and compare it with what the manifest promised.
 
-The observation is black-box. A released plaintext is handed to a real
-program, and that program's output comes back into the script as ordinary
-text — so if a secret escaped, it is visible in what the script prints. If
-nothing escaped, it cannot be.
+The observation is black-box, and it happens on disk. A released plaintext is
+handed to a real program, and that program writes what it received to a file
+that nothing in frost touches.
+
+It used to read the program's output back through the script, which was
+simpler and stopped working for a good reason: frost now re-seals a secret
+that a child prints back, so `put it` redacts it. That is the leak being
+closed, and an escape test that observed through `put` would have been
+measuring the redaction rather than the escape. The file is the only place
+left where the truth is unedited.
 """
 
 import io
@@ -55,6 +61,41 @@ def run_and_capture(body):
         return sys.stdout.getvalue() + sys.stderr.getvalue()
     finally:
         sys.stdout, sys.stderr = held_out, held_err
+
+
+def what_the_child_received(body_template):
+    """What a child process actually got, read off disk.
+
+    Not through frost's output: a secret a child prints back is re-sealed, so
+    `put it` redacts it. That is exactly the leak being closed, and observing
+    an escape through `put` would measure the redaction instead of the escape.
+    A file the child writes itself is the only unedited record.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as scratch:
+        seen = os.path.join(scratch, "seen.txt")
+        tree = parse(READ + body_template.format(seen=seen))
+        held_out, held_err = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = io.StringIO(), io.StringIO()
+        try:
+            Interpreter().run_program(tree)
+        finally:
+            sys.stdout, sys.stderr = held_out, held_err
+        if not os.path.exists(seen):
+            return ""
+        with open(seen) as fh:
+            return fh.read()
+
+
+# Writes every argument, not just the first: one case hands the secret second
+# and a relay that only recorded $1 proved the wrong thing about it.
+RELAY = 'run "sh" with "-c", "printf %s \\"$@\\" > {seen}", "sh", '
+
+
+def escaped_to_disk(expr):
+    return PLAINTEXT in what_the_child_received(
+        f"put {expr} into derived\n" + RELAY + "derived\n")
 
 
 def predicted_releases(body):
@@ -103,26 +144,32 @@ def test_the_no_release_cases_actually_run():
 
 # Bodies that genuinely do release, with the program that receives it. Each
 # is run so the escape is *observed*, not merely predicted.
+# (what the manifest should predict, the body that predicts it, the body
+# that proves it). The second body hands the value to a program that writes
+# what it received to a file, because that is the only record frost does not
+# edit on the way past.
 RELEASES = [
-    ('run "echo" with pw\nput it', "argument"),
-    ('run "cat" reading pw\nput it', "input"),
-    ('run "echo" with "prefix", pw\nput it', "argument"),
-    ('put "postgres://" & pw into url\nrun "echo" with url\nput it',
-     "argument"),
-    ('put pw into carrier\nrun "echo" with carrier\nput it', "argument"),
+    ("argument", 'run "echo" with pw', RELAY + "pw\n"),
+    ("input", 'run "cat" reading pw',
+     'run "sh" with "-c", "cat > {seen}" reading pw\n'),
+    ("argument", 'run "echo" with "prefix", pw', RELAY + '"prefix", pw\n'),
+    ("argument", 'put "postgres://" & pw into url\nrun "echo" with url',
+     'put "postgres://" & pw into url\n' + RELAY + "url\n"),
+    ("argument", 'put pw into carrier\nrun "echo" with carrier',
+     "put pw into carrier\n" + RELAY + "carrier\n"),
 ]
 
 
 @needs_coreutils
-@pytest.mark.parametrize("body,where", RELEASES,
-                         ids=[b.split("\n")[0][:40] for b, _ in RELEASES])
-def test_a_predicted_release_is_a_real_one(body, where):
-    """The other direction: the manifest must not cry wolf either. If it
-    says a secret leaves here, the plaintext really does leave here."""
-    predicted = predicted_releases(body)
+@pytest.mark.parametrize("where,predicts,proves", RELEASES,
+                         ids=[p.split("\n")[0][:40] for _, p, _ in RELEASES])
+def test_a_predicted_release_is_a_real_one(where, predicts, proves):
+    """The other direction: the manifest must not cry wolf either. If it says
+    a secret leaves here, the plaintext really does leave here."""
+    predicted = predicted_releases(predicts)
     assert any(w == where for w, _, _ in predicted), (
-        f"the manifest did not predict a {where} release for:\n{body}")
-    assert PLAINTEXT in run_and_capture(body), (
+        f"the manifest did not predict a {where} release for:\n{predicts}")
+    assert PLAINTEXT in what_the_child_received(proves), (
         "the manifest predicted a release that did not happen")
 
 
@@ -137,11 +184,11 @@ def test_a_file_write_release_is_real(tmp_path):
 
 @needs_coreutils
 def test_an_environment_release_is_real():
-    body = ('put pw into the environment variable "FROST_CHILD_CANARY"\n'
-            'run "sh" with "-c", "printf %s \\"$FROST_CHILD_CANARY\\""\n'
-            "put it")
-    assert any(w == "environment" for w, _, _ in predicted_releases(body))
-    assert PLAINTEXT in run_and_capture(body)
+    predicts = 'put pw into the environment variable "FROST_CHILD_CANARY"\n'
+    proves = (predicts + 'run "sh" with "-c", '
+              '"printf %s \\"$FROST_CHILD_CANARY\\" > {seen}"\n')
+    assert any(w == "environment" for w, _, _ in predicted_releases(predicts))
+    assert PLAINTEXT in what_the_child_received(proves)
 
 
 # --------------------------------------------------------- generated cases
@@ -190,7 +237,7 @@ def test_every_derived_value_is_still_reported_when_released(expr):
 def test_and_the_derived_value_really_does_escape(expr):
     """Closing the loop: the manifest says it escapes, and it escapes."""
     body = f'put {expr} into derived\nrun "echo" with derived\nput it'
-    escaped = PLAINTEXT in run_and_capture(body)
+    escaped = escaped_to_disk(expr)
     # Some derivations legitimately change the text — uppercasing, sorting,
     # taking one word. What must hold is that *something* derived from the
     # secret escaped, and the manifest said so.
