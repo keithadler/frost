@@ -390,3 +390,138 @@ def test_a_narrowing_reads_as_english():
     assert "reachs" not in text
     assert "processs" not in text
     assert "it no longer needs to reach x.example" in text
+
+
+# ------------------------------------------- what the analyser can actually see
+
+def hosts(source):
+    return sorted({h for h, _ in caps_of(source).reaches})
+
+
+def test_a_host_survives_being_joined_to_a_path():
+    """`"https://api.github.com/repos/" & repo` was called an unknowable
+    destination. The authority is closed inside the literal, so nothing after
+    the slash can move it, and reporting it as unknown is not honesty — it is
+    a manifest declining to read what is in front of it."""
+    assert hosts('put item 1 of the arguments into repo\n'
+                 'run "curl" with ("https://api.github.com/repos/" & repo) '
+                 "within 30 seconds\n") == ["api.github.com"]
+
+
+def test_a_host_that_is_genuinely_dynamic_stays_unknown():
+    """Without the terminator the authority is still open: `"https://" & host`
+    could be anywhere, and claiming otherwise would be guessing."""
+    from frostlang.audit import RUNTIME_HOST
+    assert hosts('put item 1 of the arguments into h\n'
+                 'run "curl" with ("https://" & h) within 30 seconds\n') == \
+        [RUNTIME_HOST]
+
+
+def test_a_branch_that_picks_one_of_two_hosts_reports_both():
+    """`constants()` gives up on two different literals because it answers
+    "what is this value". The manifest wants "what could it be"."""
+    assert hosts('if 1 is 1 then\n'
+                 '    put "https://api.prod.example" into host\n'
+                 "else\n"
+                 '    put "https://api.staging.example" into host\n'
+                 "end if\n"
+                 'run "curl" with host within 30 seconds\n') == \
+        ["api.prod.example", "api.staging.example"]
+
+
+def test_a_name_built_at_runtime_is_not_given_a_set():
+    from frostlang.audit import RUNTIME_HOST
+    assert hosts('put the standard input into host\n'
+                 'run "curl" with host within 30 seconds\n') == [RUNTIME_HOST]
+
+
+def test_constant_sets_poison_the_same_things_constants_do():
+    from frostlang.audit import constant_sets
+    from frostlang.parser import parse as _parse
+    sets = constant_sets(_parse(
+        'put "a" into stable\n'
+        'put "b" into stable\n'
+        'put "x" into appended\n'
+        'put "y" after appended\n'
+        'repeat 2 times\n    put "z" into looped\nend repeat\n'))
+    assert sets["stable"] == ["a", "b"]
+    assert "appended" not in sets
+    assert "looped" not in sets
+
+
+# ------------------------------------------------- per-host policy rules
+
+def check_policy(source, policy):
+    from frostlang.audit import parse_policy, check
+    return check(caps_of(source), parse_policy(policy))
+
+
+REACHES_TWO = ('run "curl" with "https://api.github.com/x" within 30 seconds\n'
+               'run "curl" with "https://metrics.telemetry.example/y" '
+               "within 30 seconds\n")
+
+
+def test_a_host_can_be_forbidden_by_name():
+    """The kernel cannot hold a per-host boundary, but the text can be checked
+    against one before anything runs. Different guarantees, both real."""
+    findings = check_policy(REACHES_TWO,
+                            'forbid reaching "*.telemetry.example"\n')
+    assert [f.what for f in findings] == ["reaching metrics.telemetry.example"]
+
+
+def test_an_allow_list_of_hosts_refuses_anything_else():
+    findings = check_policy(REACHES_TWO,
+                            'require reaching only "api.github.com"\n')
+    assert len(findings) == 1
+    assert "not in the allow-list" in findings[0].what
+
+
+def test_an_allow_list_accepts_a_host_it_had_to_derive():
+    findings = check_policy(
+        'put item 1 of the arguments into repo\n'
+        'run "curl" with ("https://api.github.com/repos/" & repo) '
+        "within 30 seconds\n",
+        'require reaching only "api.github.com"\n')
+    assert findings == []
+
+
+def test_an_unknowable_destination_fails_an_allow_list():
+    """Fail closed. A destination nobody can read cannot be shown to be in the
+    list, and 'cannot be shown' is not 'is'."""
+    findings = check_policy('put the standard input into t\n'
+                            'run "curl" with t within 30 seconds\n',
+                            'require reaching only "api.github.com"\n')
+    assert len(findings) == 1
+    assert "built at runtime" in findings[0].what
+
+
+def test_an_unknowable_destination_also_trips_a_forbid_rule():
+    findings = check_policy('put the standard input into t\n'
+                            'run "curl" with t within 30 seconds\n',
+                            'forbid reaching "telemetry.example"\n')
+    assert findings, "an uncheckable destination slipped past a host rule"
+
+
+def test_a_host_rule_carries_its_comment_as_a_hint():
+    findings = check_policy(
+        REACHES_TWO,
+        'forbid reaching "*.telemetry.example"  -- no third party reporting\n')
+    assert findings[0].hint == "no third party reporting"
+
+
+def test_an_allow_list_with_no_hosts_is_refused():
+    from frostlang.audit import parse_policy, PolicyError
+    with pytest.raises(PolicyError) as e:
+        parse_policy("require reaching only everything\n")
+    assert "name the hosts in quotes" in str(e.value)
+
+
+def test_a_per_host_sandbox_rule_is_still_refused():
+    """The distinction the docs have to keep: a policy bounds what the text
+    can reach, and the sandbox bounds what the process can reach, all or
+    nothing. Blurring them would promise kernel enforcement that does not
+    exist."""
+    from frostlang.audit import parse_policy, PolicyError
+    with pytest.raises(PolicyError) as e:
+        parse_policy('sandbox may reach "api.github.com"\n')
+    assert "cannot allow one host" in str(e.value)

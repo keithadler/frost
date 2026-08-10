@@ -382,6 +382,33 @@ one that never finishes and a buffered trace of a wedged script is an empty
 file. It prints source text and never runtime values, so a credential cannot
 reach it.
 
+### Rules about where a script reaches
+
+```policy
+forbid reaching "*.telemetry.example"   -- no third-party reporting from here
+require reaching only "api.github.com", "*.internal"
+```
+
+Checked against the text, before anything runs. That is possible because the
+analyser reads a host out of a joined URL when the literal closes the
+authority — `"https://api.github.com/repos/" & repo` reaches
+`api.github.com`, and nothing after the slash can move it — and because a name
+whose definitions are all literals contributes every one of them, so a branch
+choosing between two hosts is two known hosts rather than an unknown one.
+
+A destination that genuinely cannot be read fails both rules. "Cannot be shown
+to be allowed" is not "is allowed", and an allow-list that quietly passed the
+one case nobody can check would be worth nothing.
+
+**This is not the sandbox.** `sandbox may reach "api.github.com"` is still a
+parse error: macOS filters on addresses rather than names, and a Linux network
+namespace has no middle setting, so a per-host boundary is not something the
+kernel here can hold. A policy bounds what the *text* can reach; the sandbox
+bounds what the *process* can reach, all or nothing. Keeping those apart
+matters, because the second is the stronger guarantee and the first is the
+more precise one, and pretending either is the other would be a lie in
+whichever direction someone relied on it.
+
 ### Approving what a script may do
 
 `--frozen` asks whether a script is byte-identical to the one that was
