@@ -30,6 +30,9 @@ contract instead of trusted as a guess.
 | **Records and JSON** | `the "name" of the "user" of report` — API responses without a second language in the file. Shelling out to `jq` handed the auditor a string it could not see into; a record is part of the tree. |
 | **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
 | **Declared record shapes** | `with fields "status", "number"` makes a mistyped field a `--check` failure instead of a silent empty, and verifies the payload at the line that parsed it. |
+| **Site policy** | `/etc/frost/policy.d/*.policy` applies to every run on the host, whether or not anyone passed `--policy`. Site rules add to a project's and can only narrow them, and every policy applied is named by digest in the manifest and the recording. |
+| **`--automated`** | An unattended run refuses `--approve` and `--ignore-approval`. A repair loop that can approve is one that approves its own capability escalation. |
+| **Signed approvals** | `--sign-with` binds an approval to a named approver and a commit; `require an approval signed by "..."` names who a host trusts. Verification never degrades: without the cipher, an unverifiable signature is refused. |
 | **`--approve`** | Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability. |
 | **SARIF and an Action** | `--check --sarif` feeds GitHub code scanning, so a refusal appears on the diff line in front of the person merging rather than in a log nobody opens. `action.yml` wires check, explain, policy and approvals into six lines of workflow. |
 | **`--policy-from`** | Writes a starter policy describing what a script already does. The policy engine was the most useful thing here and the least used, because the first step was a blank file. |
@@ -895,6 +898,9 @@ frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
 frost --trace-to-file F s.frost  write that trace to a file instead
 frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
+frost --automated s.frost        unattended: refuse anything that widens
+frost --new-approver-key F       a signing key for approvals
+frost --approve --sign-with F s.frost   an approval somebody is accountable for
 frost --check --sarif s.frost    findings for code scanning on a pull request
 frost --policy-from s.frost      a starter policy describing what it does
 frost --explain --against F s.frost   what changed since it was approved
@@ -948,6 +954,8 @@ frostlang/
     modules.py        import resolution, ceilings, lockfile
     baseline.py       what a script was approved to do
     runid.py          one identity per execution
+    site.py           policy the host brings, and its provenance
+    signing.py        approvals bound to an approver and a commit
     sarif.py          findings for code review tools
     scaffold.py       a starter policy from a manifest
     browser.py        the analysis surface with no OS underneath
@@ -962,7 +970,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1764 tests — python3 -m pytest tests/ -q
+tests/                1809 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -979,7 +987,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1764 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1809 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

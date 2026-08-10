@@ -901,6 +901,8 @@ RULE_PATTERNS = [
     # Enforced by the driver rather than here: whether an approval exists is a
     # fact about the filesystem, and `check` is given a parse tree and nothing
     # else on purpose.
+    (re.compile(r'^require\s+an\s+approval\s+signed\s+by\s+(.+?)\s*$'),
+     "approval_signed"),
     (re.compile(r'^require\s+an\s+approval\s*$'), "approval"),
 
     # The sandbox boundary. Allow-shaped, because a deny-list cannot become
@@ -1030,6 +1032,14 @@ def parse_policy(text):
                 rules.append(Rule(kind, g[0], "*", None, n))
             elif kind == "approval":
                 rules.append(Rule(kind, "forbid", "approval", None, n))
+            elif kind == "approval_signed":
+                keys = re.findall(r'"([^"]+)"', g[0])
+                if not keys:
+                    raise PolicyError(
+                        f"policy line {n}: name the approvers' public keys in "
+                        f'quotes.\n  try: require an approval signed by '
+                        f'"kAbC..."')
+                rules.append(Rule(kind, "forbid", "approval", keys, n))
             elif kind == "reach":
                 rules.append(Rule(kind, g[0], g[1], None, n))
             elif kind == "reach_only":
@@ -1228,8 +1238,9 @@ def _check_rules(caps, rules):
                      f"changing the working folder to {path or '(runtime)'}",
                      line))
 
-        elif rule.kind == "approval":
-            continue          # the driver checks this; see cli.open_approval
+        elif rule.kind in ("approval", "approval_signed"):
+            continue          # the driver checks these: whether a file exists
+                              # and who signed it are facts about the disk
 
         elif rule.kind == "reach":
             for host, line in caps.reaches:

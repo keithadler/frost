@@ -90,8 +90,12 @@ class Recorder:
 
     replaying = False
 
-    def __init__(self, identity=""):
+    def __init__(self, identity="", policies=()):
         self.identity = identity
+        # Which rules governed this run, by path and digest. A recording that
+        # cannot say what constrained it proves a policy existed, never that
+        # this run was subject to it.
+        self.policies = list(policies)
         self.events = []
         self.secrets = {}          # plaintext -> name, for scrubbing
         self.stdout = ""
@@ -179,6 +183,7 @@ class Recorder:
             # Top level as well as in the events, so a recording can be joined
             # to an audit log without being parsed.
             "run": self.identity,
+            "policies": self.policies,
             "arguments": list(argv),
             "exit": self.status,
             "stdout": _scrub(self.stdout, self.secrets),

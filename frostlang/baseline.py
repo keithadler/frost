@@ -154,9 +154,15 @@ def path_for(script):
     return script + ".approved"
 
 
-def write(script, caps, path=None):
+def write(script, caps, path=None, sign_with=None, approver=None,
+          commit=None):
     payload = {"schema": SCHEMA, "script": script,
                "capabilities": capability_set(caps)}
+    if commit:
+        payload["commit"] = commit
+    if sign_with:
+        from . import signing
+        payload = signing.sign(payload, sign_with, approver or "unnamed")
     with open(path or path_for(script), "w") as fh:
         json.dump(payload, fh, indent=2, sort_keys=True)
         fh.write("\n")
@@ -184,3 +190,17 @@ def read(path):
             f"{path} records no capabilities",
             hint="re-approve with --approve")
     return payload["capabilities"]
+
+
+def read_whole(path):
+    """The approval as stored, signature and all, for verification."""
+    import json as _json
+    try:
+        with open(path) as fh:
+            return _json.load(fh)
+    except FileNotFoundError:
+        raise BaselineError(
+            f"there is no approval at {path}",
+            hint="record one with --approve, read what it says, and commit it")
+    except ValueError as e:
+        raise BaselineError(f"{path} is not a usable approval: {e}")

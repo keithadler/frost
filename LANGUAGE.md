@@ -444,6 +444,83 @@ matters, because the second is the stronger guarantee and the first is the
 more precise one, and pretending either is the other would be a lie in
 whichever direction someone relied on it.
 
+### Policy the machine brings
+
+Rules in `/etc/frost/policy.d/*.policy` apply to every run on that host,
+whether or not anyone passed `--policy`. A policy beside the script is
+controlled by whoever writes the script, which is right for a project's own
+rules and useless as a datacenter control: the thing being constrained should
+not be holding the constraint.
+
+Site rules are **added** to the project's, never replaced by them. That the
+result can only get stricter is not a special case, it falls out of how policy
+works: every rule is checked independently and all must pass, so two
+`require reaching only` lists compose as an intersection and there is no
+syntax that removes a rule.
+
+There is deliberately no variable meaning "use this policy instead". A knob
+that relaxes a host rule is a bypass with a friendly name, and the first thing
+anyone does with a failing build is look for one.
+`FROST_SITE_POLICY_DIR` only *adds* a directory, for a container or a test
+without a writable `/etc`.
+
+A site policy that is present and unreadable is a refusal, not a shrug.
+
+Every policy that was applied is named by path and digest in `--explain` and
+in any recording:
+
+```text
+Governed by:
+  /etc/frost/policy.d/00-egress.policy  05cd8a0c7c8f  (site)
+  deploy.policy                         9f2a1b40c7de  (project)
+```
+
+Without that, an audit can show a policy existed and never that this run was
+subject to it, which is a claim about a control rather than a control.
+
+### Runs nobody is watching
+
+```bash
+frost --automated deploy.frost        # or FROST_AUTOMATED=1
+```
+
+An automated run refuses `--approve` and `--ignore-approval`. A loop that can
+approve is a loop that approves its own capability escalation, and the failure
+is mundane rather than exotic: an agent hits
+`REFUSED: it can now reach telemetry.example`, and the most helpful-looking
+next step in its search is to re-approve. Everything else works normally, so a
+repair loop can fix syntax and can never fix its way past the gate.
+
+### Approvals somebody is accountable for
+
+An unsigned approval says *that* something was approved. It does not say who
+approved it or what they were looking at, and anything that can write the file
+can grant itself the approval.
+
+```bash
+frost --new-approver-key ~/.frost/keys/alice
+frost --approve --sign-with ~/.frost/keys/alice --approver alice \
+      --commit $GITHUB_SHA deploy.frost
+```
+
+```policy
+require an approval signed by "kA1b2c...", "kZ9y8x..."
+```
+
+The signature covers the capability set, the script, the commit, and the
+approver's own name and key, so it cannot be lifted onto somebody else. An
+approval signed by a key the policy does not name is refused, and so is an
+unsigned one.
+
+Making signatures needs the `keystore` extra. **Verifying never degrades**: if
+a policy demands signed approvals and the library is missing, the answer is a
+refusal. An unverifiable signature is not a valid one.
+
+The commit is recorded and not checked here, because frost cannot know which
+revision is being deployed, only which one the approver said they read.
+Comparing it against the checkout belongs in the pipeline that did the
+checkout.
+
 ### Approving what a script may do
 
 `--frozen` asks whether a script is byte-identical to the one that was
