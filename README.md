@@ -50,6 +50,7 @@ frost --policy p  s.frost      is that allowed here?
 frost --sandbox   s.frost      hold the boundary while it runs
 frost --record r  s.frost      write down what it actually did
 frost s.frost                 refuse it if it gained a capability
+frost --events e  s.frost     tell a monitoring system what happened
 ```
 
 The first three cost about a millisecond and all happen before a single
@@ -447,6 +448,59 @@ Reformatting replays clean, because matching is on the identity of the effect
 rather than on line numbers. Secret values are never written down — only their
 names — and any revealed plaintext is scrubbed from everything recorded, so
 the fixture is safe to commit.
+
+## Telling a monitoring system what happened
+
+```bash
+frost --events run.ndjson deploy.frost      # or - for standard error
+```
+
+One JSON object per line, flushed as things happen. NDJSON is what Splunk's
+HTTP collector, New Relic's log API, Datadog, Vector and Fluent Bit all ingest
+without a translator, and a line-oriented file survives a run that is killed
+halfway, which a single JSON document does not.
+
+```json
+{"event": "run.start",      "declares": {"programs": ["curl"], "hosts": ["x.example"]}}
+{"event": "command.start",  "program": "curl", "argv": ["curl", "-fsS", "..."]}
+{"event": "command.finish", "program": "curl", "status": 0, "seconds": 0.412}
+{"event": "run.finish",     "status": 0, "commands": 3, "waited_seconds": 2.0,
+ "programs_unused": ["psql"], "hosts_unused": ["db.internal"]}
+```
+
+**The resolution worth having is the pairing, not the volume.** Any tool can
+log that a command ran. frost knows what the script was *allowed* to do before
+it ran, what a person *approved*, and what the host *permits* — so the finish
+event reports which approved capabilities went **unused**. A script approved
+for six programs that uses two is an approval somebody should tighten, and
+that is only visible holding the manifest and the run side by side.
+
+Commands are timed, and the run separates time spent working from time spent
+waiting, so a slow job can be attributed rather than guessed at.
+
+**A refusal is an event**, which is the one a security team most wants and the
+easiest to lose. A policy refusal, a breached import ceiling, an approval that
+no longer covers the script, an unusable signature, a secret the role may not
+read: each closes the run out with what fired and the digest of the policy it
+came from.
+
+```json
+{"event": "run.finish", "status": 3, "refused": "policy",
+ "rules": [{"what": "running \"curl\"", "line": 1,
+            "hint": "egress goes through the proxy"}],
+ "policies": [{"path": "/etc/frost/policy.d/00-egress.policy",
+               "sha256": "05cd8a0c7c8f...", "origin": "site"}]}
+```
+
+Contents are never emitted and sizes are: *wrote 4kb* is useful and the 4kb is
+not. Secrets are redacted before an event is written, including inside a
+command's arguments, because telemetry leaves the building far more often than
+a recording does.
+
+It composes with the other modes. `--events` alongside `--record` gives both,
+and a replayed run is marked `"replayed": true` so a dashboard does not count
+a fixture as production traffic. Analysis emits nothing, because `--explain`
+runs nothing and a dashboard should not see a run that never happened.
 
 ## Why this matters for AI agents
 
@@ -1025,6 +1079,15 @@ The gaps this file used to list are closed. In the order they were listed:
   `bubblewrap` on Linux, verified confining in CI on both.
 - **Record and replay**: `--record` writes a committable fixture; `--replay`
   spawns nothing.
+- **Telemetry**: `--events` writes NDJSON for a monitoring system, with every
+  command timed, every refusal reported, and secrets redacted.
+- **A datacenter's own rules**: `/etc/frost/policy.d/*`, applied to every run,
+  composing so they can only narrow, and named by digest in the manifest and
+  the recording.
+- **Approvals somebody signed**: Ed25519, bound to an approver and a commit,
+  verified against keys a policy names.
+- **An automation guard**: `--automated` refuses anything that would widen
+  what a script may do.
 - **Records and JSON**: `the json of it`, `the "status" of report`, nested
   fields, `the json text of` — with sealing preserved in both directions.
 - **Captured standard error**: `the error output`, beside `it` and
@@ -1045,6 +1108,11 @@ Remaining, honestly:
 - **A declared shape is one level deep.** `with fields "a", "b"` checks the
   top level of a record. A nested shape has to be declared by pulling the
   inner record out into its own name first.
+- **No native OTLP exporter.** `--events` is NDJSON, which Splunk, Vector and
+  Fluent Bit read directly and which a collector can forward anywhere. New
+  Relic and Datadog would rather have spans, and `command.start` and
+  `command.finish` are already span-shaped, so that is a format adapter rather
+  than new instrumentation. It is not written yet.
 - **No compile-to-bash mode** for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.
