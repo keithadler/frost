@@ -9,6 +9,7 @@ Two rules do most of the safety work here:
 """
 # SPDX-License-Identifier: MIT
 
+import datetime
 import fnmatch
 import hmac
 import os
@@ -17,8 +18,10 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 from . import ast as A
+from . import structured as S
 from .sealed import Sealed, is_sealed, reveal, seal_like, first_sealed
 
 
@@ -132,6 +135,8 @@ def to_text(v):
         return v.marker
     if isinstance(v, float) and v.is_integer():
         return str(int(v))
+    if isinstance(v, dict):
+        return to_text(S.record_text(v))
     if isinstance(v, list):
         return "\n".join(to_text(x) for x in v)
     return str(v)
@@ -172,6 +177,18 @@ def is_numberish(v):
         return False
 
 
+def _read_clock(which):
+    now = datetime.datetime.now()
+    if which == "date":
+        return now.strftime("%Y-%m-%d")
+    if which == "time":
+        return now.strftime("%H:%M:%S")
+    if which == "timestamp":
+        return datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+    return time.time()          # "seconds", for measuring a duration
+
+
 def format_seconds(seconds):
     if seconds is None:
         return "no limit"
@@ -187,6 +204,8 @@ def format_seconds(seconds):
 def truthy(v):
     if isinstance(v, bool):
         return v
+    if isinstance(v, dict):
+        return bool(v)
     if isinstance(v, (int, float)):
         return v != 0
     text = to_text(v).strip().lower()
@@ -207,6 +226,7 @@ class Interpreter:
         self.handlers = {}
         self.it = ""
         self.result = 0
+        self.error_output = ""
         self.match_groups = []
         self.whole_match = ""
         self.argv = argv or []
@@ -423,6 +443,20 @@ class Interpreter:
             self.cwd = os.path.abspath(path)
             return
 
+        if isinstance(target, A.FieldTarget):
+            if node.mode != "into":
+                raise FrostError(
+                    f"a field can only be set with 'into', not {node.mode!r}",
+                    node.line)
+            try:
+                record = self.read_target(target.source, node.line)
+            except FrostError:
+                record = S.new_record()      # first field creates the record
+            key = to_text(self.eval(target.key))
+            self.write_target(target.source,
+                              S.with_field(record, key, value, node.line))
+            return
+
         if isinstance(target, A.EnvTarget):
             name = to_text(self.eval(target.name))
             if name == "" or "=" in name or "\0" in name:
@@ -474,6 +508,7 @@ class Interpreter:
         except subprocess.TimeoutExpired:
             self.it = ""
             self.result = TIMEOUT_STATUS
+            self.error_output = ""
             if node.checked:
                 raise FrostError(
                     f"{program!r} ran longer than {format_seconds(seconds)} "
@@ -489,6 +524,7 @@ class Interpreter:
             sys.stderr.flush()
         self.it = "" if node.streaming else out.rstrip("\n")
         self.result = code
+        self.error_output = (err or "").rstrip("\n")
         if node.checked and code != 0:
             raise FrostError(
                 f"{program!r} failed with status {code}", node.line,
@@ -579,6 +615,7 @@ class Interpreter:
                 partial = partial.decode(errors="replace")
             self.it = partial.rstrip("\n")
             self.result = TIMEOUT_STATUS
+            self.error_output = ""
             if node.checked:
                 raise FrostError(
                     f"{program!r} ran longer than "
@@ -600,6 +637,7 @@ class Interpreter:
 
         self.it = "" if node.streaming else proc.stdout.rstrip("\n")
         self.result = proc.returncode
+        self.error_output = (proc.stderr or "").rstrip("\n")
 
         if node.checked and proc.returncode != 0:
             raise FrostError(
@@ -681,6 +719,7 @@ class Interpreter:
                 p.wait()
             self.it = ""
             self.result = TIMEOUT_STATUS
+            self.error_output = ""
             if node.checked:
                 raise FrostError(
                     f"the pipe ran longer than {format_seconds(seconds)} "
@@ -696,6 +735,7 @@ class Interpreter:
             sys.stderr.flush()
 
         self.it = (out or "").rstrip("\n")
+        self.error_output = (err or "").rstrip("\n")
 
         # pipefail by default: the first failing stage wins.
         failed = None
@@ -957,6 +997,56 @@ class Interpreter:
 
     def eval_ArgList(self, node):
         return list(self.argv)
+
+    def exec_Wait(self, node):
+        """Sleep, unless this is a replay — then the wait is already known to
+        have happened and re-serving it would only make the replay slow."""
+        seconds = to_number(self.eval(node.seconds), node.line)
+        if seconds < 0:
+            raise FrostError("a wait cannot be negative", node.line)
+        if self.journal is None:
+            time.sleep(seconds)
+            return
+        self.journal.wait(node.line, seconds, time.sleep)
+
+    def eval_ErrorRef(self, node):
+        return self.error_output
+
+    def eval_EmptyRecord(self, node):
+        return S.new_record()
+
+    def eval_FieldRef(self, node):
+        return S.field(self.eval(node.source), self.eval(node.key), node.line)
+
+    def eval_KeysOf(self, node):
+        return S.keys_of(self.eval(node.expr), node.line)
+
+    def eval_ValuesOf(self, node):
+        return S.values_of(self.eval(node.expr), node.line)
+
+    def eval_JsonOf(self, node):
+        try:
+            return S.from_json(self.eval(node.expr))
+        except S.JsonError as e:
+            raise FrostError(
+                e.msg, node.line,
+                hint="a command that failed often writes an error message "
+                     "where JSON was expected — check 'the result' first, and "
+                     "'the error output' to see what it said")
+
+    def eval_JsonTextOf(self, node):
+        return S.to_json(self.eval(node.expr))
+
+    def eval_ClockRef(self, node):
+        """A clock reading, written down so a replay stays deterministic.
+
+        A recording whose timestamps move every time it is replayed is not a
+        fixture, it is a diff generator — the same reason command output is
+        recorded rather than re-fetched.
+        """
+        if self.journal is None:
+            return _read_clock(node.which)
+        return self.journal.clock(node.line, node.which, _read_clock)
 
     def eval_CurrentFolder(self, node):
         return self.cwd

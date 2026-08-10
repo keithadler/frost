@@ -30,6 +30,8 @@ file boundary only where data does: through the arguments of a handler call.
 """
 # SPDX-License-Identifier: MIT
 
+import dataclasses
+
 import fnmatch
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -155,13 +157,25 @@ def _names(node):
 # ------------------------------------------------------------- the audit
 
 def merge(into, other):
-    for name in ("commands", "reads", "writes", "deletes", "env_reads",
-                 "env_writes", "folder_changes", "secret_reads",
-                 "secret_releases", "exit_codes", "handlers",
-                 "read_fragments", "write_fragments"):
-        getattr(into, name).extend(getattr(other, name))
-    into.cleanups.extend(other.cleanups)
-    into.dynamic += other.dynamic
+    """Combine one file's capabilities into the running total.
+
+    Derived from the dataclass rather than a hand-written list of field
+    names. The list version silently dropped any capability added later —
+    `waits` was collected correctly, survived the single-file audit, and
+    vanished from `--explain`, because nobody remembers to edit a tuple in a
+    different module. A manifest that quietly omits a capability is the one
+    failure this whole program cannot afford.
+    """
+    for f in dataclasses.fields(other):
+        value = getattr(other, f.name)
+        if isinstance(value, list):
+            getattr(into, f.name).extend(value)
+        elif isinstance(value, int):
+            setattr(into, f.name, getattr(into, f.name) + value)
+        else:                                     # pragma: no cover
+            raise TypeError(
+                f"merge does not know how to combine {f.name} "
+                f"({type(value).__name__}); teach it before adding the field")
     return into
 
 

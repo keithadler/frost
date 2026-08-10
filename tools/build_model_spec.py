@@ -58,6 +58,7 @@ pipe / end pipe                   block of `run` stages; fails if ANY stage fail
 if COND then ... else ... end if
 repeat N times / repeat with i from 1 to N / repeat while COND
 repeat for each line in EXPR as NAME
+wait 3 seconds                    pause; the unit is required
 exit repeat, next repeat
 add 1 to NAME, subtract 1 from NAME
 replace "regex" with "text" in NAME
@@ -127,11 +128,43 @@ X matches "^(\\d{3})"         regex; then match 1, the last match,
 every match of "\\d+" in X    list of matches
 ```
 
+## Records and JSON — never shell out to jq
+
+```text
+the json of TEXT             parse; objects become records, arrays become lists
+the "status" of report       a field, by name
+the "name" of the "user" of report        they nest
+the keys of R / the values of R
+the empty record
+put "ok" into the "status" of summary     assign a field (creates the record)
+the json text of R           serialise
+```
+
+A missing key is empty, exactly as `word 99 of` is, and a field of empty is
+empty — so an optional field needs no guard. A field of *text* is an error:
+that means the value is not the shape you think it is.
+
+Numbers stay numbers, so `the "count" of r + 1` works. Parsing a secret seals
+every field it produces.
+
 ## Special values
 
-`it` (last output), `the result` (last exit status), `the arguments`,
+`it` (last output), `the result` (last exit status), `the error output`
+(what the last command wrote to standard error), `the arguments`,
 `the environment variable "NAME"`, `the current folder`, `the standard input`,
-`the global NAME`, `empty`.
+`the global NAME`, `the current date` / `time` / `timestamp` / `seconds`,
+`empty`.
+
+Prefer `the error output` over `run "sh" with "-c", "... 2>&1"`. Inspecting
+why a command failed is a normal thing to do and does not need a shell:
+
+```text
+try to run "curl" with "-fsS", url within 30 seconds
+if the result is not 0 then
+    put "curl failed:" && the error output into standard error
+    quit with status 1
+end if
+```
 
 ## Secrets
 

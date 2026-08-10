@@ -56,6 +56,8 @@ HARD_WORDS = {
 TRANSFORMS = {"uppercase", "lowercase", "trimmed", "sorted", "reversed",
               "unique", "rounded", "absolute"}
 AGGREGATES = {"sum", "largest", "smallest", "average"}
+# Also only after `the current`, so `date` and `time` stay ordinary names.
+CLOCK_READINGS = {"date", "time", "timestamp", "seconds"}
 
 CHUNK_SINGULAR = {
     "character": "character", "char": "character",
@@ -89,7 +91,7 @@ TIME_UNITS = {
 STATEMENT_STARTERS = {
     "put", "run", "try", "pipe", "if", "repeat", "quit", "to", "return",
     "add", "subtract", "multiply", "divide", "exit", "next", "delete",
-    "ensure", "use",
+    "ensure", "use", "wait",
 }
 
 # What an import may allow a module to do. The vocabulary is the policy
@@ -218,6 +220,8 @@ class Parser:
         w = t.value
         if w == "put":
             return self.parse_put()
+        if w == "wait":
+            return self.parse_wait()
         if w == "run":
             return self.parse_run(checked=True)
         if w == "try":
@@ -261,6 +265,29 @@ class Parser:
         self.expect_end_of_statement()
         return A.Put(expr, target, mode, line)
 
+    def parse_wait(self):
+        """`wait 3 seconds` — the unit is required, as it is for `within`.
+
+        A bare number would read as 3 of something and mean milliseconds on
+        one machine and seconds on another. The same argument as timeouts.
+        """
+        line = self.advance().line
+        self.reading_timeout = True
+        try:
+            amount = self.parse_additive()
+        finally:
+            self.reading_timeout = False
+        if not (self.cur.kind == "WORD" and self.cur.value in TIME_UNITS):
+            raise ParseError(
+                "a wait needs a unit", self.cur.line,
+                hint="try: wait 3 seconds / wait 500 milliseconds",
+                code="wait-needs-a-unit")
+        scale = TIME_UNITS[self.advance().value]
+        self.expect_end_of_statement()
+        if scale != 1:
+            amount = A.BinOp("*", amount, A.Lit(scale), line)
+        return A.Wait(amount, line)
+
     def parse_target(self):
         if self.at_word("standard"):
             self.advance()
@@ -288,12 +315,18 @@ class Parser:
                 self.advance()
                 self.expect_word("folder")
                 return A.FolderTarget()
+            if self.cur.kind == "STR" or self.at_op("("):
+                key = self.parse_primary()
+                self.expect_word("of", hint='write: put "ok" into the '
+                                            '"status" of summary')
+                return A.FieldTarget(key, self.parse_assign_target())
             raise ParseError(
                 f"cannot assign to 'the {self.describe(self.cur)[1:-1]}'"
                 if self.cur.kind == "WORD" else "expected something writable",
                 line,
                 hint="the writable ones are: the global <name> / "
-                     'the environment variable "NAME" / the current folder')
+                     'the environment variable "NAME" / the current folder / '
+                     'the "key" of <record>')
         return A.VarTarget(self.parse_identifier(target_position=True))
 
     def parse_assign_target(self):
@@ -1136,6 +1169,44 @@ class Parser:
                 return A.SecretFileRef(self.parse_primary(), line)
             return A.SecretRef(self.parse_primary(), line)
 
+        # `the "status" of report` and `the (key) of report`. Gated on the
+        # token after `the` being a string or a parenthesis, so every existing
+        # `the <word>` form is untouched and `status count` is still a name.
+        if self.cur.kind == "STR" or self.at_op("("):
+            key = self.parse_primary()
+            self.expect_word("of", hint='write: the "status" of report')
+            return A.FieldRef(key, self.parse_chunk_source(), line)
+
+        if self.at_word("error") and self.at_word("output", offset=1):
+            self.advance()
+            self.advance()
+            return A.ErrorRef(line)
+
+        if self.at_word("json"):
+            self.advance()
+            if self.at_word("text"):
+                self.advance()
+                self.expect_word("of")
+                return A.JsonTextOf(self.parse_tight_value(), line)
+            self.expect_word("of", hint="'the json of X' parses X; "
+                                        "'the json text of X' writes it")
+            return A.JsonOf(self.parse_tight_value(), line)
+
+        if self.at_word("keys") and self.at_word("of", offset=1):
+            self.advance()
+            self.advance()
+            return A.KeysOf(self.parse_chunk_source(), line)
+
+        if self.at_word("values") and self.at_word("of", offset=1):
+            self.advance()
+            self.advance()
+            return A.ValuesOf(self.parse_chunk_source(), line)
+
+        if self.at_word("empty") and self.at_word("record", offset=1):
+            self.advance()
+            self.advance()
+            return A.EmptyRecord(line)
+
         if self.at_word("empty") and self.at_word("list", offset=1):
             self.advance()
             self.advance()
@@ -1162,7 +1233,12 @@ class Parser:
 
         if self.at_word("current"):
             self.advance()
-            self.expect_word("folder")
+            if self.cur.kind == "WORD" and self.cur.value in CLOCK_READINGS:
+                return A.ClockRef(self.advance().value, line)
+            self.expect_word(
+                "folder",
+                hint="try: the current folder / the current date / "
+                     "the current time / the current timestamp")
             return A.CurrentFolder(line)
 
         if self.at_word("global"):
