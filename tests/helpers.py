@@ -13,7 +13,7 @@ import textwrap
 import pytest
 
 from frostlang.parser import parse
-from frostlang.interp import Interpreter
+from frostlang.interp import Interpreter, FrostError
 from frostlang.audit import audit, find_dangers
 from frostlang.repl import Repl
 
@@ -40,6 +40,26 @@ def run(src, argv=None, cwd=None):
 def out(src, **kw):
     """Run a script and return its stdout, stripped."""
     return run(src, **kw)[0].strip()
+
+
+def run_failing(src, **kw):
+    """Run a script expected to raise. Returns (stdout, the FrostError).
+
+    `run` loses stdout when the script raises, which is exactly the output a
+    cleanup-block test needs to see.
+    """
+    src = textwrap.dedent(src)
+    tree = parse(src)
+    interp = Interpreter(argv=kw.get("argv") or [], cwd=kw.get("cwd"))
+    old = sys.stdout
+    sys.stdout = io.StringIO()
+    try:
+        interp.run_program(tree)
+        raise AssertionError("the script was expected to fail, but did not")
+    except FrostError as e:
+        return sys.stdout.getvalue(), e
+    finally:
+        sys.stdout = old
 
 
 def err(src, **kw):
