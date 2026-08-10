@@ -39,12 +39,11 @@ jobs:
 
       - name: Install
         run: python -m pip install --upgrade pip && pip install -e ".[dev]"
-      - name: Does the Linux backend actually confine here?
-        if: runner.os == 'Linux'
-        # Reported, not asserted, until it has been observed working: this is
-        # a fact about the runner image, and guessing at it from a laptop is
-        # what produced the last three red runs.
-        continue-on-error: true
+      - name: Does the backend actually confine here?
+        # Asserted, now that it has been observed passing on both runner
+        # images. If a future image restricts user namespaces again this goes
+        # red, which is the point — a backend nobody has run is a backend
+        # nobody has, and that should never surface as a silent skip.
         run: |
           python -c "import frostlang.sandbox as s; ok, why = s.self_test(); \
             print('backend:', s.describe_backend()); print('confines:', ok, '|', why); \
@@ -52,9 +51,9 @@ jobs:
 
       - name: Test
         env:
-          # macOS is known to confine; Linux is not asserted until the step
-          # above has been seen to pass on the runner image.
-          FROST_REQUIRE_SANDBOX: ${{ runner.os == 'macOS' && '1' || '' }}
+          # Both platforms confine, so neither is allowed to skip the sandbox
+          # tests and still call the suite green.
+          FROST_REQUIRE_SANDBOX: "1"
         run: python -m pytest tests/ -q
 
       - name: The keystore is optional — everything else works without it
@@ -122,6 +121,8 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - run: python -m pip install --upgrade pip && pip install -e ".[dev]"
       - name: Measure
+        env:
+          FROST_REQUIRE_SANDBOX: "1"
         run: |
           python -m pytest tests/ -q \
             --cov=frostlang --cov-report=term-missing --cov-fail-under=90
