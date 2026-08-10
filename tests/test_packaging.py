@@ -94,6 +94,30 @@ def test_ci_verifies_the_two_evaluators_agree():
     assert "verify_chunks" in read(".github", "workflows", "ci.yml")
 
 
+def test_the_chunk_corpus_is_not_passed_to_node_on_the_command_line():
+    """It is over a megabyte of JSON — under macOS's argument limit and over
+    Linux's, so as argv it passed locally and failed in CI with
+    `Argument list too long`. It goes in on stdin instead."""
+    source = read("tools", "verify_chunks.py")
+    assert "process.argv" not in source
+    assert "input=json.dumps(cases)" in source
+
+
+def test_the_corpus_really_is_too_big_for_argv():
+    """Guards the test above from becoming a rule nobody needs: if the corpus
+    ever shrank below the limit, the constraint would be invisible."""
+    import sys
+    sys.path.insert(0, os.path.join(REPO, "tools"))
+    import verify_chunks
+    payload = json.dumps([{"expr": e, "subject": s}
+                          for s in verify_chunks.SUBJECTS.values()
+                          for e in verify_chunks.corpus()])
+    # Linux caps a single argument at 128 KiB regardless of total ARG_MAX.
+    assert len(payload) > 128 * 1024, (
+        f"the corpus is only {len(payload)} bytes; argv would now work, and "
+        f"the stdin requirement above would be untested folklore")
+
+
 def test_ci_runs_on_more_than_one_operating_system():
     workflow = read(".github", "workflows", "ci.yml")
     assert "ubuntu-latest" in workflow and "macos-latest" in workflow

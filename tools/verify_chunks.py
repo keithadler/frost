@@ -175,25 +175,33 @@ def python_eval(expr, subject):
 
 
 def js_eval_all(cases):
-    """One node process for the whole corpus, to keep the build quick."""
+    """One node process for the whole corpus, to keep the build quick.
+
+    The corpus goes in on stdin rather than argv. As an argument it is over a
+    megabyte of JSON, which is under macOS's limit and over Linux's, so this
+    passed locally and failed in CI with `Argument list too long`.
+    """
     program = """
 const frost = require(%s);
-const cases = JSON.parse(process.argv[1]);
-const out = cases.map(function (c) {
-  try {
-    const v = frost.evaluate(c.expr, c.subject);
-    if (Array.isArray(v)) return ["list", v.map(frost.text)];
-    return ["value", frost.text(v)];
-  } catch (e) {
-    if (e && e.msg !== undefined) return ["error", "syntax_or_runtime"];
-    return ["error", "threw:" + (e && e.message)];
-  }
+let raw = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", function (chunk) { raw += chunk; });
+process.stdin.on("end", function () {
+  const out = JSON.parse(raw).map(function (c) {
+    try {
+      const v = frost.evaluate(c.expr, c.subject);
+      if (Array.isArray(v)) return ["list", v.map(frost.text)];
+      return ["value", frost.text(v)];
+    } catch (e) {
+      if (e && e.msg !== undefined) return ["error", "syntax_or_runtime"];
+      return ["error", "threw:" + (e && e.message)];
+    }
+  });
+  process.stdout.write(JSON.stringify(out));
 });
-process.stdout.write(JSON.stringify(out));
 """ % json.dumps(JS)
-    proc = subprocess.run(
-        ["node", "-e", program, json.dumps(cases)],
-        capture_output=True, text=True)
+    proc = subprocess.run(["node", "-e", program], input=json.dumps(cases),
+                          capture_output=True, text=True)
     if proc.returncode != 0:
         raise SystemExit("node failed:\n" + proc.stderr)
     return json.loads(proc.stdout)
