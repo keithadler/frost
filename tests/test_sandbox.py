@@ -424,7 +424,6 @@ def test_wrapping_refuses_a_program_outside_the_boundary(tmp_path):
     guard.close()
 
 
-@pytest.mark.skipif(BACKEND != S.BACKEND_MACOS, reason="macOS profile")
 def test_the_macos_profile_denies_by_default(tmp_path):
     boundary = Boundary()
     boundary.writes = ["build/*"]
@@ -434,7 +433,6 @@ def test_the_macos_profile_denies_by_default(tmp_path):
     assert str(tmp_path / "build") in profile
 
 
-@pytest.mark.skipif(BACKEND != S.BACKEND_MACOS, reason="macOS profile")
 def test_the_macos_profile_opens_the_network_only_when_asked(tmp_path):
     closed = S.macos_profile(Boundary(), str(tmp_path))
     assert "(allow network*)" not in closed
@@ -539,3 +537,56 @@ def test_the_documentation_does_not_promise_per_host_rules():
         text = fh.read()
     assert "cannot do" in text.lower()
     assert "per-host" in text.lower() or "one host" in text.lower()
+
+# The generators, checked on every platform. Each backend's text was only ever
+# examined on the machine that could run it, so half of it was untested
+# wherever the suite happened to be. These build strings and need no kernel.
+
+def test_the_macos_profile_names_every_allowed_write(tmp_path):
+    boundary = Boundary()
+    boundary.writes = ["build/*", "/tmp/frost-scratch"]
+    boundary.deletes = ["build/old/*"]
+    profile = S.macos_profile(boundary, str(tmp_path))
+    assert f'(subpath "{tmp_path}/build")' in profile
+    assert '(literal "/private/tmp/frost-scratch")' in profile or \
+           '(literal "/tmp/frost-scratch")' in profile
+    assert f'(subpath "{tmp_path}/build/old")' in profile
+
+
+def test_the_macos_profile_turns_a_glob_into_a_regex(tmp_path):
+    boundary = Boundary()
+    boundary.writes = ["log-????.txt"]
+    profile = S.macos_profile(boundary, str(tmp_path))
+    assert "(regex" in profile
+    assert "[^/]" in profile
+
+
+def test_the_glob_translation_escapes_what_a_regex_would_read(tmp_path):
+    assert S._glob_to_regex("a.b") == "a\\.b"
+    assert S._glob_to_regex("a*b") == "a[^/]*b"
+    assert S._glob_to_regex("a?b") == "a[^/]b"
+    assert S._glob_to_regex("a+b") == "a\\+b"
+
+
+def test_the_macos_profile_lets_a_process_have_its_own_scratch(tmp_path):
+    """A program that cannot open /dev/null fails in ways that read as frost
+    being broken rather than as the sandbox working."""
+    profile = S.macos_profile(Boundary(), str(tmp_path))
+    assert '(allow file-write* (literal "/dev/null"))' in profile
+
+
+def test_the_bubblewrap_argv_is_read_on_every_platform(tmp_path):
+    """The twin of the above: the Linux wrapper was only examined on Linux."""
+    boundary = Boundary()
+    boundary.network = True
+    argv = S.bubblewrap_argv(boundary, str(tmp_path))
+    assert argv[0] == "bwrap"
+    assert "--ro-bind" in argv and "--die-with-parent" in argv
+    assert "--unshare-net" not in argv
+
+
+def test_a_writable_root_stops_at_the_first_glob(tmp_path):
+    assert S._writable_root("build/*", str(tmp_path)) == str(tmp_path / "build")
+    assert S._writable_root("build/a/b.txt", str(tmp_path)) == \
+        str(tmp_path / "build" / "a" / "b.txt")
+    assert S._writable_root("*", str(tmp_path)) == str(tmp_path)
