@@ -8,3 +8,6 @@ build/
 htmlcov/
 .venv/
 venv/
+
+# Assembled by tools/build_site.py for GitHub Pages; published, not committed.
+site/

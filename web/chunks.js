@@ -21,6 +21,7 @@
                     reversed:1, unique:1, rounded:1, absolute:1};
   var AGGREGATES = {sum:1, largest:1, smallest:1, average:1};
 
+  root.__each = root.__each || [];
   function tokenize(src) {
     var toks = [], i = 0;
     while (i < src.length) {
@@ -206,6 +207,14 @@
       if (t.k !== "WORD") throw new Err("expected a value but found " + this.describe(t));
 
       if (t.v === "it") { this.next(); return this.subject; }
+      if (t.v === "each") {
+        this.next();
+        if (!root.__each.length)
+          throw new Err("'each' has no value here",
+            "it names the item being weighed, so it only means something "
+            + "inside a sort key");
+        return root.__each[root.__each.length - 1];
+      }
       if (t.v === "empty") { this.next(); return ""; }
       if (t.v === "true") { this.next(); return true; }
       if (t.v === "false") { this.next(); return false; }
@@ -294,6 +303,27 @@
         this.want("of");
         return field(this.chunkSource(), text(key));
       }
+      if (this.atWord("padded")) {
+        this.next();
+        var pv = this.unary();
+        this.want("to");
+        var pw = Math.trunc(num(this.unary()));
+        if (pw < 0) throw new Err("a width cannot be negative");
+        var side = "right";
+        if (this.atWord("on")) {
+          this.next(); this.want("the");
+          if (!this.atWord("left") && !this.atWord("right"))
+            throw new Err("padding goes on the left or the right");
+          side = this.next().v;
+        }
+        var pt = text(pv);
+        while (pt.length < pw) pt = side === "left" ? " " + pt : pt + " ";
+        return pt;
+      }
+      if (this.atWord("duration")) {
+        this.next(); this.want("of");
+        return humanDuration(num(this.unary()));
+      }
       if (this.atWord("json")) {
         this.next();
         if (this.atWord("text")) {
@@ -325,7 +355,34 @@
       if (this.cur().k === "WORD" && this.cur().v in TRANSFORMS) {
         var op = this.next().v;
         if (this.atWord("of")) this.next();
-        return transform(op, this.unary());
+        var src = this.unary();
+        if (op === "sorted" && this.atWord("by")) {
+          this.next();
+          var start = this.i;
+          var items = asList(src), keys = [];
+          for (var n = 0; n < items.length; n++) {
+            this.i = start;
+            root.__each.push(items[n]);
+            try { keys.push(text(this.unary())); }
+            finally { root.__each.pop(); }
+          }
+          if (!items.length) {
+            /* Nothing to weigh, but the key still has to be consumed or the
+               tokens after it are read as part of the outer expression. `each`
+               is bound to empty for that pass so it does not raise. */
+            root.__each.push("");
+            try { this.unary(); } finally { root.__each.pop(); }
+          }
+          var order = items.map(function (v, n) { return [keys[n], v]; });
+          var numeric = keys.length && keys.every(function (k) {
+            return k.trim() !== "" && !isNaN(Number(k)); });
+          order.sort(function (a, b) {
+            if (numeric) return Number(a[0]) - Number(b[0]);
+            return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+          });
+          return order.map(function (pair) { return pair[1]; });
+        }
+        return transform(op, src);
       }
       if (this.cur().k === "WORD" && this.cur().v in AGGREGATES) {
         var agg = this.next().v;
@@ -404,6 +461,29 @@
     if (op === "smallest") return Math.min.apply(null, ns);
     if (op === "average") return ns.reduce(function (a, b) { return a + b; }, 0) / ns.length;
     throw new Err("unknown aggregate " + op);
+  }
+  /* Matches frostlang/interp.py human_duration exactly. A report wants
+     "1 minute 30 seconds"; the timeout formatter says "90 seconds" because
+     that is what the author wrote, and reusing it here would make every
+     elapsed time read like a policy limit. */
+  function humanDuration(seconds) {
+    if (seconds < 0) return "-" + humanDuration(-seconds);
+    if (seconds === 0) return "0 seconds";
+    if (seconds < 1) {
+      var ms = Math.round(seconds * 1000);
+      return ms + " millisecond" + (ms !== 1 ? "s" : "");
+    }
+    var whole = Math.trunc(seconds), parts = [];
+    var units = [[86400, "day"], [3600, "hour"], [60, "minute"], [1, "second"]];
+    for (var i = 0; i < units.length; i++) {
+      var scale = units[i][0], unit = units[i][1];
+      if (whole >= scale) {
+        var n = Math.floor(whole / scale);
+        whole = whole % scale;
+        parts.push(n + " " + unit + (n !== 1 ? "s" : ""));
+      }
+    }
+    return parts.length ? parts.join(" ") : "0 seconds";
   }
   function isRecord(v) {
     return v !== null && typeof v === "object" && !Array.isArray(v);

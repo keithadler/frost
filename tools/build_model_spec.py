@@ -108,6 +108,7 @@ put "c" after names          appends an element when `names` is a list
 ```text
 the uppercase X   the lowercase X   the trimmed X
 the sorted X      the reversed X    the unique X
+the sorted X by <key using `each`>   sort by a computed key
 the rounded X     the absolute X
 the sum of X   the largest of X   the smallest of X   the average of X
 the NAME of A, B             calls the handler `to NAME with a, b`
