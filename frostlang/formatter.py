@@ -138,7 +138,10 @@ def normalise_spacing(code):
 
 def format_source(text):
     """Return the canonical layout of a script. Raises if it does not parse."""
-    parse(text)                      # refuse to format something broken
+    # Refuse to format something broken — but without resolving handler
+    # names. Layout is a lexical question, and a file that imports cannot
+    # have its names resolved on its own.
+    parse(text, resolve=False)
 
     lines = text.split("\n")
     shebang = None

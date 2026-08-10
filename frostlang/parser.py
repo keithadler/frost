@@ -48,6 +48,7 @@ HARD_WORDS = {
     "standard", "exists", "empty", "true", "false", "forever", "step",
     "delete", "greater", "less", "than", "least", "most",
     "global", "ensure", "reading", "split", "joined", "showing",
+    "use", "which", "may",
 }
 
 # Recognised only after `the`, so they cost nothing from the identifier
@@ -88,8 +89,14 @@ TIME_UNITS = {
 STATEMENT_STARTERS = {
     "put", "run", "try", "pipe", "if", "repeat", "quit", "to", "return",
     "add", "subtract", "multiply", "divide", "exit", "next", "delete",
-    "ensure",
+    "ensure", "use",
 }
+
+# What an import may allow a module to do. The vocabulary is the policy
+# language's, pointed inward: the same words mean the same things whether a
+# rule is constraining a script from outside or an import is constraining a
+# module from above.
+CEILING_VERBS = {"run", "read", "write", "delete", "set", "change"}
 
 
 class Parser:
@@ -237,6 +244,8 @@ class Parser:
             return self.parse_replace()
         if w == "ensure":
             return self.parse_ensure()
+        if w == "use":
+            return self.parse_use()
         return self.parse_call()
 
     # put ------------------------------------------------------------------
@@ -657,6 +666,93 @@ class Parser:
         target = self.parse_assign_target()
         self.expect_end_of_statement()
         return A.Arith(op, amount, target, tok.line)
+
+    def parse_use(self):
+        """`use "path" for the a, the b [which may run "x", "y" and ...]`."""
+        line = self.expect_word("use").line
+
+        if self.cur.kind != "STR":
+            raise ParseError(
+                "a module path must be written out in full", line,
+                hint='use "lib/text.frost" for the ... — the path cannot be '
+                     "a variable or an expression, because an import that is "
+                     "decided at runtime cannot be reviewed before it runs",
+                code="module-path-must-be-literal")
+        path = self.advance().value
+
+        names = []
+        self.expect_word("for",
+                         hint='name what you are importing: '
+                              'use "lib/db.frost" for the connect',
+                         code="import-needs-a-name-list")
+        while True:
+            self.expect_word("the",
+                             hint="each imported handler is named with 'the': "
+                                  "for the connect, the migrate")
+            names.append(self.parse_identifier())
+            if not self.at_op(","):
+                break
+            self.advance()
+            self.skip_continuation()
+
+        ceiling = None
+        if self.at_word("which"):
+            self.advance()
+            self.expect_word("may")
+            ceiling = self.parse_ceiling()
+
+        self.expect_end_of_statement()
+        if len(set(names)) != len(names):
+            raise ParseError(
+                f"{path!r} is imported with the same name twice", line)
+        return A.Use(path, names, ceiling, line)
+
+    def parse_ceiling(self):
+        """`run "psql", "pg_dump" and write "/tmp/*"` — what a module may do.
+
+        Commas separate the subjects of one verb; `and` separates verbs. So
+        `run "a", "b" and write "c"` is two allowances, not three.
+        """
+        from .modules import Ceiling
+        ceiling = Ceiling()
+        while True:
+            if self.cur.kind != "WORD" or self.cur.value not in CEILING_VERBS:
+                raise ParseError(
+                    f"expected something a module may do, found "
+                    f"{self.describe(self.cur)}", self.cur.line,
+                    hint='try: which may run "psql" / read "*.sql" / '
+                         'write "/tmp/*" / set "PGHOST" / change folder',
+                    code="unknown-capability")
+            verb = self.advance().value
+
+            if verb == "change":
+                self.expect_word("folder")
+                ceiling.change_folder = True
+            elif verb == "read" and self.at_word("secret"):
+                self.advance()
+                ceiling.secrets.extend(self.parse_ceiling_subjects())
+            else:
+                getattr(ceiling, {"run": "programs", "read": "reads",
+                                  "write": "writes", "delete": "deletes",
+                                  "set": "env"}[verb]).extend(
+                    self.parse_ceiling_subjects())
+
+            if not self.at_word("and"):
+                return ceiling
+            self.advance()
+
+    def parse_ceiling_subjects(self):
+        subjects = []
+        while True:
+            if self.cur.kind != "STR":
+                raise ParseError(
+                    "an allowance names what it allows, in quotes",
+                    self.cur.line,
+                    hint='which may run "psql", "pg_dump"')
+            subjects.append(self.advance().value)
+            if not self.at_op(","):
+                return subjects
+            self.advance()
 
     def parse_ensure(self):
         line = self.expect_word("ensure").line
@@ -1155,15 +1251,20 @@ def collect_handler_names(node, into):
                 collect_handler_names(value, into)
 
 
-def resolve_calls(stmts):
+def resolve_calls(stmts, extra_names=()):
     """Reject `the <name> of X` when no handler of that name is defined.
 
     Without this the mistake would only surface when the line ran, which would
     quietly weaken `--check`: a typo in a rarely-taken branch would sail past
     it. Handlers may be defined after the call site, so this needs the whole
     tree and cannot be done while parsing.
+
+    `extra_names` carries the handlers a file imported. A file that is part of
+    a program cannot be resolved on its own — the names it may legally call
+    are its own plus exactly what it imported — so a module's calls are
+    resolved once the whole closure is known, against that file's table.
     """
-    known = set()
+    known = set(extra_names)
     collect_handler_names(stmts, known)
 
     def walk(node):
@@ -1196,5 +1297,12 @@ def resolve_calls(stmts):
     return stmts
 
 
-def parse(src):
-    return resolve_calls(Parser(src).parse_program())
+def parse(src, resolve=True):
+    """Parse one file. `resolve=False` leaves handler names unchecked.
+
+    A file that imports handlers cannot have its calls resolved in isolation,
+    so the module loader parses without resolution and checks names once the
+    whole import graph is known.
+    """
+    tree = Parser(src).parse_program()
+    return resolve_calls(tree) if resolve else tree

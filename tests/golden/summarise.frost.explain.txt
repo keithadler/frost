@@ -1,0 +1,11 @@
+examples/summarise.frost
+========================
+This script does nothing observable outside itself.
+
+Built from 2 files: lib/reporting.frost, summarise.frost
+
+summarise.frost
+  Can exit with:
+    status 2
+
+Verdict: clean

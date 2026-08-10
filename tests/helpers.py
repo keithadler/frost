@@ -116,6 +116,20 @@ def example_names():
     return sorted(n for n in os.listdir(EXAMPLES) if n.endswith(".frost"))
 
 
+def example_capabilities(name):
+    """Capabilities of an example over its whole import closure.
+
+    An example that imports cannot be audited by parsing one file: the point
+    of the module design is that the manifest covers the closure, so the
+    tests have to ask the same question the CLI does.
+    """
+    from frostlang import modules as M
+    from frostlang.program_audit import audit_program
+    if not name.endswith(".frost"):
+        name += ".frost"
+    return audit_program(M.load(os.path.join(EXAMPLES, name))).merged
+
+
 # ------------------------------------------------------ platform guards
 
 _HAS_SLEEP = shutil.which("sleep") is not None

@@ -217,6 +217,13 @@ class Interpreter:
         self._stdin_text = None  # `the standard input`, read once and kept
         self.keystore = keystore
         self.role = role
+        # Handler names resolve in the file that defines the code doing the
+        # calling, not in one flat table. A flat table lets an entry script's
+        # handler capture a call made inside a module, which is a hijack
+        # rather than a hygiene problem.
+        self.handler_tables = {}      # file -> {name: HandlerDef}
+        self.handler_home = {}        # id(HandlerDef) -> defining file
+        self.current_file = None      # whose table calls resolve in
 
     @staticmethod
     def compile_pattern(pattern, line):
@@ -274,11 +281,26 @@ class Interpreter:
 
     # -- entry points
 
+    def install(self, program):
+        """Bind a loaded multi-file program before running its entry script.
+
+        Each file gets its own name table, and every handler remembers where
+        it was defined, so a call inside a module resolves against that
+        module rather than against whatever the entry script happens to have.
+        """
+        from . import modules as M
+        self.handler_tables = M.handler_tables(program)
+        self.handler_home = M.owning_file(program)
+        self.current_file = program.entry
+        self.handlers = dict(self.handler_tables[program.entry])
+        return self
+
     def run_program(self, stmts):
         for s in stmts:
             if isinstance(s, A.HandlerDef):
                 self.handlers[s.name] = s
-        body = [s for s in stmts if not isinstance(s, A.HandlerDef)]
+        body = [s for s in stmts
+                if not isinstance(s, (A.HandlerDef, A.Use))]
 
         status, failure = 0, None
         try:
@@ -307,7 +329,8 @@ class Interpreter:
         the reader needs to see first.
         """
         pending, self.cleanups = self.cleanups, []
-        for block in reversed(pending):
+        for block, home in reversed(pending):
+            previous, self.current_file = self.current_file, home
             try:
                 self.exec_block(block)
             except (QuitSignal, ReturnSignal, ExitRepeatSignal,
@@ -317,6 +340,8 @@ class Interpreter:
                 where = f" at line {e.line}" if e.line else ""
                 sys.stderr.write(f"frost: cleanup failed{where}: {e.msg}\n")
                 sys.stderr.flush()
+            finally:
+                self.current_file = previous
 
     def exec_block(self, stmts):
         for s in stmts:
@@ -688,7 +713,12 @@ class Interpreter:
         raise ReturnSignal(self.eval(node.expr) if node.expr else "")
 
     def exec_Ensure(self, node):
-        self.cleanups.append(node.block)
+        # The cleanup runs later, by which point the current file may be a
+        # different one, so it remembers where it came from.
+        self.cleanups.append((node.block, self.current_file))
+
+    def exec_Use(self, node):
+        """Imports are resolved before anything runs; nothing happens here."""
 
     def exec_Arith(self, node):
         amount = to_number(self.eval(node.amount), node.line)
@@ -713,6 +743,12 @@ class Interpreter:
         except FileNotFoundError:
             raise FrostError(f"there is no file at {path!r}", node.line)
 
+    def visible_handlers(self):
+        """The names the code currently running is allowed to call."""
+        if self.current_file is not None:
+            return self.handler_tables.get(self.current_file, self.handlers)
+        return self.handlers
+
     def call_handler(self, name, args, line):
         """Run a handler and return what it returned.
 
@@ -720,7 +756,7 @@ class Interpreter:
         expression form, which does not — an expression buried inside another
         expression must not quietly replace the last command's output.
         """
-        handler = self.handlers.get(name)
+        handler = self.visible_handlers().get(name)
         if handler is None:
             raise FrostError(
                 f"there is no handler named {name!r}", line,
@@ -730,6 +766,9 @@ class Interpreter:
                 f"{name!r} expects {len(handler.params)} value(s) "
                 f"but got {len(args)}", line)
         self.scopes.append(dict(zip(handler.params, args)))
+        # While the handler runs, names resolve in the file that defined it.
+        home = self.handler_home.get(id(handler), self.current_file)
+        previous, self.current_file = self.current_file, home
         try:
             self.exec_block(handler.block)
             return ""
@@ -737,6 +776,7 @@ class Interpreter:
             return r.value
         finally:
             self.scopes.pop()
+            self.current_file = previous
 
     def exec_Call(self, node):
         self.it = self.call_handler(
@@ -1062,7 +1102,7 @@ class Interpreter:
         raise FrostError(f"unknown aggregate {node.op!r}", node.line)
 
     def eval_FuncCall(self, node):
-        if not node.args and node.name not in self.handlers:
+        if not node.args and node.name not in self.visible_handlers():
             # `the frobnitz` with no handler of that name was never a call;
             # it was a mistyped property. Say so, as the parser would.
             raise FrostError(

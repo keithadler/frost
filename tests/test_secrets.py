@@ -4,7 +4,8 @@ import pytest
 
 from frostlang.audit import find_dangers, verdict, check, parse_policy
 
-from helpers import caps_for, dangers_for, titles, example, example_names
+from helpers import (caps_for, dangers_for, titles, example,
+                     example_names, example_capabilities)
 
 
 def test_secret_path_behind_a_variable_prefix_is_caught():
@@ -86,5 +87,7 @@ def test_the_four_demo_scripts_land_as_intended():
 def test_no_benign_script_reports_exfiltration(name):
     if name == "exfiltrate.frost":
         pytest.skip("this one is meant to exfiltrate")
+    # Over the closure, not one file: an example that imports has to be
+    # judged on everything it can reach.
     assert not any("Secrets read, then" in f.title
-                   for f in dangers_for(example(name))), name
+                   for f in find_dangers(example_capabilities(name))), name

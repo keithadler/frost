@@ -1,0 +1,21 @@
+--
+-- Shared reporting helpers. A module holds handler definitions and nothing
+-- else: there is no top level here that could run when it is imported.
+
+to headline with title
+    return "=== " & the uppercase title & " ==="
+end headline
+
+to percentage with part, total
+    if total is 0 then return "n/a"
+    return the rounded (part * 100 / total) & "%"
+end percentage
+
+to worst line with report
+    put the empty list into offenders
+    repeat for each line in report as row
+        if row contains "ERROR" then put the trimmed row after offenders
+    end repeat
+    if the number of items in offenders is 0 then return "none"
+    return the first item of offenders
+end worst line

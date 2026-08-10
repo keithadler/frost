@@ -277,6 +277,25 @@ class Pipe:
 
 
 @dataclass
+class Use:
+    """`use "lib/db.frost" for the connect which may run "psql"`.
+
+    The path is a string literal and the parser enforces that: a computed
+    import would put the import graph out of reach of static analysis, which
+    is where every other guarantee in frost lives.
+
+    `names` is explicit, so a collision between two modules is an error at
+    load time rather than one silently shadowing the other. `ceiling` is the
+    capability limit declared at the import site — empty means the module may
+    do nothing but compute.
+    """
+    path: str
+    names: List[str] = field(default_factory=list)
+    ceiling: Any = None                    # modules.Ceiling, or None for bare
+    line: int = 0
+
+
+@dataclass
 class Ensure:
     """A cleanup block, registered when reached and run when the script ends.
 

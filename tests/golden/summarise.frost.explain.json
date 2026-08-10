@@ -1,0 +1,14 @@
+{
+  "commands": [],
+  "deletes": [],
+  "environment": [],
+  "exits": [
+    "2"
+  ],
+  "findings": [],
+  "reads": [],
+  "script": "examples/summarise.frost",
+  "summary": "This script does nothing observable outside itself.",
+  "verdict": "clean",
+  "writes": []
+}
