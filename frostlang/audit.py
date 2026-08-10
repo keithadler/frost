@@ -54,6 +54,8 @@ class Capabilities:
     cleanups: List[int] = field(default_factory=list)       # ensure block lines
     exit_codes: List[tuple] = field(default_factory=list)
     handlers: List[str] = field(default_factory=list)
+    # (seconds|None, line, repeats) — repeats when the wait is inside a loop
+    waits: List[tuple] = field(default_factory=list)
     dynamic: int = 0              # count of runtime-built names
     # (line, [literal fragments]) for every path expression, so a sensitive
     # tail hidden behind a variable prefix is still visible.
@@ -329,8 +331,9 @@ def literal_fragments(node):
 class Auditor:
     def __init__(self, handlers=None, tainted=None, known=None):
         self.caps = Capabilities()
-        self.seen = set()   # Run nodes already recorded, so pipe stages are
-                            # not counted twice by the generic walk
+        self.seen = set()     # Run nodes already recorded, so pipe stages are
+                              # not counted twice by the generic walk
+        self.loop_depth = 0
         self.handlers = handlers or {}
         self.tainted = tainted or set()
         self.known = known or {}
@@ -397,6 +400,16 @@ class Auditor:
             return
 
         name = type(node).__name__
+        if name.startswith("Repeat"):
+            self.loop_depth += 1
+            try:
+                self._visit_node(node, name)
+            finally:
+                self.loop_depth -= 1
+            return
+        self._visit_node(node, name)
+
+    def _visit_node(self, node, name):
         handler = getattr(self, "on_" + name, None)
         if handler:
             handler(node)
@@ -411,6 +424,21 @@ class Auditor:
                                   if hasattr(v, "__dataclass_fields__")])
             elif hasattr(value, "__dataclass_fields__"):
                 self.visit(value)
+
+    def on_Wait(self, node):
+        """A sleeping script is a script somebody is waiting on.
+
+        Not a capability — it touches nothing — but a reviewer approving a job
+        that runs in CI wants to know it backs off for ten minutes, and that
+        is exactly the sort of thing which is invisible until it is slow.
+
+        A wait inside a loop is recorded as such. Reporting `waits 2 seconds`
+        for a retry that sleeps between each of five attempts would understate
+        it by the loop count, and understating is the one thing the manifest
+        must never do.
+        """
+        self.caps.waits.append((literal_number(node.seconds), node.line,
+                                self.loop_depth > 0))
 
     # -- collectors
 
@@ -643,6 +671,11 @@ def describe(caps):
                "environment": f"in the environment variable {what}"}[where],
               f"— line {ln}")
              for where, what, ln in caps.secret_releases])
+    section("Waits:",
+            [(format_duration(sec) if sec is not None
+              else "(duration built at runtime)",
+              f"— line {ln}" + ("  (each time round a loop)" if rep else ""))
+             for sec, ln, rep in caps.waits])
     section("Cleans up on exit:",
             [(f"ensure block", f"— line {ln}") for ln in caps.cleanups])
     section("Can exit with:",
@@ -686,6 +719,7 @@ _noun("env_reads", "environment reads", "environment read")
 _noun("env_writes", "environment writes", "environment write")
 _noun("folder_changes", "folder changes", "folder change")
 _noun("cleanups", "cleanups", "cleanup", "ensure block", "ensure blocks")
+_noun("waits", "waits", "wait")
 _noun("unchecked", "unchecked commands", "unchecked command")
 _noun("untimed", "commands without a timeout", "command without a timeout")
 _noun("dynamic", "runtime names", "runtime name")
@@ -953,11 +987,14 @@ def count_lines(caps, key, subject=None):
         return [ln for _, _, ln in caps.secret_reads]
     if key == "secret_releases":
         return [ln for _, _, ln in caps.secret_releases]
-    pairs = {"reads": caps.reads, "writes": caps.writes,
-             "deletes": caps.deletes, "env_reads": caps.env_reads,
-             "env_writes": caps.env_writes,
-             "folder_changes": caps.folder_changes}[key]
-    return [ln for _, ln in pairs]
+    # Anything else is a plain list of (value, line) on the capabilities
+    # record, so it is read off by name rather than from a second list of
+    # names somebody has to remember to extend. `waits` was countable the
+    # moment it was collected, and a rule mentioning it used to raise KeyError.
+    pairs = getattr(caps, key, None)
+    if pairs is None:
+        raise KeyError(key)                       # pragma: no cover
+    return [item[-1] for item in pairs]
 
 
 def _check_rules(caps, rules):
@@ -1390,6 +1427,15 @@ def summarise(caps):
             f"sets {_count(caps.env_writes, 'environment variable')}{shown}")
     if caps.folder_changes:
         parts.append("changes the working folder")
+    if caps.waits:
+        known = [sec for sec, _, _ in caps.waits if sec is not None]
+        repeats = any(rep for _, _, rep in caps.waits)
+        if len(known) == len(caps.waits):
+            total = format_duration(sum(known))
+            parts.append(f"waits at least {total}" if repeats
+                         else f"waits {total}")
+        else:
+            parts.append(f"waits, at {_count(caps.waits, 'point')}")
     if caps.secret_reads:
         named = sorted({n for n, _, _ in caps.secret_reads if n})
         shown = f" ({', '.join(named)})" if named else ""

@@ -1,0 +1,19 @@
+examples/apicheck.frost
+=======================
+This script runs curl, reaches the internet using curl, and waits at least 2 seconds. It can exit with status 1, 2.
+
+Runs these programs:
+  curl  — line 14
+
+Waits:
+  2 seconds  — line 18  (each time round a loop)
+
+Can exit with:
+  status 1
+  status 2
+
+Findings:
+  [note   ] line 14  Reaches the network via curl
+             Data can leave this machine, and the result depends on a system you do not control.
+
+Verdict: clean

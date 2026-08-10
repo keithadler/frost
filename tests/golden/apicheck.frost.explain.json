@@ -1,0 +1,36 @@
+{
+  "commands": [
+    {
+      "args": [
+        "-fsS",
+        null
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 14,
+      "program": "curl",
+      "source": "try to run \"curl\" with \"-fsS\", build url within 30 seconds",
+      "timeout": true
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [
+    "1",
+    "2"
+  ],
+  "findings": [
+    {
+      "detail": "Data can leave this machine, and the result depends on a system you do not control.",
+      "line": 14,
+      "severity": "note",
+      "source": "try to run \"curl\" with \"-fsS\", build url within 30 seconds",
+      "title": "Reaches the network via curl"
+    }
+  ],
+  "reads": [],
+  "script": "examples/apicheck.frost",
+  "summary": "This script runs curl, reaches the internet using curl, and waits at least 2 seconds. It can exit with status 1, 2.",
+  "verdict": "clean",
+  "writes": []
+}

@@ -1,6 +1,6 @@
 # The frost Language Reference
 
-Version 0.5.0
+Version 0.6.0
 
 frost is a scripting language for the jobs shell scripts do, with a grammar
 descended from HyperTalk. It exists because the economics changed: scripts are
@@ -215,6 +215,105 @@ put the third word of line 7 of file "access.log"
 
 The bash equivalent is `sed -n '7p' access.log | awk '{print $3}'`, which
 requires knowing two tool dialects. The frost version requires knowing English.
+
+### Records and JSON
+
+A record is an ordered mapping from text keys to values, and JSON is how one
+usually arrives. Objects become records, arrays become the lists frost already
+has, and the scalars map the obvious way:
+
+```
+run "curl" with "-fsS", "https://api.example.com/build" within 30 seconds
+put the json of it into build
+
+put the "status" of build
+put the "name" of the "author" of build
+put item 1 of the "tags" of build
+put the "attempt" of build + 1
+```
+
+This exists because the alternative was `run "jq" with ".status"`, which puts
+a second language in a file whose whole argument is that it needs only one —
+and hands the auditor a string it cannot see into. `--explain` could say the
+script runs `jq`; it could never say what `jq` was asked for.
+
+Build one field at a time. The first assignment creates the record, so no
+declaration is needed:
+
+```
+put "green" into the "status" of summary
+put 2 into the "failures" of summary
+put the json text of summary into file "report.json"
+```
+
+`the keys of R` and `the values of R` are lists. A record printed with `put`
+prints as JSON, because a record that printed as its type name would send you
+straight back to jq to look at your own data.
+
+**Missing keys.** Asking for a key a record does not have yields empty,
+exactly as `word 99 of` does, and a field of empty is empty — so
+`the "name" of the "user" of build` is safe on a payload with no `user`.
+Asking for a field of *text* is an error: that means the value is not the
+shape the script thinks it is, and empty would hide the bug while it is still
+cheap to find.
+
+**Secrets survive the round trip.** Parsing a sealed value seals every field
+it produces, and serialising redacts field by field rather than all at once:
+
+```
+put the json of the secret file "credentials.json" into config
+put "connecting as" && the "user" of config
+-- connecting as «secret credentials.json»
+```
+
+### Standard error
+
+`the error output` is what the last command wrote to its standard error, the
+same way `it` is what it wrote to standard output and `the result` is its exit
+status:
+
+```
+try to run "curl" with "-fsS", url within 30 seconds
+if the result is not 0 then
+    put "curl failed:" && the error output into standard error
+    quit with status 1
+end if
+```
+
+Without this the only way to see why something failed was
+`run "sh" with "-c", "... 2>&1"` — which reintroduces the shell frost exists
+to avoid, and which the auditor flags. Needing an error message should not
+require defeating the language's main guarantee.
+
+A command's standard error is still written through to the terminal as it
+happens, so a failure is never silent whether or not anything reads it. In a
+`pipe`, `the error output` is the last stage's; the earlier stages write
+straight to the terminal.
+
+### Time and waiting
+
+```
+put the current date          -- 2026-08-10
+put the current time          -- 14:23:05
+put the current timestamp     -- 2026-08-10T14:23:05Z   (UTC)
+put the current seconds       -- epoch seconds, for measuring a duration
+
+wait 3 seconds
+wait 500 milliseconds
+```
+
+The unit is required, for the same reason `within` requires one: a bare `3`
+means seconds to one reader and milliseconds to another.
+
+Both are recorded. `--replay` serves back the clock reading that was recorded
+rather than reading the clock again — a fixture whose timestamps move on every
+replay is a diff generator, not a fixture — and it does not actually sleep, so
+replaying a script that backs off for thirty seconds is no slower than
+replaying anything else.
+
+A script that waits says so in `--explain`, under `Waits:`. It is not a
+capability, since it touches nothing, but a reviewer approving a CI job wants
+to know it sleeps for ten minutes.
 
 ### Streaming input
 

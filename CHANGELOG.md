@@ -7,6 +7,71 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
+## 0.6.0 — 2026-08-10
+
+The three gaps that pushed a real script back out of frost. Each one had a
+workaround, and every workaround handed capability to something the auditor
+could name but not see inside — which is the one trade frost exists to refuse.
+
+### Added
+
+**Records and JSON.** `the json of it` parses; objects become records, arrays
+become the lists frost already has, and numbers stay numbers, so `item 1 of`
+and `+ 1` keep working on anything an API returns.
+
+```
+run "curl" with "-fsS", url within 30 seconds
+put the json of it into build
+put the "name" of the "author" of build
+```
+
+Fields nest, `the keys of` and `the values of` are lists, and a record is
+built a field at a time with `put "green" into the "status" of summary` — the
+first assignment creates it. The alternative was `run "jq" with ".status"`: a
+second language in the file, and a string `--explain` could not see into. It
+could tell you the script ran `jq`; it could never tell you what for.
+
+A missing key is empty, exactly as `word 99 of` is, and a field of empty is
+empty, so an optional field needs no guard. A field of *text* is an error —
+that means the value is not the shape the script thinks it is, and empty
+would hide the bug while it is still cheap to find.
+
+Secrets survive the round trip in both directions. Parsing a sealed value
+seals every field it produces, because a parser is not a laundry; serialising
+redacts field by field rather than all at once, because a record you cannot
+print at all is a record people work around.
+
+**`the error output`.** What the last command wrote to standard error, beside
+`it` and `the result`. The only way to see why something failed used to be
+`run "sh" with "-c", "... 2>&1"` — the construct MODEL-SPEC tells models never
+to emit and the auditor flags on sight. Wanting an error message should not
+require defeating the language's main guarantee. Standard error is still
+written through to the terminal as it happens, so a failure is never silent
+whether or not anything reads it.
+
+**A clock, and `wait`.** `the current date`, `time`, `timestamp` and
+`seconds`, plus `wait 3 seconds` with the unit required for the same reason
+`within` requires one. Both are recorded: `--replay` serves back the reading
+that was recorded rather than reading the clock again, and does not sleep at
+all — a fixture whose timestamps move every replay is a diff generator, and a
+replay that honours a thirty-second backoff is a replay nobody runs.
+
+A script that waits says so in `--explain`, and a wait inside a loop is
+reported as *at least* that long. Reporting a per-attempt sleep as though it
+happened once would understate it by the loop count, and the manifest may
+overstate a risk but must never understate one.
+
+### Fixed
+
+**The closure audit dropped any capability added after it was written.**
+`merge()` iterated a hand-written tuple of field names, so `waits` was
+collected by the single-file audit, survived it, and vanished from
+`--explain`. It now derives the field list from the dataclass and refuses to
+compile a field it does not know how to combine. The same hand-maintained
+shape in `count_lines` silently made new nouns unusable in a policy; it now
+reads the capability off by name. A manifest that lies by omission is worse
+than no manifest.
+
 ## 0.5.0 — 2026-08-10
 
 The release that turns "frost can describe what a script may do" into "frost

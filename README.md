@@ -26,6 +26,8 @@ contract instead of trusted as a guess.
 | **Modules** | An import declares a capability ceiling, so reading the entry file gives a sound upper bound on the whole program. A shared module that later grows a network call breaks the build at the import site rather than quietly widening someone's manifest. |
 | **`--sandbox`** | The kernel holds the boundary while the script runs, so a path the analyser *could not* resolve is confined anyway. Fails closed: where the boundary cannot be enforced, frost refuses to run rather than warning and continuing. |
 | **`--record` / `--replay`** | Snapshot testing for shell scripts. A recording is a fixture you can commit; replay spawns no process, writes no file, and reports a divergence rather than a stack trace. Secret values are never written down. |
+| **Records and JSON** | `the "name" of the "user" of report` — API responses without a second language in the file. Shelling out to `jq` handed the auditor a string it could not see into; a record is part of the tree. |
+| **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
 | **`--json` / `--repair`** | Every diagnostic as structured data with the edit attached, so the model that wrote the script can repair it without a human in the loop. |
 
 ### The lifecycle
@@ -281,6 +283,72 @@ put the double of 5 + the double of 10        -- 30
 
 An unknown name there is caught when the script is checked, not when the line
 happens to run.
+
+## Structured data, without a second grammar
+
+Every real script eventually calls an API and reads a field out of the answer.
+Until now that meant `run "jq" with ".status"` — a second language inside a
+file whose entire argument is that it needs only one, and a string the auditor
+could not see into. `--explain` could tell you the script ran `jq`. It could
+never tell you what for.
+
+```
+run "curl" with "-fsS", "https://api.example.com/build" within 30 seconds
+put the json of it into build
+
+if the "status" of build is not "green" then
+    put "build" && the "number" of build && "failed" into standard error
+    put the "name" of the "author" of build && "was last to push"
+    quit with status 1
+end if
+```
+
+Objects become records, arrays become the lists frost already has, and numbers
+stay numbers — so `item 1 of`, `repeat for each` and `+ 1` all keep working. A
+missing key is empty, like `word 99 of`, and a field of empty is empty, so an
+optional field needs no guard. A field of *text* is an error, because that
+means the value is not the shape the script thinks it is.
+
+Parsing a secret seals every field it produces, and serialising redacts field
+by field rather than all at once — a record you cannot print at all is a
+record people work around.
+
+```text
+put the json of the secret file "credentials.json" into config
+put "connecting as" && the "user" of config
+connecting as «secret credentials.json»
+```
+
+## Knowing why it failed
+
+`the error output` sits beside `it` and `the result`: what the last command
+wrote to standard error, what it wrote to standard output, and how it exited.
+
+```
+try to run "curl" with "-fsS", url within 30 seconds
+if the result is not 0 then
+    put "curl failed:" && the error output into standard error
+    quit with status 1
+end if
+```
+
+The alternative was `run "sh" with "-c", "... 2>&1"`, which reintroduces the
+shell frost exists to remove and which the auditor flags on sight. Wanting to
+know why something failed is completely ordinary, and it should not require
+defeating the language's main guarantee to get it.
+
+## A clock that replays
+
+```
+put "started at" && the current timestamp
+wait 5 seconds
+```
+
+Both are recorded. `--replay` serves back the reading that was recorded rather
+than reading the clock again — a fixture whose timestamps move on every replay
+is a diff generator, not a fixture — and it does not sleep, so replaying a
+script that backs off for thirty seconds costs nothing. A script that waits
+says so in `--explain`.
 
 ## Secrets that cannot be logged by accident
 
@@ -828,11 +896,12 @@ frostlang/
     keystore_cli.py   the frost-keys command
     journal.py        record and replay
     diagnostics.py    structured findings and repair payloads
+    structured.py     records, and the bridge to JSON
     formatter.py      canonical layout
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1464 tests — python3 -m pytest tests/ -q
+tests/                1514 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -846,7 +915,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.5.0. The language runs, the examples are real, and 1464 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1514 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
@@ -881,6 +950,12 @@ The gaps this file used to list are closed. In the order they were listed:
   `bubblewrap` on Linux, verified confining in CI on both.
 - **Record and replay**: `--record` writes a committable fixture; `--replay`
   spawns nothing.
+- **Records and JSON**: `the json of it`, `the "status" of report`, nested
+  fields, `the json text of` — with sealing preserved in both directions.
+- **Captured standard error**: `the error output`, beside `it` and
+  `the result`.
+- **A clock and `wait`**: both recorded, so a replay is still deterministic
+  and still fast.
 
 Remaining, honestly:
 
@@ -889,9 +964,9 @@ Remaining, honestly:
   then `run tool` is reported as running `ls`. A value genuinely assembled at
   runtime is reported as *unknowable* rather than guessed, which is why
   `--sandbox` exists: the kernel confines what the analyser could not resolve.
-- **No structured data in the language.** Lists are flat lists of text, and
-  nothing parses JSON into a value. (`--json` is frost's own output *about* a
-  script, not a data type inside one.)
+- **No schema for records.** JSON parses into records and lists, but nothing
+  validates a payload's shape ahead of time — a missing field is discovered
+  when it is read, not when the script is checked.
 - **No compile-to-bash mode** for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.

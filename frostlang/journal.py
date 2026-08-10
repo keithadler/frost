@@ -155,6 +155,16 @@ class Recorder:
         self._append({"kind": "stdin", "content": content})
         return content
 
+    def clock(self, line, which, read):
+        value = read(which)
+        self._append({"kind": "clock", "line": line, "which": which,
+                      "value": value})
+        return value
+
+    def wait(self, line, seconds, sleep):
+        self._append({"kind": "wait", "line": line, "seconds": seconds})
+        sleep(seconds)
+
     # -- the file
 
     def as_dict(self, script, argv):
@@ -272,6 +282,23 @@ class Player:
         event = self._next("stdin", None, "read the standard input")
         return event.get("content", "")
 
+    def clock(self, line, which, read):
+        """The recorded reading, not a fresh one.
+
+        A replay that re-read the clock would produce a different answer every
+        time and no recording of a script that stamps a timestamp would ever
+        replay clean.
+        """
+        event = self._next("clock", line, f"read the current {which}")
+        self._compare(event, "which", which, line, "read the current")
+        return event.get("value", "")
+
+    def wait(self, line, seconds, sleep):
+        """Recorded, and not performed. Replaying a script that backs off for
+        thirty seconds should take no longer than the rest of the replay."""
+        self._next("wait", line, f"wait {seconds} seconds")
+        self.performed.append(("wait", seconds))
+
     def _compare(self, event, field, actual, line, verb):
         if event.get(field) != actual:
             raise Divergence(
@@ -294,4 +321,8 @@ def _describe(event):
         return f"{kind} {event.get('path')}"
     if kind in ("env-read", "env-write"):
         return f"{kind} {event.get('name')}"
+    if kind == "clock":
+        return f"read the current {event.get('which')}"
+    if kind == "wait":
+        return f"wait {event.get('seconds')} seconds"
     return kind
