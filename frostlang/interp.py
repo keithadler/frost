@@ -189,6 +189,32 @@ def _read_clock(which):
     return time.time()          # "seconds", for measuring a duration
 
 
+def human_duration(seconds):
+    """A duration as a person would say it.
+
+    Not `format_seconds`, which exists for timeout messages and is content to
+    say "90 seconds" because that is what the author wrote. A report wants
+    "1 minute 30 seconds", and reusing the timeout formatter here would make
+    every elapsed time in every report read like a policy limit.
+    """
+    if seconds < 0:
+        return "-" + human_duration(-seconds)
+    if seconds == 0:
+        return "0 seconds"        # "0 milliseconds" is technically true and
+                                  # nobody has ever said it
+    if seconds < 1:
+        n = round(seconds * 1000)
+        return f"{n} millisecond" + ("s" if n != 1 else "")
+    whole = int(seconds)
+    parts = []
+    for scale, unit in ((86400, "day"), (3600, "hour"), (60, "minute"),
+                        (1, "second")):
+        if whole >= scale:
+            n, whole = divmod(whole, scale)
+            parts.append(f"{n} {unit}" + ("s" if n != 1 else ""))
+    return " ".join(parts) if parts else "0 seconds"
+
+
 def format_seconds(seconds):
     if seconds is None:
         return "no limit"
@@ -229,6 +255,7 @@ class Interpreter:
         self.error_output = ""
         self.match_groups = []
         self.whole_match = ""
+        self._each = []          # the item a sort key is being asked about
         self.argv = argv or []
         self.trace = trace or trace_to is not None
         # Where the trace goes. stderr by default; a file when the run is long
@@ -1059,6 +1086,50 @@ class Interpreter:
             time.sleep(seconds)
             return
         self.journal.wait(node.line, seconds, time.sleep)
+
+    def eval_FolderExists(self, node):
+        path = self.resolve_path(to_text(self.eval(node.path)))
+        if self.sandbox is not None:
+            self.sandbox.check_read(path, node.line)
+        return os.path.isdir(path)
+
+    def eval_Padded(self, node):
+        text = to_text(self.eval(node.value))
+        width = int(to_number(self.eval(node.width), node.line))
+        if width < 0:
+            raise FrostError("a width cannot be negative", node.line)
+        return text.rjust(width) if node.side == "left" else text.ljust(width)
+
+    def eval_DurationOf(self, node):
+        return human_duration(to_number(self.eval(node.seconds), node.line))
+
+    def eval_EachRef(self, node):
+        if not self._each:
+            raise FrostError(
+                "'each' has no value here", node.line,
+                hint="it names the item being weighed, so it only means "
+                     "something inside a sort key: the sorted lines by the "
+                     "second word of each")
+        return self._each[-1]
+
+    def eval_SortedBy(self, node):
+        """Sort by a computed key rather than by the whole value.
+
+        The key is evaluated once per item with `each` bound to it, and the
+        same numeric-or-alphabetic rule applies as everywhere else, so sorting
+        by a column of numbers does not put 10 before 9.
+        """
+        items = as_list(self.eval(node.source))
+        keys = []
+        for item in items:
+            self._each.append(item)
+            try:
+                keys.append(to_text(self.eval(node.key)))
+            finally:
+                self._each.pop()
+        order = sort_key(keys)
+        return [item for _, item in
+                sorted(zip(keys, items), key=lambda pair: order(pair[0]))]
 
     def eval_RunIdRef(self, node):
         """Recorded, so a replay reports the run it is replaying.

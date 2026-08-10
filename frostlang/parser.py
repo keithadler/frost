@@ -929,6 +929,12 @@ class Parser:
         if self.at_word("exists"):
             line = self.advance().line
             return A.FileExists(left, line)
+        if self.at_word("is") and self.at_word("a", offset=1) \
+                and self.at_word("folder", offset=2):
+            line = self.advance().line
+            self.advance()
+            self.advance()
+            return A.FolderExists(left, line)
 
         if self.cur.kind == "OP" and self.cur.value in self.COMPARE_SYMBOLS:
             op = self.COMPARE_SYMBOLS[self.advance().value]
@@ -1060,6 +1066,13 @@ class Parser:
         if t.kind != "WORD":
             raise ParseError(
                 f"expected a value but found {self.describe(t)}", t.line)
+
+        if t.value == "each":
+            # Only meaningful inside a `by` clause; the interpreter says so
+            # if it turns up anywhere else. `each` is already reserved, so
+            # the sort key costs nothing from the name vocabulary.
+            self.advance()
+            return A.EachRef(t.line)
 
         w = t.value
 
@@ -1228,6 +1241,28 @@ class Parser:
             self.advance()
             return A.ErrorRef(line)
 
+        if self.at_word("padded"):
+            self.advance()
+            value = self.parse_tight_value()
+            self.expect_word("to", hint='write: the padded name to 12')
+            width = self.parse_tight_value()
+            side = "right"
+            if self.at_word("on"):
+                self.advance()
+                self.expect_word("the")
+                if not self.at_word("left", "right"):
+                    raise ParseError(
+                        "padding goes on the left or the right",
+                        self.cur.line,
+                        hint="the padded n to 8 on the left  — for numbers")
+                side = self.advance().value
+            return A.Padded(value, width, side, line)
+
+        if self.at_word("duration"):
+            self.advance()
+            self.expect_word("of")
+            return A.DurationOf(self.parse_tight_value(), line)
+
         if self.at_word("json"):
             self.advance()
             if self.at_word("text"):
@@ -1262,7 +1297,12 @@ class Parser:
             op = self.advance().value
             if self.at_word("of"):        # `the sorted of X` reads badly but
                 self.advance()            # nobody should have to remember that
-            return A.Transform(op, self.parse_tight_value(), line)
+                pass
+            source = self.parse_tight_value()
+            if op == "sorted" and self.at_word("by"):
+                self.advance()
+                return A.SortedBy(source, self.parse_tight_value(), line)
+            return A.Transform(op, source, line)
 
         if self.cur.kind == "WORD" and self.cur.value in AGGREGATES:
             op = self.advance().value

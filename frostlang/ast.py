@@ -163,6 +163,39 @@ class FileExists:
 
 
 @dataclass
+class FolderExists:
+    path: Any
+    line: int = 0
+
+
+@dataclass
+class Padded:
+    value: Any
+    width: Any
+    side: str = "right"
+    line: int = 0
+
+
+@dataclass
+class DurationOf:
+    seconds: Any
+    line: int = 0
+
+
+@dataclass
+class SortedBy:
+    """`the sorted X by <key>`, where `each` is the item being weighed."""
+    source: Any
+    key: Any
+    line: int = 0
+
+
+@dataclass
+class EachRef:
+    line: int = 0
+
+
+@dataclass
 class EnvRef:
     name: Any
     line: int = 0

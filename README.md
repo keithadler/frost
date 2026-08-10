@@ -57,11 +57,16 @@ turns a run into a fixture.
   into a system prompt so a model writes correct frost first time.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed and why.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how the pieces fit together.
-- `docs.html`, `audit.html`, `play.html` are a browsable reference, a visual
-  audit report, and a live scratchpad. `play.html` now runs **frost itself** in
-  the page: CPython compiled to WebAssembly, the same Python the command line
-  runs, so `--explain`, `--policy`, `--repair` and an approval comparison all
-  answer exactly as they would in a terminal.
+- **[Try it in the browser](https://keithadler.github.io/frost/play.html)** —
+  the scratchpad, and below it frost itself compiled to WebAssembly. The same
+  Python the command line runs, so `--explain`, `--policy`, `--repair` and an
+  approval comparison answer exactly as they would in a terminal. Nothing to
+  install.
+- **[Reference](https://keithadler.github.io/frost/docs.html)** and
+  **[a visual audit report](https://keithadler.github.io/frost/audit.html)**.
+  (These are committed as `docs.html`, `audit.html` and `play.html` too, but
+  GitHub shows a committed page as source rather than rendering it, so the
+  links above are the ones to follow.)
 
 ```
 #!/usr/bin/env frost
@@ -745,7 +750,7 @@ Findings:
 Verdict: dangerous
 ```
 
-`open audit.html` for a visual report of four scripts — a fake "dotfile backup"
+[The audit report](https://keithadler.github.io/frost/audit.html), or `open audit.html` locally, shows four scripts — a fake "dotfile backup"
 that exfiltrates your keys and a cleanup script that quietly does four dangerous
 things, both refused, alongside a health check and a log analyzer that pass.
 
@@ -854,7 +859,7 @@ frost> every match of "\d+" in the first line of it
 5 items: 10, 0, 0, 1, 200
 ```
 
-`play.html` is the same thing in a browser, with the text editable and a set of
+[The scratchpad](https://keithadler.github.io/frost/play.html) is the same thing in a browser, with the text editable and a set of
 worked examples. Its evaluator is a second implementation, and
 `tools/verify_chunks.py` runs 1,288 expressions through both it and the real
 interpreter on every build — the page is not written if they disagree.
@@ -948,7 +953,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1718 tests — python3 -m pytest tests/ -q
+tests/                1729 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -963,7 +968,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1718 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1729 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
@@ -1028,6 +1033,22 @@ Remaining, honestly:
   "api.github.com"` remains a parse error, because macOS filters on addresses
   and a Linux namespace has no middle setting. Two different guarantees, and
   the one the kernel holds is the weaker of the two here.
+
+## The name
+
+Robert Frost was born in San Francisco in 1874, and is remembered for poems a
+person can read on first pass and not exhaust on the tenth. Plain surface,
+real weight underneath, nothing you have to decode before you are allowed to
+judge it.
+
+That is the trick this language is after. A script written by a machine and
+read by a person at 3am has to be legible immediately and still hold up when
+somebody reads it properly the next morning. Terseness was a virtue when a
+human typed every character into a serial terminal. It stopped being one when
+the writing got cheap and the reading became the whole job.
+
+Making machine-written code reachable by the humans accountable for it is the
+entire point. The poet is a better model for that than the shell ever was.
 
 ## License
 

@@ -545,6 +545,30 @@ end repeat
 for whoever reads next. Asking for `the standard input` as a value still
 reads what remains, all at once.
 
+### Folders, padding, durations and sorting by a key
+
+```
+if "build" is a folder then put "already there"
+
+put "[" & the padded name to 14 & "]"          -- left aligned
+put "[" & the padded count to 6 on the left & "]"   -- right aligned, for numbers
+
+put "took" && the duration of 3725             -- 1 hour 2 minutes 5 seconds
+
+put the sorted (the lines of it) by the second word of each
+```
+
+`the padded X to N` never truncates: a width is a minimum, and silently
+cutting a value to make a column line up loses the thing the column was for.
+
+`the sorted X by KEY` evaluates KEY once per item with `each` bound to that
+item, and orders numerically when every key is a number, so a column of counts
+does not put 10 before 9. `each` means nothing outside a sort key and says so.
+
+`the duration of N` is for reports and reads as a person would say it. It is
+not the formatter used in timeout messages, which says "90 seconds" because
+that is what the author wrote.
+
 ### Out of range
 
 Asking for a chunk that does not exist yields empty text, not an error. This
