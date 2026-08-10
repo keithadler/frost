@@ -958,6 +958,8 @@ frost --trace-to-file F s.frost  write that trace to a file instead
 frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
 frost --automated s.frost        unattended: refuse anything that widens
 frost --events F s.frost         one JSON object per event (- for stderr)
+frost --enforce-hosts s.frost    check a command's real destination at spawn
+frost --egress-rules squid s.frost   the allow-list, as proxy configuration
 frost --new-approver-key F       a signing key for approvals
 frost --approve --sign-with F s.frost   an approval somebody is accountable for
 frost --check --sarif s.frost    findings for code scanning on a pull request
@@ -1015,6 +1017,7 @@ frostlang/
     runid.py          one identity per execution
     site.py           policy the host brings, and its provenance
     telemetry.py      events for a monitoring system
+    egress.py         the allow-list, as proxy configuration
     signing.py        approvals bound to an approver and a commit
     sarif.py          findings for code review tools
     scaffold.py       a starter policy from a manifest
@@ -1030,7 +1033,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1863 tests — python3 -m pytest tests/ -q
+tests/                1883 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1049,7 +1052,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.7.0. The language runs, the examples are real, and 1863 tests cover
+Version 0.7.0. The language runs, the examples are real, and 1883 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
@@ -1121,7 +1124,12 @@ Remaining, honestly:
 - **No compile-to-bash mode** for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.
-- **Per-host rules are checked, not enforced.** `forbid reaching "*.telemetry.example"`
+- **Per-host rules are checked in two places and enforced in a third.** The
+  static check reads the script; `--enforce-hosts` reads a command's real
+  arguments in the moment before it spawns, which is the only place a computed
+  URL can be judged; and `--egress-rules squid` writes the allow-list as
+  configuration for the proxy that actually holds it. frost holds the first
+  two, and a program that ignores its arguments is stopped only by the third. `forbid reaching "*.telemetry.example"`
   and `require reaching only "api.github.com"` are policy rules, checked
   against the text before anything runs, and an unknowable destination fails
   them closed. The *sandbox* is still all-or-nothing: `sandbox may reach

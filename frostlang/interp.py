@@ -288,6 +288,10 @@ class Interpreter:
         # this interpreter holds for its own file operations. None means the
         # script runs with whatever permissions frost itself has.
         self.sandbox = None
+        # (forbidden, allowed) from the policy, when the caller asked for host
+        # rules to be enforced at spawn as well as read before the run. None
+        # means the static check is the only one, which is the default.
+        self.host_rules = None
         self.handler_tables = {}      # file -> {name: HandlerDef}
         self.handler_home = {}        # id(HandlerDef) -> defining file
         self.current_file = None      # whose table calls resolve in
@@ -617,6 +621,51 @@ class Interpreter:
         except SandboxError as e:
             raise FrostError(e.msg, line, hint=e.hint)
 
+    def check_hosts(self, argv, line):
+        """Refuse a command whose actual destination the policy forbids.
+
+        The static check reads the script; this reads the argument vector in
+        the moment before `execve`, where a URL built from a file, a JSON
+        field or the standard input is finally concrete. That is the only
+        place a computed destination can be judged at all.
+
+        Enforced by frost, not by the kernel. A program that ignores its
+        arguments and dials out on its own is untouched by this, and the docs
+        say so rather than implying a boundary that is not there.
+        """
+        if self.host_rules is None:
+            return
+        from .audit import Command, hosts_in, NETWORK_PROGRAMS
+
+        forbidden, allowed = self.host_rules
+        program = os.path.basename(argv[0]) if argv else ""
+        hosts = hosts_in(Command(program=program, args=list(argv[1:]),
+                                 line=line, checked=True, timeout=False))
+
+        for host in hosts:
+            for pattern, severity, hint in forbidden:
+                if severity == "forbid" and fnmatch.fnmatchcase(host, pattern):
+                    raise FrostError(
+                        f"the policy does not allow reaching {host}", line,
+                        hint=hint or f"it matches the rule: reaching "
+                                     f"{pattern!r}")
+            if allowed is not None and not any(
+                    fnmatch.fnmatchcase(host, p) for p in allowed):
+                raise FrostError(
+                    f"the policy does not allow reaching {host}", line,
+                    hint="the allow-list is: " + ", ".join(allowed))
+
+        if allowed is not None and not hosts and program in NETWORK_PROGRAMS:
+            # Fail closed, exactly as the static check does. A destination
+            # nobody can read cannot be shown to be on the list, and "cannot
+            # be shown" is not "is".
+            raise FrostError(
+                f"{program!r} runs with no destination frost can read, and "
+                f"the policy allows only a named list", line,
+                hint="the allow-list is: " + ", ".join(allowed) +
+                     ". Put the URL in the command rather than somewhere only "
+                     "the program can see.")
+
     def guard(self, action, path, line):
         """Check one of frost's own file operations against the boundary.
 
@@ -669,6 +718,7 @@ class Interpreter:
                 stdin_text += "\n"
 
         argv = [program] + args
+        self.check_hosts(argv, node.line)
         folder = self.child_folder(node)
         if self.sandbox is not None:
             argv = self.confine(argv, node.line, folder)
@@ -739,6 +789,7 @@ class Interpreter:
                 else:
                     args.append(to_argument(v))
             argv = [program] + args
+            self.check_hosts(argv, stage.line)
             if self.sandbox is not None:
                 argv = self.confine(argv, stage.line, folder)
             commands.append((argv, stage.line))

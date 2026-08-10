@@ -451,6 +451,15 @@ def build_parser():
                     help="write one JSON object per event, for Splunk, New "
                          "Relic and anything else that reads NDJSON; - for "
                          "standard error")
+    ap.add_argument("--egress-rules", metavar="FORMAT", dest="egress_rules",
+                    choices=["squid", "list"],
+                    help="write the host allow-list as configuration for the "
+                         "proxy that can enforce it")
+    ap.add_argument("--enforce-hosts", action="store_true",
+                    dest="enforce_hosts",
+                    help="check a command's real destination before it runs, "
+                         "so a computed URL can be allowed rather than only "
+                         "refused")
     ap.add_argument("--automated", action="store_true",
                     help="this run is unattended: refuse anything that would "
                          "widen what a script may do")
@@ -802,6 +811,13 @@ def main(argv=None):
             sys.stderr.write(f"frost: {e}\n")
             return 2
 
+    if opts.egress_rules:
+        from . import egress
+        sys.stdout.write(egress.render(
+            opts.egress_rules, policy_rules or [],
+            opts.policy or "the host's rules"))
+        return 0
+
     # Once every source is known. `run.start` fires before this so a policy
     # that will not parse is still reported against a run, which means the
     # provenance it carries is only the host's.
@@ -813,7 +829,8 @@ def main(argv=None):
     # to people who volunteered for it.
     if policy_rules:
         rules = policy_rules
-        findings = check(audit_program(program).merged, rules)
+        findings = check(audit_program(program).merged, rules,
+                         defer_unknown_hosts=opts.enforce_hosts)
         blocked = [f for f in findings if f.severity == "forbid"]
         if opts.json:
             emit_json(diagnostics.report(
@@ -1021,6 +1038,10 @@ def main(argv=None):
             sys.stderr.write(f"frost: {getattr(e, 'msg', e)}\n")
             return 2
     outcome = 1
+    if opts.enforce_hosts and policy_rules:
+        from .audit import host_rules
+        interp.host_rules = host_rules(policy_rules)
+
     if events is not None:
         from . import telemetry as T
         observer = T.Observer(events, interp.journal)

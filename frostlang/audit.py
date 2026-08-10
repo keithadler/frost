@@ -1178,7 +1178,7 @@ def count_lines(caps, key, subject=None):
     return [item[-1] for item in pairs]
 
 
-def _check_rules(caps, rules):
+def _check_rules(caps, rules, defer_unknown_hosts=False):
     """Return a list of (severity, message, script_line)."""
     findings = []
 
@@ -1244,6 +1244,8 @@ def _check_rules(caps, rules):
 
         elif rule.kind == "reach":
             for host, line in caps.reaches:
+                if host == RUNTIME_HOST and defer_unknown_hosts:
+                    continue
                 if host == RUNTIME_HOST or fnmatch.fnmatchcase(host,
                                                                rule.subject):
                     findings.append(
@@ -1257,6 +1259,12 @@ def _check_rules(caps, rules):
             allowed = rule.detail or []
             for host, line in caps.reaches:
                 if host == RUNTIME_HOST:
+                    if defer_unknown_hosts:
+                        # Checked at spawn instead, where the URL is concrete.
+                        # Refusing here as well would mean a dynamic
+                        # destination could never run under an allow-list,
+                        # which is the reason people delete the allow-list.
+                        continue
                     findings.append(
                         (rule.severity,
                          "a destination built at runtime, so it cannot be "
@@ -1328,7 +1336,28 @@ def _check_rules(caps, rules):
     return findings
 
 
-def check(caps, rules):
+def host_rules(rules):
+    """The host rules a runtime check needs, as (forbidden, allowed).
+
+    `forbidden` is a list of (pattern, severity, hint); `allowed` is the
+    intersection of every allow-list, or None when nobody wrote one. Two
+    `require reaching only` lists intersect for the same reason they do
+    statically: each is checked independently and both must pass.
+    """
+    forbidden, allowed = [], None
+    for rule in rules:
+        if rule.kind == "reach":
+            forbidden.append((rule.subject, rule.severity, rule.hint))
+        elif rule.kind == "reach_only":
+            names = list(rule.detail or [])
+            allowed = names if allowed is None else [
+                a for a in allowed
+                if any(fnmatch.fnmatchcase(a, p) for p in names)
+                or any(fnmatch.fnmatchcase(p, a) for p in names)]
+    return forbidden, allowed
+
+
+def check(caps, rules, defer_unknown_hosts=False):
     """Every rule violation, each carrying the rule's own explanation.
 
     Wraps the plain checker so the hint is attached once, at the boundary,
@@ -1338,7 +1367,8 @@ def check(caps, rules):
     out = []
     for rule in rules:
         start = len(out)
-        out.extend(_check_rules(caps, [rule]))
+        out.extend(_check_rules(caps, [rule],
+                                defer_unknown_hosts))
         for i in range(start, len(out)):
             severity, what, line = out[i][:3]
             out[i] = PolicyFinding(severity, what, line, rule.hint)
