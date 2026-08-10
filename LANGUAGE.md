@@ -486,6 +486,55 @@ matters, because the second is the stronger guarantee and the first is the
 more precise one, and pretending either is the other would be a lie in
 whichever direction someone relied on it.
 
+### Loops that cannot end, and runs that will not
+
+`within 30 seconds` bounds one command, and a policy can bound how many
+commands there are. Neither touches a loop doing arithmetic, which spawns
+nothing, reads nothing and writes nothing. It has no capabilities at all, so
+the manifest had nothing to report and reported it approvingly:
+
+```text
+This script does nothing observable.
+
+Verdict: clean
+```
+
+That script never terminates. The cheapest way for a generated script to wedge
+a runner was the one thing frost called harmless.
+
+**A loop with no way out is now a finding.** `repeat forever`, `repeat while
+true` and `repeat until false` are checked for anything in the body that could
+end them: an `exit repeat`, a `quit`, a `return`.
+
+```text
+[DANGER ] line 2  A loop that cannot end (repeat forever)
+```
+
+Presence counts, not reachability. An `exit repeat` behind a condition that
+never fires still counts, which understates the problem and never overstates
+it. That is the right way round for a check which would otherwise flag working
+code and be switched off. A condition that is not literally `true` is left
+alone, because `repeat while n is less than 10` may well terminate and
+guessing is how a check earns a reputation for crying wolf.
+
+**A budget bounds the whole run.**
+
+```bash
+frost --deadline 300 deploy.frost
+```
+
+```policy
+require the run to finish within 5 minutes
+```
+
+The run stops when the budget is spent, exiting 124 — what a shell reports for
+a timeout, and what frost already returns when a single command runs too long.
+The same answer to the same question at a different scale.
+
+It is raised rather than killed, so `ensure` blocks still run. A deadline that
+skipped cleanup would leave exactly the mess it was meant to bound. The
+tightest budget wins, so a flag cannot widen what a site policy imposed.
+
 ### Telling a monitoring system what happened
 
 ```bash

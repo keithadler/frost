@@ -9,7 +9,7 @@ import time
 from . import __version__
 from .lexer import LexError
 from .parser import parse, ParseError
-from .interp import Interpreter, FrostError
+from .interp import Interpreter, FrostError, DeadlineExceeded
 from . import diagnostics
 from .diagnostics import (collect_diagnostics, first_error_line,
                           repair_until_stuck, MAX_REPAIR_PASSES)
@@ -459,6 +459,9 @@ def build_parser():
                     choices=["squid", "list"],
                     help="write the host allow-list as configuration for the "
                          "proxy that can enforce it")
+    ap.add_argument("--deadline", metavar="SECONDS", type=float,
+                    help="stop the whole run after this long, running any "
+                         "cleanup on the way out")
     ap.add_argument("--enforce-hosts", action="store_true",
                     dest="enforce_hosts",
                     help="check a command's real destination before it runs, "
@@ -1045,6 +1048,14 @@ def main(argv=None):
             sys.stderr.write(f"frost: {getattr(e, 'msg', e)}\n")
             return 2
     outcome = 1
+    # The tightest budget wins, so a site policy cannot be widened by a flag.
+    budgets = [r.detail for r in policy_rules if r.kind == "deadline"]
+    if opts.deadline is not None:
+        budgets.append(opts.deadline)
+    if budgets:
+        import time as _time
+        interp.deadline = _time.monotonic() + min(budgets)
+
     if opts.enforce_hosts and policy_rules:
         from .audit import host_rules
         interp.host_rules = host_rules(policy_rules)
@@ -1073,6 +1084,13 @@ def main(argv=None):
         where = f"{opts.script}:{e.line}" if e.line else opts.script
         sys.stderr.write(f"\nDIVERGED at {where}\n    {e.msg}\n\n")
         outcome = 4
+        return outcome
+    except DeadlineExceeded as e:
+        # 124 is what a shell reports for a timeout, and what frost already
+        # uses when one command runs too long. The same answer for the same
+        # question at a different scale.
+        report("Error", e.msg, e.line, e.hint, source_lines, opts.script)
+        outcome = 124
         return outcome
     except FrostError as e:
         outcome = 1
