@@ -38,6 +38,19 @@ def frost(*args, cwd=None, env=None, timeout=60):
     return p.returncode, p.stdout, p.stderr
 
 
+def must(result, what):
+    """A setup step that has to have worked, or the test is meaningless.
+
+    A CI failure here read `assert 2 == 3`, which points at the gate when the
+    fault was three lines earlier: the approval was never written, so the last
+    call was refusing a missing file rather than an untrusted signer. An
+    assertion about arrangement should fail as one.
+    """
+    status, out, err = result
+    assert status == 0, f"{what} failed with {status}\n{out}\n{err}"
+    return out
+
+
 @pytest.fixture
 def project(tmp_path):
     (tmp_path / "pol").mkdir()
@@ -290,15 +303,16 @@ def test_an_unknown_algorithm_is_refused():
 @needs_cipher
 def test_a_signed_approval_lets_the_script_run(project):
     key = str(project.root / "alice.key")
-    _, out, _ = frost("--new-approver-key", key, cwd=str(project.root))
+    out = must(frost("--new-approver-key", key, cwd=str(project.root)),
+               "generating an approver key")
     public = [l.split(": ", 1)[1] for l in out.split("\n")
               if l.startswith("public key:")][0]
     project("pol/10-approvals.policy",
             f'require an approval signed by "{public}"\n')
     path = project("s.frost", HARMLESS)
 
-    frost("--approve", "--sign-with", key, "--approver", "alice", path,
-          cwd=str(project.root))
+    must(frost("--approve", "--sign-with", key, "--approver", "alice", path,
+               cwd=str(project.root)), "signing the approval")
     status, out, err = frost(path, cwd=str(project.root), env=project.env)
     assert status == 0, err
     assert "hello" in out
@@ -309,17 +323,23 @@ def test_an_agent_cannot_approve_with_its_own_key(project):
     """The escalation this exists to stop: widen the script, sign it yourself,
     walk past the gate."""
     alice = str(project.root / "alice.key")
-    _, out, _ = frost("--new-approver-key", alice, cwd=str(project.root))
+    out = must(frost("--new-approver-key", alice, cwd=str(project.root)),
+               "generating alice's key")
     public = [l.split(": ", 1)[1] for l in out.split("\n")
               if l.startswith("public key:")][0]
     project("pol/10-approvals.policy",
             f'require an approval signed by "{public}"\n')
 
     rogue = str(project.root / "rogue.key")
-    frost("--new-approver-key", rogue, cwd=str(project.root))
+    must(frost("--new-approver-key", rogue, cwd=str(project.root)),
+         "generating the rogue key")
     path = project("s.frost", REACHES)
-    frost("--approve", "--sign-with", rogue, "--approver", "the agent", path,
-          cwd=str(project.root))
+    must(frost("--approve", "--sign-with", rogue, "--approver", "the agent",
+               path, cwd=str(project.root)),
+         "the agent signing its own approval")
+    assert os.path.exists(path + ".approved"), (
+        "the agent's approval was never written, so the refusal below would "
+        "be about a missing file rather than an untrusted signer")
 
     status, out, err = frost(path, cwd=str(project.root), env=project.env)
     assert status == 3
@@ -336,9 +356,10 @@ def test_an_unsigned_approval_is_refused_by_the_policy(project):
     project("pol/10-approvals.policy",
             f'require an approval signed by "{public}"\n')
     path = project("s.frost", HARMLESS)
-    frost("--approve", path, cwd=str(project.root))
+    must(frost("--approve", path, cwd=str(project.root)),
+         "writing an unsigned approval")
     status, _, err = frost(path, cwd=str(project.root), env=project.env)
-    assert status == 3
+    assert status == 3, err
     assert "not signed" in err
 
 
