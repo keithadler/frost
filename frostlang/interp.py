@@ -10,6 +10,7 @@ Two rules do most of the safety work here:
 # SPDX-License-Identifier: MIT
 
 import fnmatch
+import hmac
 import os
 import random
 import re
@@ -18,6 +19,7 @@ import sys
 import tempfile
 
 from . import ast as A
+from .sealed import Sealed, is_sealed, reveal, seal_like, first_sealed
 
 
 class FrostError(Exception):
@@ -112,17 +114,36 @@ def join_chunks(parts, kind):
 # ------------------------------------------------------------------ coercion
 
 def to_text(v):
+    """Every path in the language reaches text through here.
+
+    That is what makes redaction total rather than a list of places somebody
+    remembered: a sealed value stringifies to its marker, so `put`, joining,
+    `--trace`, error messages and the scratchpad all redact without knowing
+    secrets exist. Use `reveal()` at a boundary where a program needs the
+    plaintext; never here.
+    """
     if v is None:
         return ""
     if v is True:
         return "true"
     if v is False:
         return "false"
+    if isinstance(v, Sealed):
+        return v.marker
     if isinstance(v, float) and v.is_integer():
         return str(int(v))
     if isinstance(v, list):
         return "\n".join(to_text(x) for x in v)
     return str(v)
+
+
+def to_argument(v):
+    """Text for a place a program genuinely needs the plaintext."""
+    if isinstance(v, Sealed):
+        return v.reveal()
+    if isinstance(v, list):
+        return "\n".join(to_argument(x) for x in v)
+    return to_text(v)
 
 
 def to_number(v, line=None):
@@ -179,7 +200,8 @@ def truthy(v):
 # --------------------------------------------------------------- interpreter
 
 class Interpreter:
-    def __init__(self, argv=None, trace=False, cwd=None):
+    def __init__(self, argv=None, trace=False, cwd=None, keystore=None,
+                 role=None):
         self.globals = {}
         self.scopes = [self.globals]
         self.handlers = {}
@@ -193,6 +215,8 @@ class Interpreter:
         self.env = dict(os.environ)
         self.cleanups = []       # ensure blocks, run in reverse at exit
         self._stdin_text = None  # `the standard input`, read once and kept
+        self.keystore = keystore
+        self.role = role
 
     @staticmethod
     def compile_pattern(pattern, line):
@@ -330,16 +354,19 @@ class Interpreter:
         if isinstance(target, A.FileTarget):
             path = self.resolve_path(to_text(self.eval(target.path)))
             mode = "a" if node.mode == "after" else "w"
+            # A deliberate release: writing a config file is a real need, and
+            # --explain reports it as a secret leaving the process.
+            written = to_argument(value)
             if node.mode == "before":
                 existing = ""
                 if os.path.exists(path):
                     with open(path) as fh:
                         existing = fh.read()
                 with open(path, "w") as fh:
-                    fh.write(to_text(value) + "\n" + existing)
+                    fh.write(written + "\n" + existing)
                 return
             with open(path, mode) as fh:
-                fh.write(to_text(value) + "\n")
+                fh.write(written + "\n")
             return
 
         if isinstance(target, A.FolderTarget):
@@ -360,7 +387,7 @@ class Interpreter:
                 raise FrostError(
                     f"{name!r} is not a usable environment variable name",
                     node.line)
-            addition = to_text(value)
+            addition = to_argument(value)   # children need the real value
             if node.mode == "into":
                 self.env[name] = addition
             else:
@@ -414,14 +441,14 @@ class Interpreter:
         for a in node.args:
             v = self.eval(a)
             if isinstance(v, list):
-                args.extend(to_text(x) for x in v)
+                args.extend(to_argument(x) for x in v)
             else:
-                args.append(to_text(v))
+                args.append(to_argument(v))
 
         seconds = self.eval_timeout(node)
         stdin_text = None
         if node.stdin is not None:
-            stdin_text = to_text(self.eval(node.stdin))
+            stdin_text = to_argument(self.eval(node.stdin))
             if not stdin_text.endswith("\n"):
                 stdin_text += "\n"
 
@@ -478,9 +505,9 @@ class Interpreter:
             for a in stage.args:
                 v = self.eval(a)
                 if isinstance(v, list):
-                    args.extend(to_text(x) for x in v)
+                    args.extend(to_argument(x) for x in v)
                 else:
-                    args.append(to_text(v))
+                    args.append(to_argument(v))
             commands.append(([program] + args, stage.line))
 
         folder = self.child_folder(node)
@@ -745,6 +772,38 @@ class Interpreter:
     def eval_EnvRef(self, node):
         return self.env.get(to_text(self.eval(node.name)), "")
 
+    def eval_SecretEnvRef(self, node):
+        name = to_text(self.eval(node.name))
+        return Sealed(self.env.get(name, ""), name)
+
+    def eval_SecretFileRef(self, node):
+        path = to_text(self.eval(node.path))
+        resolved = self.resolve_path(path)
+        try:
+            with open(resolved) as fh:
+                return Sealed(fh.read().rstrip("\n"), path)
+        except FileNotFoundError:
+            raise FrostError(f"there is no file at {resolved!r}", node.line)
+        except IsADirectoryError:
+            raise FrostError(f"{resolved!r} is a folder, not a file", node.line)
+
+    def eval_SecretRef(self, node):
+        name = to_text(self.eval(node.name))
+        if self.keystore is None:
+            raise FrostError(
+                f"no keystore is open, so the secret {name!r} cannot be read",
+                node.line,
+                hint="run with:  frost --keystore <file> --role <role> "
+                     "script.frost")
+        try:
+            return Sealed(self.keystore.open_secret(name, self.role), name)
+        except KeyError:
+            raise FrostError(
+                f"the keystore has no secret named {name!r}", node.line,
+                hint="list what it holds with:  frost keystore list <file>")
+        except PermissionError as e:
+            raise FrostError(str(e), node.line)
+
     def eval_GlobalRef(self, node):
         if node.name not in self.globals:
             raise FrostError(
@@ -785,10 +844,16 @@ class Interpreter:
     def eval_BinOp(self, node):
         left = self.eval(node.left)
         right = self.eval(node.right)
-        if node.op == "&":
-            return to_text(left) + to_text(right)
-        if node.op == "&&":
-            return to_text(left) + " " + to_text(right)
+        if node.op in ("&", "&&"):
+            separator = " " if node.op == "&&" else ""
+            # A connection string built from a password is a password. Without
+            # this, one concatenation would launder a secret into plain text
+            # and the redaction would be worth nothing.
+            if is_sealed(left):
+                return left.joined(right, separator)
+            if is_sealed(right):
+                return right.preceded_by(left, separator)
+            return to_text(left) + separator + to_text(right)
         a = to_number(left, node.line)
         b = to_number(right, node.line)
         if node.op == "+":
@@ -808,30 +873,46 @@ class Interpreter:
     def eval_Compare(self, node):
         left = self.eval(node.left)
 
+        # Comparisons see through the seal. A comparison yields one bit, and
+        # checking that a credential is not the placeholder from the example
+        # config is exactly the kind of check a careful script does. Comparing
+        # the markers instead would silently answer the wrong question — every
+        # secret would look equal to every other.
+        def text(value):
+            return to_text(reveal(value))
+
         if node.op == "is empty":
-            return to_text(left).strip() == ""
+            return text(left).strip() == ""
         if node.op == "is not empty":
-            return to_text(left).strip() != ""
+            return text(left).strip() != ""
 
         right = self.eval(node.right)
 
         if node.op == "contains":
             if isinstance(left, list):
-                return to_text(right) in [to_text(x) for x in left]
-            return to_text(right) in to_text(left)
+                return text(right) in [text(x) for x in left]
+            return text(right) in text(left)
         if node.op == "in":
             if isinstance(right, list):
-                return to_text(left) in [to_text(x) for x in right]
-            return to_text(left) in to_text(right)
+                return text(left) in [text(x) for x in right]
+            return text(left) in text(right)
         if node.op == "starts with":
-            return to_text(left).startswith(to_text(right))
+            return text(left).startswith(text(right))
         if node.op == "ends with":
-            return to_text(left).endswith(to_text(right))
+            return text(left).endswith(text(right))
+
+        if is_sealed(left) or is_sealed(right):
+            # Constant time, so a comparison cannot be turned into an oracle
+            # that recovers the value one character at a time.
+            if node.op in ("=", "is"):
+                return hmac.compare_digest(text(left), text(right))
+            if node.op == "is not":
+                return not hmac.compare_digest(text(left), text(right))
 
         if is_numberish(left) and is_numberish(right):
             a, b = to_number(left), to_number(right)
         else:
-            a, b = to_text(left), to_text(right)
+            a, b = text(left), text(right)
 
         if node.op in ("=", "is"):
             return a == b
@@ -880,14 +961,19 @@ class Interpreter:
         except re.error as e:
             raise FrostError(f"that replacement is not valid: {e}", node.line)
 
+    # Measurements see through the seal, for the same reason comparisons do:
+    # the marker's length is not the answer to any question anyone asked, and
+    # returning it would be silently wrong rather than safely refusing. A
+    # length is a far smaller leak than a wrong answer.
+
     def eval_LengthOf(self, node):
-        v = self.eval(node.source)
+        v = reveal(self.eval(node.source))
         if isinstance(v, list):
             return len(v)
         return len(to_text(v))
 
     def eval_CountOf(self, node):
-        return len(as_chunks(self.eval(node.source), node.kind))
+        return len(as_chunks(reveal(self.eval(node.source)), node.kind))
 
     def eval_StdInRef(self, node):
         if self._stdin_text is None:
@@ -901,30 +987,39 @@ class Interpreter:
     def eval_EmptyList(self, node):
         return []
 
-    def eval_ChunkList(self, node):
-        return as_chunks(self.eval(node.source), node.kind)
-
     def eval_SplitBy(self, node):
         separator = to_text(self.eval(node.separator))
         if separator == "":
             raise FrostError("cannot split on an empty separator", node.line,
                              hint='to split into characters, write: '
                                   'the characters of X')
-        return to_text(self.eval(node.source)).split(separator)
+        source = self.eval(node.source)
+        parts = to_text(reveal(source)).split(separator)
+        return [seal_like(source, p) for p in parts]
 
     def eval_JoinedBy(self, node):
         separator = to_text(self.eval(node.separator))
-        return separator.join(to_text(p) for p in as_list(self.eval(node.source)))
+        source = self.eval(node.source)
+        items = as_list(reveal(source))
+        sealed = first_sealed([source] + list(items))
+        joined = separator.join(to_text(reveal(p)) for p in items)
+        return seal_like(sealed, joined) if sealed is not None else joined
+
+    def eval_ChunkList(self, node):
+        source = self.eval(node.source)
+        parts = as_chunks(reveal(source), node.kind)
+        return [seal_like(source, p) for p in parts]
 
     def eval_Transform(self, node):
-        value = self.eval(node.source)
+        source = self.eval(node.source)
+        value = reveal(source)          # transformed text keeps the seal
         op = node.op
         if op == "uppercase":
-            return to_text(value).upper()
+            return seal_like(source, to_text(value).upper())
         if op == "lowercase":
-            return to_text(value).lower()
+            return seal_like(source, to_text(value).lower())
         if op == "trimmed":
-            return to_text(value).strip()
+            return seal_like(source, to_text(value).strip())
         if op == "rounded":
             return int(round(to_number(value, node.line)))
         if op == "absolute":
@@ -979,7 +1074,12 @@ class Interpreter:
                                  node.line)
 
     def eval_Chunk(self, node):
-        parts = as_chunks(self.eval(node.source), node.kind)
+        source = self.eval(node.source)
+        # A word of a password is still part of a password.
+        return seal_like(source, self.chunk_of(node, reveal(source)))
+
+    def chunk_of(self, node, source):
+        parts = as_chunks(source, node.kind)
         n = len(parts)
 
         if isinstance(node.start, str):

@@ -1,6 +1,6 @@
 # The frost Language Reference
 
-Version 0.3.0
+Version 0.4.0
 
 frost is a scripting language for the jobs shell scripts do, with a grammar
 descended from HyperTalk. It exists because the economics changed: scripts are
@@ -37,6 +37,7 @@ day, there is no pressure anywhere in the design to shorten anything.
 11. [Files](#11-files)
 12. [Handlers](#12-handlers)
 13. [Special values](#13-special-values)
+13a. [Secrets](#13a-secrets)
 14. [Grammar](#14-grammar)
 15. [Deliberate omissions](#15-deliberate-omissions)
 
@@ -923,6 +924,158 @@ put the environment variable "HOME" into home folder
 
 ---
 
+## 13a. Secrets
+
+The failure this exists to prevent is not a malicious script. It is
+
+```
+put "connecting as" && token
+```
+
+in a generated script, running in CI, writing a credential into a log that is
+retained for a year and readable by everyone in the organisation. That mistake
+is made by being ordinary, not by being careless, so the fix is structural
+rather than a rule to remember — the same argument frost makes about
+injection.
+
+### Sealed values
+
+Three expressions produce a *sealed* value:
+
+```
+put the secret "db password" into password          -- from the keystore
+put the secret environment variable "GITHUB_TOKEN" into token
+put the secret file "~/.ssh/id_rsa" into key
+```
+
+A sealed value refuses to become text. Every printing path in the language
+goes through one conversion, so `put`, joining, `--trace`, error messages and
+the scratchpad all redact without knowing secrets exist:
+
+```
+put "connecting as" && user && "with" && password
+```
+
+```text
+connecting as deploy with «secret db password»
+```
+
+Only the secret spans redact. If the whole line disappeared, people would
+route around the seal to keep their logs readable, and a mechanism people
+route around protects nothing.
+
+### The seal is contagious
+
+A connection string built from a password is a password:
+
+```
+put "postgres://user:" & password & "@host/db" into url
+put url                             -- postgres://user:«secret db password»@host/db
+```
+
+The same holds for chunks, `split by`, the transformations, and a value
+returned from a handler. Anything derived from a secret is a secret.
+
+### Where the plaintext is released
+
+| Where | What happens |
+|---|---|
+| `put`, `put into standard error`, `--trace`, errors | redacted |
+| a program's arguments | released |
+| `reading <secret>` | released |
+| `put ... into the environment variable "N"` | released |
+| `put ... into file "..."` | released |
+
+The rule: **streams redact, boundaries release.** Printing is the accidental
+path and is closed. Handing a value to a program is a deliberate act, so it
+works — and `--explain` reports every place it happens.
+
+Comparisons and measurements see through the seal, because the alternative is
+answering a different question:
+
+```
+if password is empty then quit with status 1
+if token starts with "ghp_" then put "looks like a github token"
+put the length of password
+```
+
+Equality on a sealed value is a constant-time comparison, so it cannot be
+turned into an oracle that recovers the value a character at a time.
+
+### The keystore
+
+A keystore is a file holding encrypted values, each labelled with the roles
+that may read it. A script runs as exactly one role.
+
+```bash
+frost keystore init prod.keystore --role deploy
+frost keystore add-role prod.keystore admin
+frost keystore set prod.keystore "db password" --roles deploy,admin
+frost keystore list prod.keystore
+frost --keystore prod.keystore --role deploy release.frost
+```
+
+The *names* of the secrets, the roles, and who may read what are all stored in
+plaintext, because that is the part a reviewer needs. Only the values are
+encrypted.
+
+Each role has an X25519 keypair whose private half is encrypted under a
+passphrase with scrypt; each value has a random data key sealed to every
+authorised role's public key, with AES-256-GCM throughout. The consequence
+worth knowing is that **storing a secret and granting a role need no
+passphrase — only reading does.** Somebody can add a credential for a role
+whose passphrase they do not have, which is the usual case.
+
+This needs the `cryptography` package: `pip install "frostlang[keystore]"`.
+The interpreter and everything else still have no dependencies, and the two
+environment-and-file forms of `the secret ...` work without it.
+
+### Refused before it runs
+
+Which secrets a script asks for is a capability, so it appears in the
+manifest and is checked before anything executes:
+
+```text
+$ frost --explain release.frost
+
+Reads these secrets:
+  db password  — line 4  (from the keystore)
+
+Lets a secret leave the process:
+  on the standard input of psql  — line 9
+```
+
+If the role cannot open a secret the script names, frost exits 3 and nothing
+runs — the same contract as `--policy`. A policy can also refuse outright:
+
+```policy
+forbid reading secret "prod/*"
+require at most 2 secrets read
+forbid any secret releases
+```
+
+### What this does not do
+
+It does not stop a script handing a secret to a program it was already
+allowed to run. Nothing at this layer can.
+
+More sharply: **once the plaintext reaches another program, frost cannot
+follow it.** `run "echo" with password` puts the value in that program's
+output, and `it` afterwards is ordinary text. The manifest reports the
+release rather than pretending the seal survives it.
+
+Passing a secret as a command-line argument is reported as a caution for a
+second reason: arguments are visible to every other process on the machine
+while the command runs. `reading <secret>` is the better form and is not
+flagged.
+
+The keystore is not a secret manager. There is no rotation, no expiry, no
+audit trail of reads and no network service. If you run Vault or SSM, use
+those. This exists for the many projects that run neither and keep
+credentials in a `.env` that nobody encrypts.
+
+---
+
 ## 14. Grammar
 
 EBNF. `{ }` is zero or more, `[ ]` optional, `|` alternation.
@@ -1014,6 +1167,9 @@ primary      = NUMBER | STRING | "it" | "empty" | "true" | "false"
 
 thephrase    = "the" ( "result" | "arguments" | "current" "folder"
                      | "standard" "input" | "empty" "list"
+                     | "secret" primary
+                     | "secret" "environment" "variable" primary
+                     | "secret" "file" primary
                      | "global" identifier
                      | "whole" "match" | "matches"
                      | "environment" "variable" primary

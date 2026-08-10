@@ -1,7 +1,7 @@
 """frost — a HyperTalk-descended scripting language for readable shell scripts."""
 # SPDX-License-Identifier: MIT
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .lexer import tokenize, LexError
 from .parser import parse, ParseError

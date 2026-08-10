@@ -1,0 +1,51 @@
+#!/usr/bin/env frost
+--
+-- Run a database migration with a credential that never reaches the log.
+--
+--   frost keystore init prod.keystore --role deploy
+--   frost keystore set prod.keystore "db password" --roles deploy
+--   frost --keystore prod.keystore --role deploy migrate.frost schema.sql
+--
+-- The password is a sealed value: printing it anywhere gives a marker, and
+-- the plaintext is released only where psql genuinely needs it.
+
+put item 1 of the arguments into migration file
+if migration file is empty then
+    put "usage: migrate.frost <migration.sql>" into standard error
+    quit with status 2
+end if
+
+if not file (migration file) exists then
+    put "no migration at" && migration file into standard error
+    quit with status 1
+end if
+
+put the secret "db password" into password
+if password is empty then
+    put "the stored password is empty; refusing to continue" into standard error
+    quit with status 1
+end if
+
+put "database" into the environment variable "PGDATABASE"
+
+-- The log line keeps its context and loses only the credential.
+put "applying" && migration file && "with password" && password
+
+put "/tmp/migrate.lock" into lock path
+put "held" into file (lock path)
+
+ensure
+    delete file (lock path)
+end ensure
+
+-- The password goes in on standard input, not as an argument: arguments are
+-- visible to every other process on the machine while the command runs.
+try to run "psql" with "--no-password", "--file", migration file \
+    reading password within 10 minutes
+
+if the result is not 0 then
+    put "migration failed with status" && the result into standard error
+    quit with status 1
+end if
+
+put "migration applied"

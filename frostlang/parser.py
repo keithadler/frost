@@ -1002,6 +1002,19 @@ class Parser:
                                   "into the script")
             return A.StdInRef(line)
 
+        # `the secret ...` — three sources, one seal. Gated by `the`, so
+        # `secret count` is still an ordinary variable name.
+        if self.at_word("secret"):
+            self.advance()
+            if self.at_word("environment"):
+                self.advance()
+                self.expect_word("variable")
+                return A.SecretEnvRef(self.parse_primary(), line)
+            if self.at_word("file"):
+                self.advance()
+                return A.SecretFileRef(self.parse_primary(), line)
+            return A.SecretRef(self.parse_primary(), line)
+
         if self.at_word("empty") and self.at_word("list", offset=1):
             self.advance()
             self.advance()
