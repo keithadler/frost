@@ -317,6 +317,56 @@ def check_secret_access(tree, store, role):
     return denials
 
 
+EXIT_CODES = [
+    (0, "ok", "the script ran and finished"),
+    (1, "failed", "a command failed, or the script hit a runtime error"),
+    (2, "unusable", "it did not parse, or frost was asked for something it "
+                    "could not set up"),
+    (3, "refused", "a policy, an import ceiling, a sandbox boundary or an "
+                   "approval said no; nothing ran"),
+    (4, "diverged", "a replay did not match its recording"),
+    (130, "interrupted", "somebody pressed control-C"),
+    (141, "pipe closed", "the reader went away, as with `| head`"),
+]
+
+
+def emit_exit_codes(as_json):
+    if as_json:
+        emit_json({"schema": 1, "exit_codes": [
+            {"code": c, "name": n, "meaning": m} for c, n, m in EXIT_CODES]})
+        return 0
+    width = max(len(n) for _, n, _ in EXIT_CODES)
+    for code, name, meaning in EXIT_CODES:
+        print(f"{code:>3}  {name.ljust(width)}  {meaning}")
+    return 0
+
+
+def emit_completion(shell):
+    """Completion generated from the parser, not written beside it."""
+    flags = " ".join(sorted(
+        opt for action in build_parser()._actions
+        for opt in action.option_strings))
+    if shell == "zsh":
+        return ("#compdef frost\n"
+                "_frost() {\n"
+                f"  local flags=({flags})\n"
+                '  _arguments "*:file:_files -g \'*.frost\'" \\\n'
+                '    "(- *)"{-h,--help}"[show help]"\n'
+                "  compadd -- $flags\n"
+                "}\n"
+                "_frost \"$@\"\n")
+    return ("_frost() {\n"
+            '  local cur="${COMP_WORDS[COMP_CWORD]}"\n'
+            f'  local flags="{flags}"\n'
+            '  if [[ "$cur" == -* ]]; then\n'
+            '    COMPREPLY=($(compgen -W "$flags" -- "$cur"))\n'
+            "  else\n"
+            '    COMPREPLY=($(compgen -f -X "!*.frost" -- "$cur"))\n'
+            "  fi\n"
+            "}\n"
+            "complete -F _frost frost\n")
+
+
 def build_parser():
     """frost's own options. One definition, so nothing can drift from it."""
     ap = argparse.ArgumentParser(
@@ -346,6 +396,14 @@ def build_parser():
                     help="write the trace to a file instead of standard error")
     ap.add_argument("--explain", action="store_true",
                     help="describe what the script can do, without running it")
+    ap.add_argument("--sarif", action="store_true",
+                    help="findings as SARIF, for code scanning on a pull "
+                         "request")
+    ap.add_argument("--exit-codes", action="store_true", dest="exit_codes",
+                    help="what each exit status means")
+    ap.add_argument("--completion", metavar="SHELL",
+                    choices=["bash", "zsh"],
+                    help="print a completion script for bash or zsh")
     ap.add_argument("--json", action="store_true",
                     help="emit the result as JSON: the manifest with "
                          "--explain, and otherwise the diagnostics, with a "
@@ -373,6 +431,12 @@ def build_parser():
                     dest="as_approved",
                     help="insist on an approval: refuse if there is none, or "
                          "if the script gained a capability since it")
+    ap.add_argument("--against", metavar="FILE",
+                    help="compare the manifest with a recorded approval, "
+                         "without running anything")
+    ap.add_argument("--policy-from", action="store_true", dest="policy_from",
+                    help="write a starter policy describing what this script "
+                         "already does")
     ap.add_argument("--ignore-approval", action="store_true",
                     dest="ignore_approval",
                     help="run even though <script>.approved says otherwise")
@@ -399,6 +463,14 @@ def main(argv=None):
     own, script_args = split_argv(raw, value_options(ap))
     opts = ap.parse_args(own)
     opts.args = script_args
+
+    # Answer these before a script is required: both are questions about
+    # frost, not about anything it was asked to run.
+    if opts.exit_codes:
+        return emit_exit_codes(opts.json)
+    if opts.completion:
+        sys.stdout.write(emit_completion(opts.completion))
+        return 0
 
     if opts.try_mode:
         from .repl import main as repl_main
@@ -430,6 +502,13 @@ def main(argv=None):
     try:
         program = M.load(opts.script)
     except (LexError, ParseError) as e:
+        if opts.sarif:
+            # A syntax error is the finding most worth annotating on a diff,
+            # so this cannot wait until after the script has parsed.
+            from . import sarif as S
+            sys.stdout.write(S.dump(
+                opts.script, [diagnostics.from_error(e, source)], __version__))
+            return 2
         if opts.json:
             emit_json(diagnostics.report(
                 opts.script, [diagnostics.from_error(e, source)], False, 2))
@@ -503,12 +582,47 @@ def main(argv=None):
         pprint.pprint(tree)
         return 0
 
+    if opts.policy_from:
+        from . import scaffold
+        sys.stdout.write(scaffold.policy_for(
+            opts.script, audit_program(program).merged))
+        return 0
+
+    if opts.against:
+        from . import baseline as B
+        try:
+            approved = B.read(opts.against)
+        except B.BaselineError as e:
+            sys.stderr.write(f"frost: {e.msg}\n")
+            if e.hint:
+                sys.stderr.write(f"  hint: {e.hint}\n")
+            return 2
+        current = B.capability_set(audit_program(program).merged)
+        gained, lost = B.widenings(approved, current), B.narrowings(approved,
+                                                                    current)
+        for item in gained:
+            print(f"wider:    {item}")
+        for item in lost:
+            print(f"narrower: {item}")
+        if not gained and not lost:
+            print("unchanged: it can do exactly what it was approved to do.")
+        # Reviewing is reading, so this reports rather than refuses — except
+        # when something widened, which is the answer CI needs to act on.
+        return 3 if gained else 0
+
     if opts.explain:
         program_caps = audit_program(program)
         caps = program_caps.merged
         findings = find_dangers(caps) + check_all_ceilings(program,
                                                            program_caps)
         findings.sort(key=lambda f: f.line)
+        if opts.sarif:
+            from . import sarif as S
+            sys.stdout.write(S.dump(
+                opts.script,
+                [diagnostics.from_finding(f, source) for f in findings],
+                __version__))
+            return 0
         if opts.json:
             import json
             print(json.dumps(audit_json(opts.script, caps, findings,
@@ -532,10 +646,11 @@ def main(argv=None):
         print(f"Verdict: {verdict(findings)}")
         return 0 if verdict(findings) in ("clean", "caution") else 1
 
+    policy_rules = []
     if opts.policy:
         try:
             with open(opts.policy) as fh:
-                rules = parse_policy(fh.read())
+                policy_rules = rules = parse_policy(fh.read())
         except OSError as e:
             sys.stderr.write(f"frost: cannot read policy: {e}\n")
             return 2
@@ -594,6 +709,13 @@ def main(argv=None):
                 f"the script was not run.\n")
             return 3
 
+    if opts.check and opts.sarif:
+        from . import sarif as S
+        sys.stdout.write(S.dump(opts.script,
+                                collect_diagnostics(opts.script, source),
+                                __version__))
+        return 0
+
     if opts.check:
         # Parse-only. Deliberately before the keystore: checking that a script
         # is well formed must not require the credentials it will use, or it
@@ -613,7 +735,18 @@ def main(argv=None):
         from . import baseline as B
         path = B.path_for(opts.script)
         exists = os.path.exists(path)
-        if exists or opts.as_approved:
+        # `require an approval` in the policy makes the file mandatory, so an
+        # organisation can insist centrally rather than hoping every caller
+        # remembers the flag.
+        demanded = opts.as_approved or any(
+            r.kind == "approval" for r in (policy_rules or []))
+        if not exists and demanded:
+            sys.stderr.write(
+                f"frost: {opts.script} has no approval, and one is "
+                f"required.\n  hint: read what it does with --explain, then "
+                f"record it with --approve\n")
+            return 2
+        if exists or demanded:
             try:
                 approved = B.read(path)
             except B.BaselineError as e:
