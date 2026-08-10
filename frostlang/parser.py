@@ -262,8 +262,45 @@ class Parser:
         if self.at_word("into", "before", "after"):
             mode = self.advance().value
             target = self.parse_target()
+        fields = self.parse_optional_fields()
         self.expect_end_of_statement()
-        return A.Put(expr, target, mode, line)
+        return A.Put(expr, target, mode, fields, line)
+
+    def parse_optional_fields(self):
+        """`with fields "status", "number"` — the shape the author claims.
+
+        Two things follow from one declaration. The field names become
+        checkable, so `the "staus" of build` is a mistake `--check` catches
+        rather than one that silently reads as empty at three in the morning.
+        And the payload is verified the moment it is parsed, so a server that
+        stopped sending a field fails at the line that read it instead of
+        somewhere further down wearing a different disguise.
+        """
+        if not (self.at_word("with") and self.at_word("fields", offset=1)):
+            return None
+        self.advance()
+        self.advance()
+        names = []
+        while True:
+            token = self.cur
+            if token.kind != "STR":
+                raise ParseError(
+                    "a field name has to be written out in full",
+                    token.line,
+                    hint='write: with fields "status", "number" — a name '
+                         'built at runtime could not be checked, which is the '
+                         'whole point of declaring it',
+                    code="field-must-be-literal")
+            self.advance()
+            if token.value in names:
+                raise ParseError(f"{token.value!r} is declared twice",
+                                 token.line)
+            names.append(token.value)
+            if self.at_op(","):
+                self.advance()
+                self.skip_continuation()
+                continue
+            return names
 
     def parse_wait(self):
         """`wait 3 seconds` — the unit is required, as it is for `within`.
@@ -369,7 +406,11 @@ class Parser:
                      "'the global <name>'",
                 code="global-is-reserved")
         if (target_position and words and self.cur.kind == "WORD"
-                and self.cur.value in HARD_WORDS):
+                and self.cur.value in HARD_WORDS
+                # `with fields ...` legitimately follows a target name. Any
+                # other reserved word there is still the mistake this catches.
+                and not (self.cur.value == "with"
+                         and self.at_word("fields", offset=1))):
             # e.g. `put "" into error times` — `times` belongs to `repeat`.
             raise ParseError(
                 f"{self.cur.value!r} is a reserved word and cannot be part of "
@@ -1373,6 +1414,62 @@ def resolve_calls(stmts, extra_names=()):
     return stmts
 
 
+def resolve_fields(stmts):
+    """Reject `the "staus" of build` when build was declared without it.
+
+    Only names given a shape with `with fields` are checked, and only against
+    a literal key. That is deliberately narrow: the declaration is the
+    author's claim about the payload, so checking against it is checking the
+    script against itself, which is sound. Guessing a shape from the JSON that
+    happened to arrive during development would not be.
+
+    It earns its place because of how a missing key behaves. Empty-on-missing
+    is right for optional fields and lethal for typos: `the "staus" of build`
+    reads as empty, the comparison against it quietly goes the wrong way, and
+    nothing anywhere says the word `staus` was never a field.
+    """
+    def walk(stmts, declared):
+        for node in stmts:
+            check_reads(node, declared)
+            if isinstance(node, A.Put) and isinstance(node.target,
+                                                      A.VarTarget):
+                if node.fields:
+                    declared[node.target.name] = list(node.fields)
+                elif node.mode == "into":
+                    # Reassigned without a claim, so the old shape no longer
+                    # describes it. Forgetting this would report a mistake in
+                    # code that is perfectly correct.
+                    declared.pop(node.target.name, None)
+            for value in vars(node).values():
+                if isinstance(value, list) and value and all(
+                        hasattr(v, "__dataclass_fields__") for v in value):
+                    # A nested block: declarations inside it do not leak out.
+                    walk(value, dict(declared))
+
+    def check_reads(node, declared):
+        if isinstance(node, A.FieldRef) and isinstance(node.source, A.Var) \
+                and isinstance(node.key, A.Lit):
+            known = declared.get(node.source.name)
+            if known is not None and node.key.value not in known:
+                raise ParseError(
+                    f"{node.source.name} has no field "
+                    f"{node.key.value!r}", node.line,
+                    hint=f"it was declared with: {', '.join(known)}",
+                    code="no-such-field", subject=node.key.value,
+                    candidates=known)
+        if hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list):
+                    for item in value:
+                        if hasattr(item, "__dataclass_fields__"):
+                            check_reads(item, declared)
+                elif hasattr(value, "__dataclass_fields__"):
+                    check_reads(value, declared)
+
+    walk(stmts, {})
+    return stmts
+
+
 def parse(src, resolve=True):
     """Parse one file. `resolve=False` leaves handler names unchecked.
 
@@ -1381,4 +1478,8 @@ def parse(src, resolve=True):
     whole import graph is known.
     """
     tree = Parser(src).parse_program()
+    # Field shapes are a fact about one file, so they are checked whether or
+    # not handler names can be: a module is parsed without resolution, and a
+    # typo inside it is still a typo.
+    resolve_fields(tree)
     return resolve_calls(tree) if resolve else tree

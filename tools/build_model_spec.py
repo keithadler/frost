@@ -138,7 +138,13 @@ the keys of R / the values of R
 the empty record
 put "ok" into the "status" of summary     assign a field (creates the record)
 the json text of R           serialise
+
+put the json of it into build with fields "status", "number"
 ```
+
+Declare the shape whenever you read a payload you did not create. A mistyped
+field then fails `--check` instead of silently reading as empty, and a
+response missing a declared field fails at the line that parsed it.
 
 A missing key is empty, exactly as `word 99 of` is, and a field of empty is
 empty — so an optional field needs no guard. A field of *text* is an error:

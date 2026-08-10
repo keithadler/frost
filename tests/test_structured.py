@@ -378,3 +378,110 @@ def test_the_merge_covers_every_capability_field():
     for f in dataclasses.fields(merged):
         assert getattr(merged, f.name), \
             f"merge() dropped {f.name}; --explain would omit it silently"
+
+
+# ---------------------------------------------------- declared record shapes
+
+DECLARE = ('put the json of {payload} into build '
+           'with fields "status", "number"\n')
+# Not named PAYLOAD: this module already has one, and rebinding it at the
+# bottom of the file silently changed what every test above was parsing.
+SHAPED = json.dumps(json.dumps({"status": "green", "number": 7}))
+
+
+def test_a_declared_shape_that_matches_just_works():
+    out = run_source(DECLARE.format(payload=SHAPED) +
+                     'put the "status" of build\n')
+    assert out.strip() == "green"
+
+
+def test_a_missing_declared_field_fails_at_the_line_that_read_it():
+    """Not three screens later. A missing key is empty by design, so a payload
+    that quietly stopped carrying `status` would make every downstream test of
+    it go the wrong way with nothing to point at."""
+    thin = json.dumps(json.dumps({"status": "green"}))
+    _, error = run_failing(DECLARE.format(payload=thin) + 'put "unreached"\n')
+    assert "missing 'number'" in error.msg
+    assert "it has: status" in error.hint
+
+
+def test_declaring_a_shape_on_something_that_is_not_a_record_is_refused():
+    _, error = run_failing('put "plain text" into b with fields "status"\n')
+    assert "not a record" in error.msg
+
+
+def test_a_mistyped_field_is_caught_before_anything_runs():
+    """The reason this feature exists. `the "staus" of build` reads as empty,
+    the comparison against it quietly goes the wrong way, and nothing anywhere
+    says that `staus` was never a field."""
+    with pytest.raises(ParseError) as e:
+        parse(DECLARE.format(payload=SHAPED) + 'put the "staus" of build\n')
+    assert e.value.msg == "build has no field 'staus'"
+    assert "status, number" in e.value.hint
+    assert e.value.code == "no-such-field"
+
+
+def test_the_mistyped_field_carries_a_repair():
+    from frostlang.diagnostics import from_error
+    source = DECLARE.format(payload=SHAPED) + 'put the "staus" of build\n'
+    try:
+        parse(source)
+    except ParseError as e:
+        diagnostic = from_error(e, source)
+    assert diagnostic.repairs
+    assert '"status"' in diagnostic.repairs[0].text
+    assert diagnostic.repairs[0].confidence == "guess"
+
+
+def test_an_undeclared_record_is_not_second_guessed():
+    """Only a shape the author claimed is checked. Inferring one from whatever
+    JSON turned up during development would reject correct scripts."""
+    parse('put the json of it into build\nput the "anything" of build\n')
+
+
+def test_reassigning_without_a_claim_drops_the_shape():
+    """Otherwise a name reused for something else reports a mistake in code
+    that is perfectly correct."""
+    parse(DECLARE.format(payload=SHAPED) +
+          'put the json of it into build\n'
+          'put the "whatever" of build\n')
+
+
+def test_a_shape_declared_inside_a_block_does_not_leak_out():
+    parse('if 1 is 1 then\n'
+          '    put the json of it into b with fields "a"\n'
+          'end if\n'
+          'put the json of it into b\n'
+          'put the "z" of b\n')
+
+
+def test_a_field_name_has_to_be_written_out():
+    """A name built at runtime could not be checked, which is the entire point
+    of declaring one."""
+    with pytest.raises(ParseError) as e:
+        parse('put the json of it into b with fields (name)\n')
+    assert e.value.code == "field-must-be-literal"
+
+
+def test_a_field_declared_twice_is_a_mistake():
+    with pytest.raises(ParseError) as e:
+        parse('put the json of it into b with fields "a", "a"\n')
+    assert "declared twice" in e.value.msg
+
+
+def test_check_refuses_the_typo_without_running(tmp_path):
+    """`--check` is where an agent finds this, before a process starts."""
+    script = frost_file(tmp_path, "s.frost",
+                        DECLARE.format(payload=SHAPED) +
+                        'run "echo" with the "staus" of build\n')
+    status, _, err = frost("--check", str(script), cwd=str(tmp_path))
+    assert status == 2
+    assert "has no field 'staus'" in err
+
+
+def test_the_declaration_survives_formatting():
+    from frostlang.formatter import format_source
+    source = 'put the json of it into b with fields "a",   "c"\n'
+    once = format_source(source)
+    assert once == 'put the json of it into b with fields "a", "c"\n'
+    assert parse(once, resolve=False) == parse(source, resolve=False)

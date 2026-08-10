@@ -263,6 +263,10 @@ contract instead of trusted as a guess.</p>
 <td>Why a command failed, not just that it did — without <code>sh -c "... 2&gt;&amp;1"</code>, which is the one construct the auditor flags and the spec forbids.</td>
 </tr>
 <tr>
+<td><strong>Declared record shapes</strong></td>
+<td><code>with fields "status", "number"</code> makes a mistyped field a <code>--check</code> failure instead of a silent empty, and verifies the payload at the line that parsed it.</td>
+</tr>
+<tr>
 <td><strong><code>--approve</code></strong></td>
 <td>Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability.</td>
 </tr>
@@ -958,7 +962,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1644 tests — python3 -m pytest tests/ -q
+tests/                1659 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -971,7 +975,7 @@ canary_browser.py     boots play.html in Chromium and checks its answers
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.6.0. The language runs, the examples are real, and 1644 tests cover
+<p>Version 0.6.0. The language runs, the examples are real, and 1659 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1019,9 +1023,9 @@ injection property.</p>
   then <code>run tool</code> is reported as running <code>ls</code>. A value genuinely assembled at
   runtime is reported as <em>unknowable</em> rather than guessed, which is why
   <code>--sandbox</code> exists: the kernel confines what the analyser could not resolve.</li>
-<li><strong>No schema for records.</strong> JSON parses into records and lists, but nothing
-  validates a payload's shape ahead of time — a missing field is discovered
-  when it is read, not when the script is checked.</li>
+<li><strong>A declared shape is one level deep.</strong> <code>with fields "a", "b"</code> checks the
+  top level of a record. A nested shape has to be declared by pulling the
+  inner record out into its own name first.</li>
 <li><strong>No compile-to-bash mode</strong> for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.</li>
@@ -1220,6 +1224,30 @@ it produces, and serialising redacts field by field rather than all at once:</p>
 put &quot;connecting as&quot; &amp;&amp; the &quot;user&quot; of config
 -- connecting as «secret credentials.json»
 </code></pre>
+<h3 id="ref-declaring-the-shape-of-a-record">Declaring the shape of a record</h3>
+<p>A missing key is empty, which is right for an optional field and lethal for a
+typo. <code>the "staus" of build</code> reads as empty, the comparison against it quietly
+goes the wrong way, and nothing anywhere says that <code>staus</code> was never a field.</p>
+<p>So say what shape you expect:</p>
+<pre><code>run &quot;curl&quot; with &quot;-fsS&quot;, url within 30 seconds
+put the json of it into build with fields &quot;status&quot;, &quot;number&quot;, &quot;author&quot;
+</code></pre>
+<p>Two things follow from that one line.</p>
+<p><strong>The names become checkable.</strong> <code>the "staus" of build</code> is now a mistake
+<code>--check</code> catches, with the near miss suggested as a repair, before a single
+process starts.</p>
+<p><strong>The payload is verified where it arrives.</strong> If the response does not carry
+<code>number</code>, the script stops at the line that parsed it and says what was there
+instead, rather than failing somewhere further down wearing a different
+disguise.</p>
+<p>Only names that were declared are checked, and only against a literal key. The
+declaration is your claim about the payload, so checking against it is
+checking the script against itself. Inferring a shape from whatever JSON
+happened to arrive during development would reject correct scripts, so frost
+does not do it. A record with no declaration is not second-guessed at all.</p>
+<p>A name reassigned without a claim loses its shape, and a shape declared inside
+a block does not leak out of it. Field names must be written out: one built at
+runtime could not be checked, which is the whole point of declaring it.</p>
 <h3 id="ref-standard-error">Standard error</h3>
 <p><code>the error output</code> is what the last command wrote to its standard error, the
 same way <code>it</code> is what it wrote to standard output and <code>the result</code> is its exit

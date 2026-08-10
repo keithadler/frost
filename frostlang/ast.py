@@ -312,6 +312,9 @@ class Put:
     # | FolderTarget | None
     target: Any
     mode: str = "into"         # into | before | after
+    # `with fields "a", "b"` — the shape the author says the value has. None
+    # means no claim was made, which is not the same as claiming nothing.
+    fields: Optional[List[str]] = None
     line: int = 0
 
 
