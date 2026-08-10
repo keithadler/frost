@@ -140,9 +140,11 @@ def narrowings(approved, current):
         lost = [v for v in approved.get(key, [])
                 if v not in set(current.get(key, []))]
         for value in lost:
-            out.append(f"it no longer {verb}s {value}"
-                       if not verb.endswith("to") else
-                       f"it no longer {verb} {value}")
+            # "needs to" rather than conjugating the verb. Adding an "s"
+            # produced "it no longer reachs" and "leave the processs": the
+            # headings are phrases, not verbs, and there is no rule that
+            # inflects all of them correctly.
+            out.append(f"it no longer needs to {verb} {value}")
     return out
 
 

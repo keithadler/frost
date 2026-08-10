@@ -375,3 +375,18 @@ def test_as_approved_still_insists_one_exists(project):
                            cwd=str(project.root))
     assert status == 2
     assert "no approval" in err
+
+
+def test_a_narrowing_reads_as_english():
+    """Conjugating the headings produced "it no longer reachs" and "leave the
+    processs". They are phrases, not verbs, and no suffix rule inflects all of
+    them."""
+    before = B.capability_set(caps_of(
+        'run "curl" with "https://x.example" within 30 seconds\n'
+        'put the secret file "~/.aws/credentials" into c\n'
+        'run "psql" reading c\n'))
+    after = B.capability_set(caps_of('run "echo" with "hi"\n'))
+    text = " ".join(B.narrowings(before, after))
+    assert "reachs" not in text
+    assert "processs" not in text
+    assert "it no longer needs to reach x.example" in text

