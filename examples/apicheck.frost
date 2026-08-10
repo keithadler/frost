@@ -1,0 +1,37 @@
+#!/usr/bin/env frost
+-- Check a build's status through an API, the way a real job would:
+-- structured data, a real error message, and a bounded retry.
+
+put item 1 of the arguments into build url
+if build url is empty then
+    put "usage: apicheck <url>" into standard error
+    quit with status 2
+end if
+
+put 0 into attempt
+repeat 3 times
+    add 1 to attempt
+    try to run "curl" with "-fsS", build url within 30 seconds
+    if the result is 0 then exit repeat
+
+    put "attempt" && attempt && "failed:" && the error output into standard error
+    if attempt is less than 3 then wait 2 seconds
+end repeat
+
+if the result is not 0 then
+    put "giving up after" && attempt && "attempts" into standard error
+    quit with status 1
+end if
+
+put the json of it into build
+
+put "checked at" && the current timestamp
+put "status:" && the "status" of build
+put "author:" && the "name" of the "author" of build
+
+if the "status" of build is not "green" then
+    put the "number" of build && "is not green" into standard error
+    quit with status 1
+end if
+
+put "build" && the "number" of build && "is green"
