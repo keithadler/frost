@@ -32,6 +32,12 @@ jobs:
       - name: Test
         run: python -m pytest tests/ -q
 
+      - name: The keystore is optional — everything else works without it
+        run: |
+          python -m pip uninstall -y cryptography
+          python -m pytest tests/ -q
+          python -m pip install "cryptography>=42"
+
       - name: Install as a package and run a script through the entry point
         # Catches a broken [project.scripts] or a missing module, which the
         # test suite would not: it imports frostlang from the source tree.

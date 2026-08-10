@@ -53,7 +53,7 @@ def audit_json(path, caps, findings, source_lines):
 
 # Options that take a separate value token, so the splitter below does not
 # mistake that value for the script path.
-VALUE_OPTIONS = {"--policy"}
+VALUE_OPTIONS = {"--policy", "--keystore", "--role"}
 
 
 def split_argv(argv):
@@ -80,7 +80,105 @@ def split_argv(argv):
     return own, []
 
 
+def open_keystore(opts):
+    """Load and unlock the keystore, if one was named.
+
+    Returns (keystore, error message). Unlocking here rather than at the
+    first `the secret ...` means a wrong passphrase is reported before the
+    script has done anything.
+    """
+    if not opts.keystore:
+        return None, None
+    from .keystore import Keystore, KeystoreError
+    from .keystore_cli import read_passphrase
+    try:
+        store = Keystore.load(opts.keystore)
+    except KeystoreError as e:
+        return None, str(e)
+    if opts.role:
+        try:
+            store.unlock(opts.role, read_passphrase(opts.role))
+        except (KeystoreError, PermissionError) as e:
+            return None, str(e)
+    return store, None
+
+
+def find_secret_names(tree):
+    """Every `the secret "..."` in the tree, as (name-or-None, line)."""
+    from . import ast as A
+    from .audit import literal
+
+    found = []
+
+    def walk(node):
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if isinstance(node, A.SecretRef):
+            found.append((literal(node.name), node.line))
+        if hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value)
+
+    walk(tree)
+    return found
+
+
+def check_secret_access(tree, store, role):
+    """Which secrets this script names that the role cannot read.
+
+    Answerable from the tree and the keystore's plaintext metadata, with no
+    passphrase — which is what lets the script be refused before it runs
+    rather than failing part way through, having already done something.
+    """
+    from . import ast as A
+    from .audit import literal
+
+    denials = []
+    seen = set()
+
+    def walk(node):
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if isinstance(node, A.SecretRef):
+            name = literal(node.name)
+            if name is not None and (name, node.line) not in seen:
+                seen.add((name, node.line))
+                if store is None:
+                    denials.append((name, node.line, "no keystore is open"))
+                elif name not in store.names:
+                    denials.append((name, node.line,
+                                    "the keystore has no such secret"))
+                elif role is None:
+                    denials.append((name, node.line, "no role was given"))
+                elif not store.may_read(name, role):
+                    allowed = ", ".join(store.roles_for(name))
+                    denials.append((name, node.line,
+                                    f"{role!r} may not read it "
+                                    f"(allowed: {allowed})"))
+        if hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value)
+
+    walk(tree)
+    return denials
+
+
 def main(argv=None):
+    raw = list(sys.argv[1:] if argv is None else argv)
+    # `frost keystore ...` administers a keystore rather than running a
+    # script. Checked before the main parser so its own flags do not collide.
+    if raw and raw[0] == "keystore":
+        from .keystore_cli import main as keystore_main
+        return keystore_main(raw[1:])
+
     ap = argparse.ArgumentParser(
         prog="frost",
         description="Run a frost script.")
@@ -108,8 +206,12 @@ def main(argv=None):
     ap.add_argument("--policy", metavar="FILE",
                     help="check the script against a policy file, "
                          "then run it only if it passes")
-    own, script_args = split_argv(
-        list(sys.argv[1:] if argv is None else argv))
+    ap.add_argument("--keystore", metavar="FILE",
+                    help="the keystore that 'the secret ...' reads from")
+    ap.add_argument("--role", metavar="ROLE",
+                    help="the role this run acts as; decides which secrets "
+                         "it may read")
+    own, script_args = split_argv(raw)
     opts = ap.parse_args(own)
     opts.args = script_args
 
@@ -216,10 +318,35 @@ def main(argv=None):
             sys.stderr.write("\npolicy passed with warnings.\n\n")
 
     if opts.check:
+        # Parse-only. Deliberately before the keystore: checking that a script
+        # is well formed must not require the credentials it will use, or it
+        # stops being usable as a pre-commit hook.
         print(f"{opts.script}: ok ({len(tree)} top-level statements)")
         return 0
 
-    interp = Interpreter(argv=opts.args, trace=opts.trace)
+    # Secrets are a capability like any other, so the refusal happens here —
+    # before anything runs — rather than at the line that reads one, by which
+    # point the script may already have done half its work.
+    store = None
+    if find_secret_names(tree) or opts.keystore:
+        store, problem = open_keystore(opts)
+        if problem:
+            sys.stderr.write(f"frost: {problem}\n")
+            return 2
+        denials = check_secret_access(tree, store, opts.role)
+        for name, line, why in denials:
+            sys.stderr.write(f"REFUSED: the secret {name!r} — {why}\n")
+            if 0 < line <= len(source_lines):
+                sys.stderr.write(f"  {opts.script}:{line}  "
+                                 f"{source_lines[line - 1].strip()}\n")
+        if denials:
+            sys.stderr.write(
+                f"\n{len(denials)} secret(s) unavailable; the script was not "
+                f"run.\n")
+            return 3
+
+    interp = Interpreter(argv=opts.args, trace=opts.trace,
+                         keystore=store, role=opts.role)
     try:
         return interp.run_program(tree)
     except FrostError as e:

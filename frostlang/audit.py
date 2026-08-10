@@ -47,6 +47,10 @@ class Capabilities:
     env_reads: List[tuple] = field(default_factory=list)
     env_writes: List[tuple] = field(default_factory=list)   # (name, line)
     folder_changes: List[tuple] = field(default_factory=list)  # (path, line)
+    # (name, source, line) — source is keystore | environment | file
+    secret_reads: List[tuple] = field(default_factory=list)
+    # (where, program-or-None, line) — where the plaintext leaves the process
+    secret_releases: List[tuple] = field(default_factory=list)
     cleanups: List[int] = field(default_factory=list)       # ensure block lines
     exit_codes: List[tuple] = field(default_factory=list)
     handlers: List[str] = field(default_factory=list)
@@ -105,6 +109,122 @@ def literal_number(node):
     return None
 
 
+SECRET_NODES = (A.SecretRef, A.SecretEnvRef, A.SecretFileRef)
+
+
+def secret_sources(node):
+    """Every secret-producing node anywhere in an expression."""
+    found = []
+
+    def walk(n):
+        if isinstance(n, list):
+            for item in n:
+                walk(item)
+            return
+        if isinstance(n, SECRET_NODES):
+            found.append(n)
+        if hasattr(n, "__dataclass_fields__"):
+            for value in vars(n).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value)
+
+    walk(node)
+    return found
+
+
+def tainted_names(stmts):
+    """Variables that hold a secret, following assignment.
+
+    `put the secret "x" into password` then `run "psql" with password` has to
+    be reported as a release, or the manifest would only ever catch the case
+    where somebody inlined the secret at the call site — which is the case
+    nobody writes. Repeated to a fixed point so taint flows through a chain
+    of assignments.
+
+    This is a static approximation and says so: it follows names, not values,
+    and does not attempt to be a proof.
+    """
+    tainted = set()
+
+    def names_in(node):
+        found = set()
+
+        def walk(n):
+            if isinstance(n, list):
+                for item in n:
+                    walk(item)
+                return
+            if isinstance(n, A.Var):
+                found.add(n.name)
+            elif isinstance(n, A.GlobalRef):
+                found.add(n.name)
+            if hasattr(n, "__dataclass_fields__"):
+                for value in vars(n).values():
+                    if isinstance(value, list) or hasattr(
+                            value, "__dataclass_fields__"):
+                        walk(value)
+
+        walk(node)
+        return found
+
+    def assignments(node, out):
+        if isinstance(node, list):
+            for item in node:
+                assignments(item, out)
+            return
+        if isinstance(node, A.Put) and isinstance(
+                node.target, (A.VarTarget, A.GlobalTarget)):
+            out.append((node.target.name, node.expr))
+        if hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    assignments(value, out)
+
+    pairs = []
+    assignments(stmts, pairs)
+
+    for _ in range(len(pairs) + 1):          # to a fixed point
+        grew = False
+        for name, expr in pairs:
+            if name in tainted:
+                continue
+            if secret_sources(expr) or (names_in(expr) & tainted):
+                tainted.add(name)
+                grew = True
+        if not grew:
+            break
+    return tainted
+
+
+def carries_secret(node, tainted):
+    """Does this expression carry a secret, directly or through a name?"""
+    if secret_sources(node):
+        return True
+
+    hit = [False]
+
+    def walk(n):
+        if hit[0]:
+            return
+        if isinstance(n, list):
+            for item in n:
+                walk(item)
+            return
+        if isinstance(n, (A.Var, A.GlobalRef)) and n.name in tainted:
+            hit[0] = True
+            return
+        if hasattr(n, "__dataclass_fields__"):
+            for value in vars(n).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value)
+
+    walk(node)
+    return hit[0]
+
+
 def literal_fragments(node):
     """Every literal string anywhere in an expression.
 
@@ -131,11 +251,12 @@ def literal_fragments(node):
 
 
 class Auditor:
-    def __init__(self, handlers=None):
+    def __init__(self, handlers=None, tainted=None):
         self.caps = Capabilities()
         self.seen = set()   # Run nodes already recorded, so pipe stages are
                             # not counted twice by the generic walk
         self.handlers = handlers or {}
+        self.tainted = tainted or set()
 
     def scan(self, stmts):
         self.visit_block(stmts)
@@ -198,6 +319,7 @@ class Auditor:
         handler = getattr(self, "on_" + name, None)
         if handler:
             handler(node)
+        self.note_releases(node)
 
         # Walk every child, so nested expressions are not missed.
         for value in vars(node).values():
@@ -283,6 +405,42 @@ class Auditor:
     def on_Ensure(self, node):
         self.caps.cleanups.append(node.line)
 
+    def on_SecretRef(self, node):
+        self.caps.secret_reads.append((literal(node.name), "keystore",
+                                       node.line))
+
+    def on_SecretEnvRef(self, node):
+        self.caps.secret_reads.append((literal(node.name), "environment",
+                                       node.line))
+
+    def on_SecretFileRef(self, node):
+        self.caps.secret_reads.append((literal(node.path), "file", node.line))
+
+    def note_releases(self, node):
+        """Where a secret's plaintext leaves the process.
+
+        These are the points a reviewer needs, because once the plaintext is
+        handed to another program frost cannot follow it — the output of that
+        program is ordinary text again, and the manifest should say so rather
+        than imply a seal that does not hold.
+        """
+        if isinstance(node, A.Run):
+            program = literal(node.program)
+            if any(carries_secret(a, self.tainted) for a in node.args):
+                self.caps.secret_releases.append(("argument", program,
+                                                  node.line))
+            if node.stdin is not None and carries_secret(node.stdin,
+                                                         self.tainted):
+                self.caps.secret_releases.append(("input", program, node.line))
+        elif isinstance(node, A.Put) and carries_secret(node.expr,
+                                                        self.tainted):
+            if isinstance(node.target, A.FileTarget):
+                self.caps.secret_releases.append(
+                    ("file", literal(node.target.path), node.line))
+            elif isinstance(node.target, A.EnvTarget):
+                self.caps.secret_releases.append(
+                    ("environment", literal(node.target.name), node.line))
+
     def on_DeleteFile(self, node):
         path = literal(node.path)
         self.caps.deletes.append((path, node.line))
@@ -318,7 +476,7 @@ def audit(stmts):
     # Handlers are declarations; their bodies still count as capabilities.
     handlers = {}
     collect_handlers(stmts, handlers)
-    return Auditor(handlers).scan(stmts)
+    return Auditor(handlers, tainted_names(stmts)).scan(stmts)
 
 
 # --------------------------------------------------------------- manifest
@@ -385,6 +543,16 @@ def describe(caps):
              for n, ln in caps.env_writes])
     section("Changes the working folder to:",
             [where(p, ln) for p, ln in caps.folder_changes])
+    section("Reads these secrets:",
+            [(n or "(name built at runtime)", f"— line {ln}  (from the {src})")
+             for n, src, ln in caps.secret_reads])
+    section("Lets a secret leave the process:",
+            [({"argument": f"as an argument to {what or 'a program'}",
+               "input": f"on the standard input of {what or 'a program'}",
+               "file": f"written to {what or 'a file'}",
+               "environment": f"in the environment variable {what}"}[where],
+              f"— line {ln}")
+             for where, what, ln in caps.secret_releases])
     section("Cleans up on exit:",
             [(f"ensure block", f"— line {ln}") for ln in caps.cleanups])
     section("Can exit with:",
@@ -433,6 +601,8 @@ _noun("untimed", "commands without a timeout", "command without a timeout")
 _noun("dynamic", "runtime names", "runtime name")
 _noun("handlers", "handlers", "handler")
 _noun("pipes", "pipes", "pipe")
+_noun("secret_reads", "secrets read", "secret read")
+_noun("secret_releases", "secret releases", "secret release")
 
 # `runs of "curl"` is a countable noun with a subject attached.
 RUNS_OF = re.compile(r'^runs?\s+of\s+"([^"]+)"$')
@@ -446,6 +616,8 @@ RULE_PATTERNS = [
     (re.compile(r'^(forbid|warn)\s+reading\s+"([^"]+)"\s*$'), "read"),
     (re.compile(r'^(forbid|warn)\s+deleting\s+"([^"]+)"\s*$'), "delete"),
     (re.compile(r'^(forbid|warn)\s+setting\s+"([^"]+)"\s*$'), "setenv"),
+    (re.compile(r'^(forbid|warn)\s+reading\s+secret\s+"([^"]+)"\s*$'),
+     "readsecret"),
     (re.compile(r'^(forbid|warn)\s+changing\s+folder\s*$'), "chfolder"),
 
     # Bounded timeouts. These must precede the bare `require timeout on`
@@ -619,6 +791,10 @@ def count_lines(caps, key, subject=None):
         return [0] * len(caps.handlers)
     if key == "cleanups":
         return list(caps.cleanups)
+    if key == "secret_reads":
+        return [ln for _, _, ln in caps.secret_reads]
+    if key == "secret_releases":
+        return [ln for _, _, ln in caps.secret_releases]
     pairs = {"reads": caps.reads, "writes": caps.writes,
              "deletes": caps.deletes, "env_reads": caps.env_reads,
              "env_writes": caps.env_writes,
@@ -668,6 +844,16 @@ def check(caps, rules):
                 elif fnmatch.fnmatchcase(name, rule.subject):
                     findings.append(
                         (rule.severity, f'setting "{name}"', line))
+
+        elif rule.kind == "readsecret":
+            for name, source, line in caps.secret_reads:
+                if name is None:
+                    findings.append(
+                        (rule.severity,
+                         "reading a secret named at runtime", line))
+                elif fnmatch.fnmatchcase(name, rule.subject):
+                    findings.append(
+                        (rule.severity, f'reading the secret "{name}"', line))
 
         elif rule.kind == "chfolder":
             for path, line in caps.folder_changes:
@@ -925,6 +1111,30 @@ def find_dangers(caps):
                 "caution", f"Sets a credential in the environment ({name})",
                 "Every child process started afterwards inherits it.", line))
 
+    for where, what, line in caps.secret_releases:
+        if where == "argument":
+            out.append(Finding(
+                "caution", f"A secret is passed to {what or 'a program'} as "
+                           f"an argument",
+                "Command-line arguments are visible to every other process on "
+                "the machine while it runs. Prefer 'reading <secret>', which "
+                "puts it on the program's standard input.", line))
+        elif where == "file":
+            out.append(Finding(
+                "danger", f"A secret is written to {what or 'a file'}",
+                "The value leaves the process in the clear and stays on disk "
+                "after the script ends.", line))
+        elif where == "environment":
+            out.append(Finding(
+                "caution", f"A secret is put into the environment ({what})",
+                "Every child process started afterwards inherits it, "
+                "including ones started for unrelated reasons.", line))
+        if what in NETWORK_PROGRAMS:
+            out.append(Finding(
+                "danger", f"A secret is handed to {what}",
+                "This program reaches the network, so the credential can "
+                "leave the machine.", line))
+
     for path, line in caps.folder_changes:
         if path is None:
             out.append(Finding(
@@ -1004,6 +1214,14 @@ def summarise(caps):
             f"sets {_count(caps.env_writes, 'environment variable')}{shown}")
     if caps.folder_changes:
         parts.append("changes the working folder")
+    if caps.secret_reads:
+        named = sorted({n for n, _, _ in caps.secret_reads if n})
+        shown = f" ({', '.join(named)})" if named else ""
+        parts.append(f"reads {_count(caps.secret_reads, 'secret')}{shown}")
+    if caps.secret_releases:
+        parts.append(
+            f"lets a secret leave the process in "
+            f"{_count(caps.secret_releases, 'place')}")
 
     if not parts:
         return "This script does nothing observable outside itself."

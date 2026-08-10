@@ -93,7 +93,7 @@ class Gen:
             options += ["chunk", "count", "length", "paren", "transform",
                         "chunk_list", "empty_list"]
         if not self.safe:
-            options += ["file", "result", "env", "args"]
+            options += ["file", "result", "env", "args", "secret"]
         if self.handlers and depth > 0:
             options += ["func_call"]
         choice = self.pick(options)
@@ -118,6 +118,15 @@ class Gen:
             return "the length of %s" % self.primary(depth - 1)
         if choice == "empty_list":
             return "the empty list"
+        if choice == "secret":
+            form = self.rng.randrange(3)
+            if form == 0:
+                return 'the secret "%s"' % self.pick(
+                    ["db password", "api token", "deploy/key"])
+            if form == 1:
+                return 'the secret environment variable "%s"' % self.pick(
+                    ["GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY"])
+            return 'the secret file "%s"' % self.pick(["id_rsa", ".netrc"])
         if choice == "transform":
             return "the %s %s" % (self.pick(TRANSFORMS),
                                   self.primary(depth - 1))

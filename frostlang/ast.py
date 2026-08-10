@@ -126,6 +126,32 @@ class StdInRef:
 
 
 @dataclass
+class SecretRef:
+    """`the secret "db password"` — a value read from the keystore.
+
+    Which secrets a script asks for is a capability, so it is reported by
+    --explain and can be refused by a policy or by the role before the script
+    runs at all.
+    """
+    name: Any
+    line: int = 0
+
+
+@dataclass
+class SecretEnvRef:
+    """`the secret environment variable "GITHUB_TOKEN"` — sealed on read."""
+    name: Any
+    line: int = 0
+
+
+@dataclass
+class SecretFileRef:
+    """`the secret file "~/.ssh/id_rsa"` — sealed on read."""
+    path: Any
+    line: int = 0
+
+
+@dataclass
 class ChunkList:
     """`the words of X` — every chunk at once, as a list.
 

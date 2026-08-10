@@ -27,6 +27,8 @@ import sys
 
 import pytest
 
+from frostlang import __version__
+
 from helpers import REPO, EXAMPLES, example_names
 
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden")
@@ -101,7 +103,7 @@ def test_tour_runs_and_is_fully_deterministic():
     status, out, err = frost("examples/tour.frost")
     assert status == 0, err
     assert out == (
-        "=== frost 0.3.0 ===\n"
+        "=== frost " + __version__ + " ===\n"
         "second person is grace\n"
         "roles: engineer, cryptanalyst\n"
         "total name characters: 12\n"

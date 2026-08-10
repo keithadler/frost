@@ -7,9 +7,52 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
-## Unreleased
+## 0.4.0
 
 ### Added
+
+**Secrets that cannot be logged by accident.** `the secret "db password"`
+reads from a role-gated keystore; `the secret environment variable "N"` and
+`the secret file "path"` seal a value on read and need no keystore at all.
+
+A sealed value refuses to become text. Every printing path in the language
+goes through one conversion, so `put`, joining, `--trace`, error messages and
+the scratchpad redact without knowing secrets exist. Only the secret spans
+redact — `put "connecting as" && user && "with" && token` keeps its context —
+because a mechanism that destroys logs is one people route around. The seal is
+contagious through concatenation, chunks, `split by` and the transformations,
+so a connection string built from a password is still a password.
+
+Streams redact; boundaries release. A program's arguments, its standard
+input, its environment and a file write get the real value, and `--explain`
+names every place that happens. Comparisons and `the length of` see through
+the seal, because returning the marker's length would be silently wrong;
+equality is constant time.
+
+**A keystore**, with per-role X25519 keypairs, scrypt-protected private keys
+and AES-256-GCM envelope encryption. Storing a secret and granting a role need
+no passphrase — only reading does — so somebody can add a credential for a
+role whose passphrase they do not have. Secret names and role grants are
+stored in plaintext because that is what a reviewer needs; only values are
+encrypted. `frost keystore init|add-role|set|get|list|grant|revoke|remove`,
+`--keystore` and `--role`. Needs `pip install "frostlang[keystore]"`; nothing
+else in frost gained a dependency.
+
+**Secrets in the manifest and the policy.** `--explain` lists which secrets a
+script asks for and where a plaintext leaves the process, with taint followed
+through variable assignment so `put the secret ... into pw` then `run "psql"
+with pw` is reported. Writing a secret to a file or handing one to a network
+program is a danger; passing one as a command-line argument is a caution,
+since arguments are visible to every process on the machine. Policy gains
+`forbid reading secret "glob"` and the countable nouns `secrets read` and
+`secret releases`. A script naming a secret its role cannot open is refused
+before anything runs, exit 3.
+
+### Changed
+
+- Version bumped to 0.4.0: this adds substantial language surface.
+
+### Added — language
 
 **Cleanup blocks.** `ensure ... end ensure` registers a block when execution
 reaches it and runs it when the script ends — normally, on error, on `quit`,

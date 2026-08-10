@@ -213,6 +213,62 @@ put the double of 5 + the double of 10        -- 30
 An unknown name there is caught when the script is checked, not when the line
 happens to run.
 
+## Secrets that cannot be logged by accident
+
+The failure worth designing against is not a malicious script. It is
+`put "connecting as" && token` in a generated script, running in CI, writing a
+credential into a log that is retained for a year. That mistake is made by
+being ordinary, so the fix has to be structural.
+
+A secret is a *sealed* value. It refuses to become text, and every printing
+path in the language goes through one conversion — so `put`, joining,
+`--trace` and error messages all redact without knowing secrets exist:
+
+```
+put the secret "db password" into password
+put "connecting as" && user && "with" && password
+```
+
+```text
+connecting as deploy with «secret db password»
+```
+
+Only the secret spans redact; the rest of the line survives, because a
+mechanism that destroys your logs is one people route around. The seal is
+contagious, so `"postgres://user:" & password & "@host"` is still sealed and
+still works when it reaches a program.
+
+**Streams redact, boundaries release.** Printing is the accidental path and is
+closed. A program's arguments, its standard input, its environment and a file
+write are deliberate, so they get the real value — and `--explain` names every
+place it happens:
+
+```text
+Reads these secrets:
+  db password  — line 4  (from the keystore)
+
+Lets a secret leave the process:
+  on the standard input of psql  — line 9
+```
+
+Values live in a keystore, and each one names the roles that may read it:
+
+```bash
+frost keystore set prod.keystore "db password" --roles deploy,admin
+frost --keystore prod.keystore --role deploy release.frost
+```
+
+If the role cannot open a secret the script names, frost exits 3 and nothing
+runs. The secret *names* and the role grants are stored in plaintext, because
+that is the part a reviewer needs; only the values are encrypted. Roles hold
+X25519 keypairs, so storing a secret and granting a role need no passphrase —
+only reading does.
+
+It does not stop a script handing a secret to a program it is allowed to run;
+nothing at this layer can. And once the plaintext reaches another program,
+frost cannot follow it. The manifest reports the release rather than pretending
+otherwise.
+
 ## Why this matters for AI agents
 
 Shell scripts are increasingly written by models and reviewed by people. That
@@ -382,6 +438,12 @@ ln -s "$PWD/frost" /usr/local/bin/frost
 frost examples/hello.frost
 ```
 
+The keystore is the one optional extra, because it needs a real cipher:
+
+```bash
+pip install "frostlang[keystore]"
+```
+
 Coexists with zsh — you are adding an interpreter, not replacing your shell.
 Make scripts executable with a shebang and run them directly:
 
@@ -507,6 +569,8 @@ frost --explain script.frost     describe what it can do, without running it
 frost --explain --json s.frost   the same, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
+frost --keystore F --role R s.frost   run with access to secrets
+frost keystore init|set|get|list|grant|revoke|roles
 frost --format [--write] s.frost canonical layout
 frost --version
 ```
@@ -538,7 +602,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                963 tests — python3 -m pytest tests/ -q
+tests/                1117 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -552,7 +616,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.3.0. The language runs, the examples are real, and 963 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1117 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

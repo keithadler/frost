@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "frostlang"
-version = "0.3.0"
+version = "0.4.0"
 description = "A readable, safe scripting language that turns English into shell commands"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Keith Elliott" }]
+authors = [{ name = "Keith Adler" }]
 keywords = ["shell", "scripting", "language", "hypertalk", "audit", "security"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,12 +25,16 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# The interpreter itself has no dependencies. These are for the test suite
-# and the page builders.
+# The interpreter itself has no dependencies. The keystore needs a real
+# cipher, and the rest are for the test suite and the page builders.
+keystore = [
+    "cryptography>=42",
+]
 dev = [
     "pytest>=7",
     "pytest-cov>=4",
     "markdown>=3.4",
+    "cryptography>=42",
 ]
 
 [project.urls]

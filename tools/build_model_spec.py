@@ -133,6 +133,22 @@ every match of "\\d+" in X    list of matches
 `the environment variable "NAME"`, `the current folder`, `the standard input`,
 `the global NAME`, `empty`.
 
+## Secrets
+
+```text
+the secret "db password"                     from the keystore
+the secret environment variable "TOKEN"      sealed on read
+the secret file "~/.ssh/id_rsa"              sealed on read
+```
+
+A sealed value redacts itself everywhere it would be printed, and the seal
+survives concatenation, chunks and transformations. It is released only where
+a program needs it: arguments, `reading`, the child environment, a file write.
+
+Emit `run "psql" reading password`, not `run "psql" with "--password",
+password` — arguments are visible to every process on the machine, and the
+auditor flags them. Never write a secret to a file unless asked to.
+
 ## Reading a file
 
 `file "path.txt"` is an expression. If the path is in a variable, parenthesise:
@@ -186,6 +202,8 @@ so `line count` and `error count` are valid variables.
 - Every `run` has a bare program name and a `with` list, never a command line.
 - Every `try to run` is followed by a check of `the result`.
 - Every network command has a `within` clause.
+- Any credential is read with `the secret ...` and reaches a program through
+  `reading`, never as an argument and never in a log line.
 - Anything that takes a lock or a temporary file releases it in an `ensure`
   block, because a failure aborts the script immediately.
 - No interpolation, no `sh -c`, no globs in arguments.

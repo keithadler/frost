@@ -1,0 +1,47 @@
+{
+  "commands": [
+    {
+      "args": [
+        "--no-password",
+        "--file",
+        null
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 43,
+      "program": "psql",
+      "source": "try to run \"psql\" with \"--no-password\", \"--file\", migration file \\",
+      "timeout": true
+    }
+  ],
+  "deletes": [
+    {
+      "line": 38,
+      "path": null,
+      "source": "delete file (lock path)"
+    }
+  ],
+  "environment": [],
+  "exits": [
+    "1",
+    "2"
+  ],
+  "findings": [],
+  "reads": [
+    {
+      "line": 18,
+      "path": null,
+      "source": "if not file (migration file) exists then"
+    }
+  ],
+  "script": "examples/migrate.frost",
+  "summary": "This script runs psql, reads 1 file (runtime), writes 1 file (runtime), deletes 1 file, sets 1 environment variable (PGDATABASE), reads 1 secret (db password), and lets a secret leave the process in 1 place. It can exit with status 1, 2.",
+  "verdict": "clean",
+  "writes": [
+    {
+      "line": 35,
+      "path": null,
+      "source": "put \"held\" into file (lock path)"
+    }
+  ]
+}
