@@ -24,9 +24,34 @@ from frostlang.audit import parse_policy, boundary_from, PolicyError
 from helpers import REPO
 
 BACKEND = S.detect_backend()
+
+# Gate on a backend that *works*, not one that exists. That distinction is the
+# whole lesson of this module and the suite fell for it anyway: a machine can
+# have bwrap installed and still refuse it the user namespace it needs, and
+# gating on `which bwrap` turned that into a wall of failures instead of a
+# reason. frost itself gets this right — it refuses to run there.
+if BACKEND == S.BACKEND_NONE:
+    WORKING, WHY = False, f"no backend on this platform ({sys.platform})"
+else:
+    WORKING, WHY = S.self_test()
+
+# ...but a skip nobody notices is how a backend goes a year without once being
+# run. CI sets this on every platform where the sandbox is supposed to work,
+# and then nothing here is allowed to skip.
+REQUIRED = os.environ.get("FROST_REQUIRE_SANDBOX") == "1"
+
 needs_sandbox = pytest.mark.skipif(
-    BACKEND == S.BACKEND_NONE,
-    reason=f"no sandbox backend on this platform ({sys.platform})")
+    not WORKING and not REQUIRED,
+    reason=f"no working sandbox backend here: {WHY}")
+
+
+def test_the_sandbox_is_exercised_wherever_it_is_meant_to_be():
+    """The guard on the gate above."""
+    if not REQUIRED:
+        pytest.skip("FROST_REQUIRE_SANDBOX is not set on this machine")
+    assert WORKING, (
+        f"FROST_REQUIRE_SANDBOX says the sandbox must work here, and it does "
+        f"not: {WHY}")
 
 
 def frost(*args, cwd=None, timeout=90):
