@@ -1,0 +1,63 @@
+name: Action
+
+# The action was written, parsed, and never run, which is a claim rather than
+# a fact. This uses it on the repository's own examples so every push
+# exercises the thing other people are told to depend on. It found the first
+# bug immediately: the install step defaulted to a PyPI name that does not
+# exist.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write      # the SARIF upload needs this, and saying so here
+                              # is the documentation people will copy
+
+jobs:
+  self:
+    name: The action works on this repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run the action against the clean examples
+        uses: ./
+        with:
+          # Deliberately not every example: danger.frost and exfiltrate.frost
+          # exist to be refused, and a self-test that fails on purpose proves
+          # nothing about the path a user takes.
+          scripts: "examples/healthcheck.frost examples/logreport.frost"
+          policy: examples/production.policy
+
+      - name: A script that should be refused, is
+        # The other half. An action that only ever passes is an action nobody
+        # has seen say no.
+        shell: bash
+        run: |
+          if frost --policy examples/production.policy --check \
+               examples/danger.frost; then
+            echo "::error::the policy did not refuse danger.frost"
+            exit 1
+          fi
+          echo "refused, as it should be"
+
+      - name: An approval that no longer covers its script is refused
+        shell: bash
+        run: |
+          cp examples/healthcheck.frost /tmp/widened.frost
+          cp examples/healthcheck.frost.approved /tmp/widened.frost.approved
+          echo 'run "curl" with "https://telemetry.example" within 30 seconds' \
+            >> /tmp/widened.frost
+          if frost --explain --against /tmp/widened.frost.approved \
+               /tmp/widened.frost; then
+            echo "::error::a widened script passed its own approval"
+            exit 1
+          fi
+          echo "refused, as it should be"

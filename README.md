@@ -64,6 +64,9 @@ turns a run into a fixture.
   into a system prompt so a model writes correct frost first time.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed and why.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how the pieces fit together.
+- **[PLATFORM.md](PLATFORM.md)** — for the team that operates the machines:
+  what frost enforces, what it cannot, and what actually makes any of it
+  mandatory. The honest answer to that last one lives mostly outside frost.
 - **[Try it in the browser](https://keithadler.github.io/frost/play.html)** —
   the scratchpad, and below it frost itself compiled to WebAssembly. The same
   Python the command line runs, so `--explain`, `--policy`, `--repair` and an
@@ -1035,6 +1038,8 @@ docs.html             browsable docs (tools/build_docs.py)
 audit.html            visual audit report (tools/build_audit.py)
 play.html             live scratchpad (tools/build_play.py)
 MODEL-SPEC.md         prompt-sized reference (tools/build_model_spec.py)
+PLATFORM.md           running frost as a platform control
+action.yml            the GitHub Action, tested against this repo
 web/chunks.js         browser evaluator, verified against frostlang/
 canary_browser.py     boots play.html in Chromium and checks its answers
 build_site.py         assembles what GitHub Pages publishes

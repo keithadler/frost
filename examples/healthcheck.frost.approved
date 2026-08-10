@@ -1,0 +1,23 @@
+{
+  "capabilities": {
+    "deletes": [],
+    "env_reads": [],
+    "env_writes": [],
+    "folder_changes": [],
+    "programs": [
+      "curl"
+    ],
+    "reaches": [
+      "(destination built at runtime)"
+    ],
+    "reads": [
+      "(built at runtime)"
+    ],
+    "secret_releases": [],
+    "secrets": [],
+    "unknowable": 1,
+    "writes": []
+  },
+  "schema": 1,
+  "script": "examples/healthcheck.frost"
+}
