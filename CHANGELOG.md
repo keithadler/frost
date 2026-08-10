@@ -11,6 +11,40 @@ bump may change the language.
 
 ### Added
 
+**Site policy.** `/etc/frost/policy.d/*.policy` applies to every run on the
+host, with or without `--policy`. A policy beside the script is controlled by
+whoever writes the script, which is right for a project and useless as a
+datacenter control. Site rules are added, never replaced, and composition can
+only narrow: every rule is checked independently and all must pass, so two
+allow-lists intersect and no syntax removes a rule. There is no variable
+meaning "use this instead"; `FROST_SITE_POLICY_DIR` only adds a directory. A
+site policy that is present and unreadable is a refusal.
+
+**Policy provenance.** Every policy applied is named by path and digest in
+`--explain` and in any recording. Without it an audit shows that a policy
+existed, never that a given run was subject to it.
+
+**`--automated`** (and `FROST_AUTOMATED=1`) refuses `--approve` and
+`--ignore-approval`. A loop that can approve is a loop that approves its own
+capability escalation, and the failure is mundane: an agent hits a refusal and
+the most helpful-looking next step in its search is to re-approve.
+
+**Signed approvals.** `--new-approver-key`, `--approve --sign-with`, and
+`require an approval signed by "kA1b2c..."`. Ed25519 over the capability set,
+the script, the commit, and the approver's own name and key. An approval
+signed by a key the policy does not name is refused, and so is an unsigned
+one. Making signatures needs the keystore extra; verifying never degrades,
+because an unverifiable signature is not a valid one.
+
+### Fixed
+
+**The signature did not cover the approver's name.** The first version signed
+everything except the whole signature block, so a valid approval could be
+relabelled from one person to another and still verify. The trust decision was
+unaffected, since the key is checked against the policy either way, but a
+provenance record that can be edited is not a provenance record. Caught by the
+test written for exactly that property, against a docstring that claimed it.
+
 **SARIF, and a GitHub Action.** `--check --sarif` and `--explain --sarif` emit
 what every code-scanning tool already reads, so a finding arrives as an
 annotation on the diff line it concerns, in front of the person deciding

@@ -437,6 +437,18 @@ def build_parser():
     ap.add_argument("--policy-from", action="store_true", dest="policy_from",
                     help="write a starter policy describing what this script "
                          "already does")
+    ap.add_argument("--sign-with", metavar="KEYFILE", dest="sign_with",
+                    help="sign the approval with this key")
+    ap.add_argument("--approver", metavar="NAME",
+                    help="who is approving; recorded inside the signature")
+    ap.add_argument("--commit", metavar="SHA",
+                    help="the revision this approval was read against")
+    ap.add_argument("--new-approver-key", metavar="KEYFILE",
+                    dest="new_approver_key",
+                    help="write a new signing key and print its public half")
+    ap.add_argument("--automated", action="store_true",
+                    help="this run is unattended: refuse anything that would "
+                         "widen what a script may do")
     ap.add_argument("--ignore-approval", action="store_true",
                     dest="ignore_approval",
                     help="run even though <script>.approved says otherwise")
@@ -466,6 +478,37 @@ def main(argv=None):
 
     # Answer these before a script is required: both are questions about
     # frost, not about anything it was asked to run.
+    automated = opts.automated or os.environ.get("FROST_AUTOMATED") == "1"
+    if automated:
+        blocked = [name for flag, name in
+                   ((opts.approve, "--approve"),
+                    (opts.ignore_approval, "--ignore-approval")) if flag]
+        if blocked:
+            sys.stderr.write(
+                f"frost: {', '.join(blocked)} cannot be used in an automated "
+                f"run.\n"
+                f"  An unattended loop that can approve is a loop that "
+                f"approves its own\n"
+                f"  capability escalation. A person decides this one.\n")
+            return 2
+
+    if opts.new_approver_key:
+        from . import signing
+        try:
+            private, public = signing.generate()
+            signing.write_key(opts.new_approver_key, private)
+        except signing.SigningError as e:
+            sys.stderr.write(f"frost: {e.msg}\n")
+            if e.hint:
+                sys.stderr.write(f"  hint: {e.hint}\n")
+            return 2
+        print(f"wrote {opts.new_approver_key} (keep it; it is the private "
+              f"half)")
+        print(f"public key: {public}")
+        print("Name it in a policy:  require an approval signed by "
+              f'"{public}"')
+        return 0
+
     if opts.exit_codes:
         return emit_exit_codes(opts.json)
     if opts.completion:
@@ -567,8 +610,23 @@ def main(argv=None):
                 previous = B.read(path)
             except B.BaselineError:
                 pass                       # nothing approved yet is not a fault
-            B.write(opts.script, caps, path)
-            print(f"wrote {path}")
+            key = None
+            if opts.sign_with:
+                from . import signing
+                try:
+                    key = signing.read_key(opts.sign_with)
+                except signing.SigningError as e:
+                    sys.stderr.write(f"frost: {e.msg}\n")
+                    return 2
+            commit = opts.commit or os.environ.get("GITHUB_SHA")
+            try:
+                B.write(opts.script, caps, path, sign_with=key,
+                        approver=opts.approver, commit=commit)
+            except Exception as e:
+                sys.stderr.write(f"frost: cannot sign the approval: {e}\n")
+                return 2
+            print(f"wrote {path}"
+                  + (f", signed by {opts.approver or 'unnamed'}" if key else ""))
             if previous is not None:
                 for item in B.widenings(previous, B.capability_set(caps)):
                     print(f"  wider:    {item}")
@@ -581,6 +639,15 @@ def main(argv=None):
         import pprint
         pprint.pprint(tree)
         return 0
+
+    from . import site as SITE
+    try:
+        site_rules, provenance = SITE.load()
+    except SITE.SitePolicyError as e:
+        sys.stderr.write(f"frost: {e.msg}\n")
+        if e.hint:
+            sys.stderr.write(f"  hint: {e.hint}\n")
+        return 2
 
     if opts.policy_from:
         from . import scaffold
@@ -643,14 +710,23 @@ def main(argv=None):
                 print(f"  [{label[f.severity]}] line {f.line}  {f.title}")
                 print(f"             {f.detail}")
         print()
+        for line in SITE.describe(provenance):
+            print(line)
+        if provenance:
+            print()
         print(f"Verdict: {verdict(findings)}")
         return 0 if verdict(findings) in ("clean", "caution") else 1
 
-    policy_rules = []
+    policy_rules = list(site_rules)
     if opts.policy:
         try:
             with open(opts.policy) as fh:
-                policy_rules = rules = parse_policy(fh.read())
+                text = fh.read()
+            # Added, never substituted. A project cannot widen a site rule
+            # because there is no syntax that removes one, and `--policy` has
+            # never replaced the host's rules.
+            policy_rules = site_rules + parse_policy(text)
+            provenance.append(SITE.note(opts.policy, text))
         except OSError as e:
             sys.stderr.write(f"frost: cannot read policy: {e}\n")
             return 2
@@ -658,6 +734,11 @@ def main(argv=None):
             sys.stderr.write(f"frost: {e}\n")
             return 2
 
+    # Enforced whenever there are rules, from wherever they came. Checking only
+    # when --policy was passed would mean a machine's own policy applied solely
+    # to people who volunteered for it.
+    if policy_rules:
+        rules = policy_rules
         findings = check(audit_program(program).merged, rules)
         blocked = [f for f in findings if f.severity == "forbid"]
         if opts.json:
@@ -740,6 +821,9 @@ def main(argv=None):
         # remembers the flag.
         demanded = opts.as_approved or any(
             r.kind == "approval" for r in (policy_rules or []))
+        signers = [k for r in (policy_rules or [])
+                   if r.kind == "approval_signed" for k in (r.detail or [])]
+        demanded = demanded or bool(signers)
         if not exists and demanded:
             sys.stderr.write(
                 f"frost: {opts.script} has no approval, and one is "
@@ -747,6 +831,21 @@ def main(argv=None):
                 f"record it with --approve\n")
             return 2
         if exists or demanded:
+            if signers:
+                from . import signing
+                try:
+                    whole = B.read_whole(path)
+                except B.BaselineError as e:
+                    sys.stderr.write(f"frost: {e.msg}\n")
+                    return 2
+                ok, why = signing.verify(whole, signers)
+                if not ok:
+                    sys.stderr.write(
+                        f"REFUSED: the approval for {opts.script} is not "
+                        f"usable.\n  {why}\n\n"
+                        f"The policy requires an approval signed by one of "
+                        f"{len(signers)} named approver(s).\n")
+                    return 3
             try:
                 approved = B.read(path)
             except B.BaselineError as e:
@@ -837,7 +936,7 @@ def main(argv=None):
         sys.stderr.write("frost: use --record or --replay, not both\n")
         return 2
     if opts.record:
-        recorder = interp.journal = J.Recorder(run_id)
+        recorder = interp.journal = J.Recorder(run_id, provenance)
     elif opts.replay:
         try:
             player = interp.journal = J.Player.load(opts.replay)
