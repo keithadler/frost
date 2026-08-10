@@ -7,7 +7,37 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
-## Unreleased
+## 0.7.0 — 2026-08-10
+
+Everything since 0.6.0: modules that cannot widen a program, an identity per
+execution, declared record shapes, findings a review tool reads, a policy the
+host brings, approvals somebody signed, and events a monitoring system can
+act on.
+
+### Added
+
+**`--events FILE`, telemetry as NDJSON.** One JSON object per line, flushed as
+things happen, in the format Splunk, New Relic, Datadog, Vector and Fluent Bit
+all read without a translator.
+
+Commands are now timed, which nothing measured before, and the run separates
+time spent working from time spent waiting.
+
+The resolution worth having is the pairing rather than the volume. Any tool
+can log that a command ran; frost knows what the script was allowed to do
+before it ran, so the finish event reports which approved capabilities went
+**unused**. A script approved for six programs that uses two is an approval
+that should be tightened, and that is visible only by holding the manifest and
+the run side by side.
+
+Contents are never emitted and sizes are. Secrets are redacted before an event
+is written, including inside a command's arguments, because telemetry leaves
+the building more often than a recording does. The observer wraps whatever
+journal is in use rather than adding a second set of hooks that would drift
+from the first, so `--events` composes with `--record` and `--replay`, and a
+replayed run is marked so a dashboard does not count a fixture as production
+traffic.
+
 
 ### Added
 
