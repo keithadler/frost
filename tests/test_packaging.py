@@ -149,15 +149,31 @@ BROKE_CI = '\n'.join([
 
 
 def test_that_guard_would_have_caught_it():
-    """The guard, pointed at the source that actually broke the 3.10 job."""
+    """The guard, pointed at the source that actually broke the 3.10 job.
+
+    Which mechanism does the catching depends on the interpreter running the
+    suite, and both are asserted rather than one being skipped. On 3.12 and
+    later the source is legal and the tokenizer walk has to flag it. On
+    anything older there is no FSTRING_START to walk and the guard finds
+    nothing, correctly: that interpreter refuses the source outright, so the
+    thing to assert is that it does. The first version asserted only the first
+    case and failed on every job it was written to protect.
+    """
     import tempfile
+    import tokenize
 
     with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as fh:
         fh.write(BROKE_CI)
         path = fh.name
     try:
-        assert _f_strings_needing_312(path), (
-            "the guard does not catch the syntax it exists to catch")
+        if hasattr(tokenize, "FSTRING_START"):
+            assert _f_strings_needing_312(path), (
+                "the guard does not catch the syntax it exists to catch")
+        else:
+            with pytest.raises(SyntaxError):
+                compile(BROKE_CI, path, "exec")
+            assert _f_strings_needing_312(path) == [], (
+                "nothing to find before 3.12; the walk should stay quiet")
     finally:
         os.unlink(path)
 
