@@ -79,17 +79,53 @@ _URL = re.compile(r"^[a-z][a-z0-9+.\-]*://(?:[^/@\s]*@)?([^/:?#\s]+)",
 _SCP = re.compile(r"^(?:[^@/\s]+@)([^:/\s]+):", re.IGNORECASE)
 
 
-def hosts_in(command):
-    """Every host a command's literal arguments name."""
+# A host is settled once the authority is closed inside a literal: in
+# `"https://api.github.com/repos/" & repo` nothing after the slash can move
+# it. Without the terminator — `"https://" & host` — it genuinely is unknown.
+_URL_PREFIX = re.compile(
+    r"[a-z][a-z0-9+.\-]*://(?:[^/@\s]*@)?([^/:?#\s]+)[/:?#]", re.IGNORECASE)
+
+
+def hosts_in(command, arg_nodes=(), sets=None):
+    """Every host a command's arguments name, literal or not.
+
+    Three ways a destination is knowable, in decreasing order of obviousness:
+    the whole argument is a literal URL; the argument is built by joining, and
+    a literal fragment closes the authority; or the argument is a name whose
+    every definition is a literal.
+
+    Reporting only the first was calling `run "curl" with ("https://api.
+    github.com/repos/" & repo)` an unknowable destination, which is not
+    honesty, it is a manifest declining to read what is in front of it.
+
+    Fragments over-approximate: a literal that looks like a URL is reported
+    even when concatenation might have put something in front of it. That is
+    the safe direction. A manifest may overstate a risk and must never
+    understate one.
+    """
     found = []
-    for arg in command.args:
-        if not arg:
-            continue
-        match = _URL.match(arg) or _SCP.match(arg)
+
+    def note(text):
+        if not text:
+            return
+        match = _URL.match(text) or _SCP.match(text)
         if match:
             host = match.group(1).lower()
-            if host and host not in found:
+            if host not in found:
                 found.append(host)
+
+    for arg in command.args:
+        note(arg)
+
+    for node in arg_nodes:
+        for fragment in literal_fragments(node):
+            for match in _URL_PREFIX.finditer(fragment):
+                host = match.group(1).lower()
+                if host not in found:
+                    found.append(host)
+        if sets and isinstance(node, A.Var):
+            for value in sets.get(node.name, ()):
+                note(value)
     return found
 
 
@@ -218,6 +254,65 @@ def constants(stmts):
 
 
 SECRET_NODES = (A.SecretRef, A.SecretEnvRef, A.SecretFileRef)
+
+
+def constant_sets(stmts):
+    """Names whose every definition is a literal, as the set of those literals.
+
+    `constants()` gives up when a name is assigned two different literals,
+    because it answers "what is this value". This answers a weaker and more
+    useful question: "what could it be". A branch that picks one of two hosts
+    is two known hosts, and reporting that as unknowable throws away the whole
+    manifest entry for the sake of a distinction nobody reading it cares about.
+    """
+    values = {}
+    poisoned = set()
+
+    def poison(name):
+        poisoned.add(name)
+        values.pop(name, None)
+
+    def note(name, expr):
+        if name in poisoned:
+            return
+        text = literal(expr)
+        if text is None:
+            poison(name)
+            return
+        values.setdefault(name, [])
+        if text not in values[name]:
+            values[name].append(text)
+
+    def walk(node, in_loop=False):
+        if isinstance(node, list):
+            for item in node:
+                walk(item, in_loop)
+            return
+        if isinstance(node, A.Put) and isinstance(
+                node.target, (A.VarTarget, A.GlobalTarget)):
+            if node.mode != "into" or in_loop:
+                poison(node.target.name)
+            else:
+                note(node.target.name, node.expr)
+        elif isinstance(node, (A.Arith, A.Replace)):
+            poison(node.target.name)
+        elif isinstance(node, A.RepeatWith):
+            poison(node.var)
+        elif isinstance(node, A.RepeatForEach):
+            poison(node.var)
+        elif isinstance(node, A.HandlerDef):
+            for parameter in node.params:
+                poison(parameter)
+        nested = isinstance(node, (A.RepeatTimes, A.RepeatWhile, A.RepeatWith,
+                                   A.RepeatForEach, A.RepeatForever))
+        if hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value, in_loop or nested)
+
+    walk(stmts)
+    return {name: sorted(v) for name, v in values.items() if v}
 
 
 def secret_sources(node):
@@ -359,7 +454,7 @@ def literal_fragments(node):
 
 
 class Auditor:
-    def __init__(self, handlers=None, tainted=None, known=None):
+    def __init__(self, handlers=None, tainted=None, known=None, sets=None):
         self.caps = Capabilities()
         self.seen = set()     # Run nodes already recorded, so pipe stages are
                               # not counted twice by the generic walk
@@ -367,6 +462,10 @@ class Auditor:
         self.handlers = handlers or {}
         self.tainted = tainted or set()
         self.known = known or {}
+        # name -> every literal it is ever assigned, when they are all
+        # literals. A branch that picks one of two hosts is two known hosts,
+        # not an unknown one.
+        self.sets = sets or {}
 
     def literal(self, node):
         """The literal text of a node, resolving names that are constants."""
@@ -455,7 +554,7 @@ class Auditor:
             elif hasattr(value, "__dataclass_fields__"):
                 self.visit(value)
 
-    def record_reach(self, command):
+    def record_reach(self, command, arg_nodes=()):
         """Where a command goes, when that is knowable.
 
         Recording only the program name makes `curl https://api.github.com`
@@ -463,7 +562,7 @@ class Auditor:
         precisely the space a persuaded model has to work in: it does not need
         a new program, only a new destination.
         """
-        hosts = hosts_in(command)
+        hosts = hosts_in(command, arg_nodes, self.sets)
         for host in hosts:
             self.caps.reaches.append((host, command.line))
         if not hosts and command.program in NETWORK_PROGRAMS:
@@ -507,7 +606,7 @@ class Auditor:
             timeout_seconds=(literal_number(node.timeout)
                              if node.timeout is not None else None),
         ))
-        self.record_reach(self.caps.commands[-1])
+        self.record_reach(self.caps.commands[-1], node.args)
 
     def on_Run(self, node):
         self.record_run(node)
@@ -639,7 +738,8 @@ def audit(stmts, handlers=None, tainted=None):
         collect_handlers(stmts, handlers)
     if tainted is None:
         tainted = tainted_names(stmts)
-    return Auditor(handlers, tainted, constants(stmts)).scan(stmts)
+    return Auditor(handlers, tainted, constants(stmts),
+                   constant_sets(stmts)).scan(stmts)
 
 
 # --------------------------------------------------------------- manifest
@@ -791,6 +891,13 @@ RULE_PATTERNS = [
     (re.compile(r'^(forbid|warn)\s+reading\s+secret\s+"([^"]+)"\s*$'),
      "readsecret"),
     (re.compile(r'^(forbid|warn)\s+changing\s+folder\s*$'), "chfolder"),
+    # Per-host rules, checked against the text before anything runs. The
+    # sandbox cannot hold these — macOS filters addresses and a Linux
+    # namespace has no middle setting — but the analyser can now read a host
+    # out of a joined URL, so the policy layer can say what the kernel layer
+    # cannot. The two are different guarantees and the docs keep them apart.
+    (re.compile(r'^(forbid|warn)\s+reaching\s+"([^"]+)"\s*$'), "reach"),
+    (re.compile(r'^require\s+reaching\s+only\s+(.+?)\s*$'), "reach_only"),
 
     # The sandbox boundary. Allow-shaped, because a deny-list cannot become
     # one: `forbid writing to "/etc/*"` says nothing about what writing is
@@ -917,6 +1024,16 @@ def parse_policy(text):
                 rules.append(Rule(kind, g[0], g[1], g[2], n))
             elif kind == "chfolder":
                 rules.append(Rule(kind, g[0], "*", None, n))
+            elif kind == "reach":
+                rules.append(Rule(kind, g[0], g[1], None, n))
+            elif kind == "reach_only":
+                hosts = re.findall(r'"([^"]+)"', g[0])
+                if not hosts:
+                    raise PolicyError(
+                        f"policy line {n}: name the hosts in quotes.\n"
+                        f'  try: require reaching only "api.github.com", '
+                        f'"*.internal"')
+                rules.append(Rule(kind, "forbid", "reaching only", hosts, n))
             elif kind == "sandbox_network":
                 rules.append(Rule(kind, "allow", "network", None, n))
             elif kind == "sandbox_host":
@@ -1104,6 +1221,31 @@ def _check_rules(caps, rules):
                     (rule.severity,
                      f"changing the working folder to {path or '(runtime)'}",
                      line))
+
+        elif rule.kind == "reach":
+            for host, line in caps.reaches:
+                if host == RUNTIME_HOST or fnmatch.fnmatchcase(host,
+                                                               rule.subject):
+                    findings.append(
+                        (rule.severity,
+                         f"reaching {host}" if host != RUNTIME_HOST else
+                         "reaching a destination built at runtime, which "
+                         "cannot be checked against this rule",
+                         line))
+
+        elif rule.kind == "reach_only":
+            allowed = rule.detail or []
+            for host, line in caps.reaches:
+                if host == RUNTIME_HOST:
+                    findings.append(
+                        (rule.severity,
+                         "a destination built at runtime, so it cannot be "
+                         "shown to be one of the allowed hosts", line))
+                elif not any(fnmatch.fnmatchcase(host, p) for p in allowed):
+                    findings.append(
+                        (rule.severity,
+                         f"reaching {host}, which is not in the allow-list",
+                         line))
 
         elif rule.kind == "count":
             lines = sorted(count_lines(caps, rule.subject, rule.detail))

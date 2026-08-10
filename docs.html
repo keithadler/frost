@@ -963,7 +963,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1670 tests — python3 -m pytest tests/ -q
+tests/                1684 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -976,7 +976,7 @@ canary_browser.py     boots play.html in Chromium and checks its answers
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.6.0. The language runs, the examples are real, and 1670 tests cover
+<p>Version 0.6.0. The language runs, the examples are real, and 1684 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1019,21 +1019,27 @@ injection property.</p>
 </ul>
 <p>Remaining, honestly:</p>
 <ul>
-<li><strong><code>--explain</code> resolves literals, not computation.</strong> A name whose every
-  definition is the same literal is followed through — <code>put "ls" into tool</code>
-  then <code>run tool</code> is reported as running <code>ls</code>. A value genuinely assembled at
-  runtime is reported as <em>unknowable</em> rather than guessed, which is why
-  <code>--sandbox</code> exists: the kernel confines what the analyser could not resolve.</li>
+<li><strong><code>--explain</code> reads what is derivable, not what is computed.</strong> A name whose
+  definitions are all literals is followed through, including when they differ
+  — a branch picking one of two hosts is reported as two hosts. A host is read
+  out of a joined URL when the literal closes the authority, so
+  <code>"https://api.github.com/repos/" &amp; repo</code> reaches <code>api.github.com</code>. A value
+  genuinely assembled at runtime is still reported as <em>unknowable</em> rather than
+  guessed, which is why <code>--sandbox</code> exists: the kernel confines what the
+  analyser could not resolve.</li>
 <li><strong>A declared shape is one level deep.</strong> <code>with fields "a", "b"</code> checks the
   top level of a record. A nested shape has to be declared by pulling the
   inner record out into its own name first.</li>
 <li><strong>No compile-to-bash mode</strong> for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.</li>
-<li><strong>Network rules are all-or-nothing.</strong> <code>sandbox may reach "api.github.com"</code>
-  is a parse error, because macOS filters on addresses and a Linux namespace
-  has no middle setting. A per-host allowlist needs a proxy, which is a
-  different program.</li>
+<li><strong>Per-host rules are checked, not enforced.</strong> <code>forbid reaching "*.telemetry.example"</code>
+  and <code>require reaching only "api.github.com"</code> are policy rules, checked
+  against the text before anything runs, and an unknowable destination fails
+  them closed. The <em>sandbox</em> is still all-or-nothing: <code>sandbox may reach
+  "api.github.com"</code> remains a parse error, because macOS filters on addresses
+  and a Linux namespace has no middle setting. Two different guarantees, and
+  the one the kernel holds is the weaker of the two here.</li>
 </ul>
 <h2 id="guide-license">License</h2>
 <p>MIT. See <a href="LICENSE">LICENSE</a>. Do what you like with it; keep the copyright
@@ -1310,6 +1316,27 @@ taken.</p>
 one that never finishes and a buffered trace of a wedged script is an empty
 file. It prints source text and never runtime values, so a credential cannot
 reach it.</p>
+<h3 id="ref-rules-about-where-a-script-reaches">Rules about where a script reaches</h3>
+<pre><code class="language-policy">forbid reaching &quot;*.telemetry.example&quot;   -- no third-party reporting from here
+require reaching only &quot;api.github.com&quot;, &quot;*.internal&quot;
+</code></pre>
+<p>Checked against the text, before anything runs. That is possible because the
+analyser reads a host out of a joined URL when the literal closes the
+authority — <code>"https://api.github.com/repos/" &amp; repo</code> reaches
+<code>api.github.com</code>, and nothing after the slash can move it — and because a name
+whose definitions are all literals contributes every one of them, so a branch
+choosing between two hosts is two known hosts rather than an unknown one.</p>
+<p>A destination that genuinely cannot be read fails both rules. "Cannot be shown
+to be allowed" is not "is allowed", and an allow-list that quietly passed the
+one case nobody can check would be worth nothing.</p>
+<p><strong>This is not the sandbox.</strong> <code>sandbox may reach "api.github.com"</code> is still a
+parse error: macOS filters on addresses rather than names, and a Linux network
+namespace has no middle setting, so a per-host boundary is not something the
+kernel here can hold. A policy bounds what the <em>text</em> can reach; the sandbox
+bounds what the <em>process</em> can reach, all or nothing. Keeping those apart
+matters, because the second is the stronger guarantee and the first is the
+more precise one, and pretending either is the other would be a lie in
+whichever direction someone relied on it.</p>
 <h3 id="ref-approving-what-a-script-may-do">Approving what a script may do</h3>
 <p><code>--frozen</code> asks whether a script is byte-identical to the one that was
 reviewed. That is the right question for a vendored module and the wrong one

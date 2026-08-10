@@ -11,6 +11,27 @@ bump may change the language.
 
 ### Added
 
+**The analyser reads what is derivable, not only what is spelled out.** A host
+is read out of a joined URL when the literal closes the authority, so
+`run "curl" with ("https://api.github.com/repos/" & repo)` reaches
+`api.github.com` rather than "a destination built at runtime". And
+`constant_sets` follows a name whose definitions are all literals even when
+they differ, so a branch picking one of two hosts reports both. Calling either
+of those unknowable was not honesty; it was a manifest declining to read what
+was in front of it. Without the authority terminator — `"https://" & host` —
+the destination is still genuinely unknown and still says so.
+
+**Per-host policy rules.** `forbid reaching "*.telemetry.example"` and
+`require reaching only "api.github.com", "*.internal"`, checked against the
+text before anything runs, with an unknowable destination failing them closed.
+
+The sandbox is unchanged and still all-or-nothing, deliberately: macOS filters
+on addresses and a Linux namespace has no middle setting, so
+`sandbox may reach "api.github.com"` remains a parse error. A policy bounds
+what the text can reach and the sandbox bounds what the process can reach.
+The docs keep those apart, because the second is the stronger guarantee and
+the first is the more precise one.
+
 **`--trace-to-file FILE`**, and a trace worth writing anywhere. It printed
 `[frost] line 5: Run`, which names the interpreter's internals rather than
 anything the author wrote; it now prints the line itself, flushed as it goes,

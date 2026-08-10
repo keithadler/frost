@@ -945,7 +945,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1670 tests — python3 -m pytest tests/ -q
+tests/                1684 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -960,7 +960,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1670 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1684 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
@@ -1004,21 +1004,27 @@ The gaps this file used to list are closed. In the order they were listed:
 
 Remaining, honestly:
 
-- **`--explain` resolves literals, not computation.** A name whose every
-  definition is the same literal is followed through — `put "ls" into tool`
-  then `run tool` is reported as running `ls`. A value genuinely assembled at
-  runtime is reported as *unknowable* rather than guessed, which is why
-  `--sandbox` exists: the kernel confines what the analyser could not resolve.
+- **`--explain` reads what is derivable, not what is computed.** A name whose
+  definitions are all literals is followed through, including when they differ
+  — a branch picking one of two hosts is reported as two hosts. A host is read
+  out of a joined URL when the literal closes the authority, so
+  `"https://api.github.com/repos/" & repo` reaches `api.github.com`. A value
+  genuinely assembled at runtime is still reported as *unknowable* rather than
+  guessed, which is why `--sandbox` exists: the kernel confines what the
+  analyser could not resolve.
 - **A declared shape is one level deep.** `with fields "a", "b"` checks the
   top level of a record. A nested shape has to be declared by pulling the
   inner record out into its own name first.
 - **No compile-to-bash mode** for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.
-- **Network rules are all-or-nothing.** `sandbox may reach "api.github.com"`
-  is a parse error, because macOS filters on addresses and a Linux namespace
-  has no middle setting. A per-host allowlist needs a proxy, which is a
-  different program.
+- **Per-host rules are checked, not enforced.** `forbid reaching "*.telemetry.example"`
+  and `require reaching only "api.github.com"` are policy rules, checked
+  against the text before anything runs, and an unknowable destination fails
+  them closed. The *sandbox* is still all-or-nothing: `sandbox may reach
+  "api.github.com"` remains a parse error, because macOS filters on addresses
+  and a Linux namespace has no middle setting. Two different guarantees, and
+  the one the kernel holds is the weaker of the two here.
 
 ## License
 
