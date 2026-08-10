@@ -229,8 +229,11 @@ def bubblewrap_argv(boundary, root, folder=None):
     relative path writes somewhere else entirely — the boundary looked
     airtight while the allowed write silently failed.
     """
-    argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev",
-            "--proc", "/proc", "--tmpfs", "/tmp"]
+    # No `--tmpfs /tmp`. Giving the child a private /tmp is tempting, but it
+    # masks whatever is really there — including, on a build machine, the
+    # directory the script itself is running in. The read-only bind of / is
+    # stricter anyway: /tmp is writable only if the boundary names it.
+    argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"]
     argv += ["--chdir", folder or root]
     for pattern in boundary.writes + boundary.deletes:
         base = _writable_root(pattern, root)
