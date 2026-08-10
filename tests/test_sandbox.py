@@ -285,9 +285,12 @@ def test_a_backend_that_does_not_confine_is_refused(monkeypatch, project,
     """Present is not the same as working."""
     project("rules.policy", 'sandbox may run "echo"\n')
     project("s.frost", 'put "x"\n')
-    monkeypatch.setenv("FROST_FAKE_BROKEN_SANDBOX", "1")
     import frostlang.sandbox as module
-    original = module.self_test
+    # A backend has to look present, or require_backend refuses first and the
+    # path being tested is never reached — which is what happened on Linux,
+    # where the runners have no bubblewrap.
+    monkeypatch.setattr(module, "require_backend",
+                        lambda: module.BACKEND_MACOS)
     monkeypatch.setattr(module, "self_test",
                         lambda backend=None: (False, "deliberately broken"))
     from frostlang import cli

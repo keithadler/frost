@@ -26,6 +26,12 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - name: Install bubblewrap, so the Linux sandbox backend is exercised
+        if: runner.os == 'Linux'
+        # Without it every sandbox test skips, and a backend nobody has run
+        # is a backend nobody has.
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+
       - name: Install
         run: python -m pip install --upgrade pip && pip install -e ".[dev]"
 
@@ -92,6 +98,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - run: python -m pip install --upgrade pip && pip install -e ".[dev]"
       - name: Measure
         run: |
