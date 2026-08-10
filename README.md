@@ -761,7 +761,7 @@ things, both refused, alongside a health check and a log analyzer that pass.
 Requires Python 3.10+. No dependencies.
 
 ```bash
-git clone <repo> frost && cd frost
+git clone https://github.com/keithadler/frost.git && cd frost
 ln -s "$PWD/frost" /usr/local/bin/frost
 frost examples/hello.frost
 ```
@@ -785,7 +785,7 @@ chmod +x report.frost
 No dependencies beyond Python 3.10. Paste this whole block:
 
 ```bash
-git clone <repo> frost && cd frost
+git clone https://github.com/keithadler/frost.git && cd frost
 
 cat > hello.frost <<'END'
 run "date" with "+%A"
@@ -962,7 +962,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1753 tests — python3 -m pytest tests/ -q
+tests/                1764 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -979,7 +979,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1753 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1764 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

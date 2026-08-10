@@ -834,7 +834,7 @@ that exfiltrates your keys and a cleanup script that quietly does four dangerous
 things, both refused, alongside a health check and a log analyzer that pass.</p>
 <h2 id="guide-install">Install</h2>
 <p>Requires Python 3.10+. No dependencies.</p>
-<pre><code class="language-bash">git clone &lt;repo&gt; frost &amp;&amp; cd frost
+<pre><code class="language-bash">git clone https://github.com/keithadler/frost.git &amp;&amp; cd frost
 ln -s &quot;$PWD/frost&quot; /usr/local/bin/frost
 frost examples/hello.frost
 </code></pre>
@@ -848,7 +848,7 @@ Make scripts executable with a shebang and run them directly:</p>
 </code></pre>
 <h2 id="guide-try-it-in-30-seconds">Try it in 30 seconds</h2>
 <p>No dependencies beyond Python 3.10. Paste this whole block:</p>
-<pre><code class="language-bash">git clone &lt;repo&gt; frost &amp;&amp; cd frost
+<pre><code class="language-bash">git clone https://github.com/keithadler/frost.git &amp;&amp; cd frost
 
 cat &gt; hello.frost &lt;&lt;'END'
 run &quot;date&quot; with &quot;+%A&quot;
@@ -989,7 +989,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1753 tests — python3 -m pytest tests/ -q
+tests/                1764 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1004,7 +1004,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.6.0. The language runs, the examples are real, and 1753 tests cover
+<p>Version 0.6.0. The language runs, the examples are real, and 1764 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
