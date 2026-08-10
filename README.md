@@ -10,6 +10,50 @@ injection, and auditable before a single process starts.**
 
 A grammar descended from HyperTalk, an interpreter rather than a login shell.
 
+## What you get
+
+Everything below follows from one decision: **a frost program is a parse tree,
+never a string.** Nothing is interpolated, nothing is re-parsed, and no value
+can become syntax. That single property is what lets a script be checked as a
+contract instead of trusted as a guess.
+
+| Capability | What it buys you |
+| --- | --- |
+| **No interpolation, no `eval`** | Injection is *unrepresentable*, not mitigated. Hostile text stays text wherever it came from — a filename, an issue title, a web page an agent just read. |
+| **`--explain`** | A capability manifest before anything runs: every program spawned, file read or written, secret released. Approving capabilities takes seconds; deriving them by reading code takes minutes, and that is where mistakes happen. |
+| **`--policy`** | Business rules checked against the tree. Not just *may it use curl*, but how many times, for how long, and whether it cleans up after itself — and every rule explains itself when it fires. Violations exit 3 and the script never starts. |
+| **Sealed secrets** | A value from the role-gated keystore cannot be printed by accident. The seal survives concatenation, comparison is constant-time, and `--explain` names every place a secret is released to a program. |
+| **Modules** | An import declares a capability ceiling, so reading the entry file gives a sound upper bound on the whole program. A shared module that later grows a network call breaks the build at the import site rather than quietly widening someone's manifest. |
+| **`--sandbox`** | The kernel holds the boundary while the script runs, so a path the analyser *could not* resolve is confined anyway. Fails closed: where the boundary cannot be enforced, frost refuses to run rather than warning and continuing. |
+| **`--record` / `--replay`** | Snapshot testing for shell scripts. A recording is a fixture you can commit; replay spawns no process, writes no file, and reports a divergence rather than a stack trace. Secret values are never written down. |
+| **`--json` / `--repair`** | Every diagnostic as structured data with the edit attached, so the model that wrote the script can repair it without a human in the loop. |
+
+### The lifecycle
+
+Each stage is optional, and each one narrows what the next has to trust:
+
+```text
+frost --check     s.frost      does it parse, and are the names real?
+frost --explain   s.frost      what could it possibly do?
+frost --policy p  s.frost      is that allowed here?
+frost --sandbox   s.frost      hold the boundary while it runs
+frost --record r  s.frost      write down what it actually did
+```
+
+The first three cost about a millisecond and all happen before a single
+process starts. The fourth is enforced by the operating system. The fifth
+turns a run into a fixture.
+
+### Where the rest is documented
+
+- **[LANGUAGE.md](LANGUAGE.md)** — the full reference and grammar.
+- **[MODEL-SPEC.md](MODEL-SPEC.md)** — a prompt-sized spec, built to be pasted
+  into a system prompt so a model writes correct frost first time.
+- **[CHANGELOG.md](CHANGELOG.md)** — what changed and why.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — how the pieces fit together.
+- `docs.html`, `audit.html`, `play.html` — browsable reference, a visual audit
+  report, and a live scratchpad that runs frost in the browser.
+
 ```
 #!/usr/bin/env frost
 
@@ -27,6 +71,30 @@ repeat for each line in it as tally
     put the second word of tally && "failed" && the first word of tally && "times"
 end repeat
 ```
+
+## Three things it fixes
+
+**Injection is unrepresentable, not mitigated.** There is no interpolation and
+no `eval`. Arguments are a list handed to `execve`, never re-parsed.
+
+```text
+$ cat hostile.frost
+put "notes.txt; rm -rf *" into evil name
+run "touch" with evil name
+
+$ frost hostile.frost && ls
+'notes.txt; rm -rf *'   keep_me.txt   precious.db
+
+$ bash -c "touch $EVIL" && ls
+                        # empty. everything is gone.
+```
+
+**Failure stops the script.** No `set -e` to forget. `run` aborts on non-zero
+exit; `try to run` opts out and is greppable in review.
+
+**Pipes fail if any stage fails.** `cat missing.log | wc -l` reports success in
+bash. In frost the first failing stage wins, and there is no way to turn that
+off.
 
 ## Why
 
@@ -63,30 +131,6 @@ once, spawning is paid per command.** A script that runs ten commands spends
 ten process spawns against one parse, so the parse is a rounding error no
 matter which platform it runs on. Verbosity costs nothing at this scale
 because the front end is a fixed cost, not because it wins a race.
-
-## Three things it fixes
-
-**Injection is unrepresentable, not mitigated.** There is no interpolation and
-no `eval`. Arguments are a list handed to `execve`, never re-parsed.
-
-```text
-$ cat hostile.frost
-put "notes.txt; rm -rf *" into evil name
-run "touch" with evil name
-
-$ frost hostile.frost && ls
-'notes.txt; rm -rf *'   keep_me.txt   precious.db
-
-$ bash -c "touch $EVIL" && ls
-                        # empty. everything is gone.
-```
-
-**Failure stops the script.** No `set -e` to forget. `run` aborts on non-zero
-exit; `try to run` opts out and is greppable in review.
-
-**Pipes fail if any stage fails.** `cat missing.log | wc -l` reports success in
-bash. In frost the first failing stage wins, and there is no way to turn that
-off.
 
 ## Side by side
 
@@ -776,11 +820,19 @@ frostlang/
     ast.py            node definitions
     interp.py         tree-walking evaluator
     audit.py          capability manifest, danger checks, policy engine
+    program_audit.py  the same, across an imported closure
+    modules.py        import resolution, ceilings, lockfile
+    sandbox.py        capability boundaries the kernel holds
+    sealed.py         values that cannot be printed by accident
+    keystore.py       role-gated envelope encryption
+    keystore_cli.py   the frost-keys command
+    journal.py        record and replay
+    diagnostics.py    structured findings and repair payloads
     formatter.py      canonical layout
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1457 tests — python3 -m pytest tests/ -q
+tests/                1464 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -794,7 +846,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1464 tests cover
+Version 0.5.0. The language runs, the examples are real, and 1464 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
@@ -815,20 +867,38 @@ The gaps this file used to list are closed. In the order they were listed:
 - `run "make" showing output` hands the terminal to the child, for long builds
   and interactive programs.
 - Handlers are callable in expressions: `the double of 5`.
+- **Modules**: `use "lib/db.frost" for the connect which may run "psql"`,
+  declarations only, with a capability ceiling at the import site and
+  `--lock`/`--frozen` to pin the bytes.
+- **Streaming input**: `repeat for each line in the standard input` consumes
+  lines as they arrive, so a frost filter works against a producer that never
+  ends.
+- **Quantitative policy**: counts, ranges and limits, with units reconciled
+  and a hint on every rule.
+- **Secrets**: a role-gated keystore, sealed values, and redaction that
+  survives concatenation.
+- **Runtime confinement**: `--sandbox`, held by `sandbox-exec` on macOS and
+  `bubblewrap` on Linux, verified confining in CI on both.
+- **Record and replay**: `--record` writes a committable fixture; `--replay`
+  spawns nothing.
 
 Remaining, honestly:
 
-- **`--explain` reasons about literals only.** A program name or path built at
-  runtime is reported as unknowable rather than guessed. This is deliberate,
-  but it does mean a determined script can put itself out of reach.
-- **No modules.** A script is one file; there is no way to share a handler
-  between two of them.
-- **No structured data.** Lists are flat lists of text. Nothing reads JSON.
-- **`the standard input` is read whole**, so frost cannot filter a stream that
-  never ends.
+- **`--explain` resolves literals, not computation.** A name whose every
+  definition is the same literal is followed through — `put "ls" into tool`
+  then `run tool` is reported as running `ls`. A value genuinely assembled at
+  runtime is reported as *unknowable* rather than guessed, which is why
+  `--sandbox` exists: the kernel confines what the analyser could not resolve.
+- **No structured data in the language.** Lists are flat lists of text, and
+  nothing parses JSON into a value. (`--json` is frost's own output *about* a
+  script, not a data type inside one.)
 - **No compile-to-bash mode** for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.
+- **Network rules are all-or-nothing.** `sandbox may reach "api.github.com"`
+  is a parse error, because macOS filters on addresses and a Linux namespace
+  has no middle setting. A per-host allowlist needs a proxy, which is a
+  different program.
 
 ## License
 
