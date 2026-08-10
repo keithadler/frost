@@ -7,6 +7,28 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
+## Unreleased
+
+### Fixed
+
+**A capability ceiling did not compose.** `which may run "psql"` constrained
+only the file the import named, so a module could widen the program past what
+its importer allowed simply by importing another module: allowed `psql`,
+imported something that ran `curl`, and nothing objected. That made the claim
+the whole module design rests on — that reading the entry file gives a sound
+upper bound on the program — false at any depth greater than one.
+
+A ceiling now bounds everything an import pulls in, however far down it lives.
+A breach names the file that actually holds the capability and the import that
+forbade it, and says which module it was reached through; blaming the module
+the import names would send a reader to a file with no offending line in it.
+
+The manifest was never wrong here — `--explain` reported the `curl` and
+attributed it to the right file the whole time. It was the enforcement that
+had the hole, which is the more dangerous half: a manifest is read by someone
+who is already paying attention, and a ceiling is what protects the people who
+are not.
+
 ## 0.6.0 — 2026-08-10
 
 The three gaps that pushed a real script back out of frost. Each one had a

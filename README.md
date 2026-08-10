@@ -547,9 +547,11 @@ REFUSED: lib/sneaky.frost may not run curl
   The import at deploy.frost:2 allows: nothing but compute.
 ```
 
-So a reviewer who reads only the entry file has a sound upper bound on the
-whole program, and a shared module that later grows a network call breaks the
-build at the import site rather than quietly widening someone's manifest.
+A ceiling bounds the whole subtree an import pulls in, not just the file it
+names — a module allowed to run `psql` cannot import a second one that runs
+`curl`. So a reviewer who reads only the entry file has a sound upper bound on
+the whole program, and a shared module that later grows a network call breaks
+the build at the import site rather than quietly widening someone's manifest.
 `frost --lock` and `--frozen` pin the bytes.
 
 ### Closing the loop with the thing that wrote it
@@ -901,7 +903,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1514 tests — python3 -m pytest tests/ -q
+tests/                1518 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -915,7 +917,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1514 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1518 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

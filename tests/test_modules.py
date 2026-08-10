@@ -448,6 +448,75 @@ def test_a_module_that_exceeds_its_ceiling_is_refused(workspace):
     assert any("may not run curl" in f.title for f in breaches)
 
 
+def test_a_ceiling_covers_the_whole_subtree_it_pulls_in(workspace):
+    """The hole that made the headline claim false.
+
+    A ceiling that constrained only the file it names left the guarantee
+    breached exactly one level down: a module allowed to run `psql` could
+    import a second one that runs `curl`, and nothing objected. The upper
+    bound a reviewer took from the entry file was not an upper bound.
+    """
+    workspace("lib/deep.frost",
+              'to fetch\n    run "curl" with "https://x.example"\nend fetch\n')
+    workspace("lib/mid.frost",
+              'use "deep.frost" for the fetch which may run "curl"\n'
+              "to go\n    return the fetch\nend go\n")
+    workspace("entry.frost",
+              'use "lib/mid.frost" for the go which may run "psql"\n'
+              "put the go\n")
+    program = load(workspace)
+    breaches = check_all_ceilings(program, audit_program(program))
+    assert any("may not run curl" in f.title for f in breaches), \
+        "a module widened the program by importing another one"
+
+
+def test_a_transitive_breach_names_the_file_that_actually_does_it(workspace):
+    """Blaming the module the import names would send a reader to a file that
+    does not contain the offending line."""
+    workspace("lib/deep.frost",
+              'to fetch\n    run "curl" with "https://x.example"\nend fetch\n')
+    workspace("lib/mid.frost",
+              'use "deep.frost" for the fetch which may run "curl"\n'
+              "to go\n    return the fetch\nend go\n")
+    workspace("entry.frost",
+              'use "lib/mid.frost" for the go which may run "psql"\n'
+              "put the go\n")
+    program = load(workspace)
+    breach = [f for f in check_all_ceilings(program, audit_program(program))
+              if "may not run curl" in f.title][0]
+    assert "deep.frost" in breach.title
+    assert "reached through" in breach.detail
+    assert "mid.frost" in breach.detail
+
+
+def test_a_transitive_capability_within_the_ceiling_is_allowed(workspace):
+    """The other direction: composing must not refuse what was declared."""
+    workspace("lib/deep.frost",
+              'to fetch\n    run "curl" with "https://x.example"\nend fetch\n')
+    workspace("lib/mid.frost",
+              'use "deep.frost" for the fetch which may run "curl"\n'
+              "to go\n    return the fetch\nend go\n")
+    workspace("entry.frost",
+              'use "lib/mid.frost" for the go which may run "curl"\n'
+              "put the go\n")
+    program = load(workspace)
+    assert check_all_ceilings(program, audit_program(program)) == []
+
+
+def test_a_transitive_breach_stops_the_run(workspace):
+    workspace("lib/deep.frost",
+              'to fetch\n    run "curl" with "https://x.example"\nend fetch\n')
+    workspace("lib/mid.frost",
+              'use "deep.frost" for the fetch which may run "curl"\n'
+              "to go\n    return the fetch\nend go\n")
+    workspace("entry.frost",
+              'use "lib/mid.frost" for the go which may run "psql"\n'
+              "put the go\n")
+    status, _, err = frost("entry.frost", cwd=str(workspace.root))
+    assert status == 3, err
+    assert "may not run curl" in err
+
+
 def test_the_default_ceiling_is_nothing_but_computation(workspace):
     workspace("lib/pure.frost",
               "to double with n\n    return n * 2\nend double\n")
