@@ -487,6 +487,11 @@ It refuses to format a script that does not parse, is idempotent, and produces
 an identical parse tree, so it cannot quietly change meaning. The examples in
 this repo are its style reference, and a test fails if any of them drifts.
 
+**Editor support** — `editors/` holds a TextMate grammar and a VS Code
+manifest, generated from the parser so the highlighted keywords cannot drift
+from the real ones, with indent rules taken from the formatter so typing does
+not fight `--format`.
+
 **For code-generating models** — `MODEL-SPEC.md` is a compact reference sized
 for a system prompt. Point a model at it and it will emit frost instead of
 bash; then `--explain` and `--policy` check the result before it runs.
@@ -499,9 +504,24 @@ frost --check script.frost       parse only, report errors
 frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
 frost --explain script.frost     describe what it can do, without running it
+frost --explain --json s.frost   the same, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
-frost --try                      scratchpad for chunk expressions
+frost --try [subject.txt]        scratchpad for chunk expressions
 frost --format [--write] s.frost canonical layout
+frost --version
+```
+
+frost's own options end at the script path; everything after it belongs to the
+script, so `frost report.frost --check` passes `--check` to the script.
+
+Exit status is the contract:
+
+```text
+  0  ran, or answered a question
+  1  the script failed, or --explain judged it dangerous
+  2  could not read or parse it, or the arguments were wrong
+  3  a policy refused it; nothing was run
+130  interrupted
 ```
 
 ## Layout
@@ -518,7 +538,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                882 tests — python3 -m pytest tests/ -q
+tests/                963 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -532,7 +552,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.3.0. The language runs, the examples are real, and 882 tests cover
+Version 0.3.0. The language runs, the examples are real, and 963 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, world-class]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Test
+        run: python -m pytest tests/ -q
+
+      - name: Install as a package and run a script through the entry point
+        # Catches a broken [project.scripts] or a missing module, which the
+        # test suite would not: it imports frostlang from the source tree.
+        run: |
+          pip install .
+          frost --version
+          frost examples/hello.frost
+          frost --explain examples/logreport.frost
+
+  generated:
+    name: Generated files are up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: The browser evaluator agrees with the interpreter
+        run: python tools/verify_chunks.py
+
+      - name: Rebuild every generated file
+        run: |
+          python tools/build_model_spec.py
+          python tools/build_docs.py
+          python tools/build_play.py
+          python tools/build_audit.py
+          python tools/build_editors.py
+
+      - name: Nothing changed
+        # A generated file committed out of date is a lie that survives review,
+        # because nobody re-runs the builder to check.
+        run: |
+          if ! git diff --exit-code --stat; then
+            echo "::error::a generated file is out of date; run the builders and commit the result"
+            exit 1
+          fi
+
+      - name: The examples are canonically formatted
+        run: |
+          for f in examples/*.frost; do
+            python frost --format "$f" | diff -u "$f" - \
+              || { echo "::error file=$f::not canonically formatted"; exit 1; }
+          done
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      - name: Measure
+        run: |
+          python -m pytest tests/ -q \
+            --cov=frostlang --cov-report=term-missing --cov-fail-under=90

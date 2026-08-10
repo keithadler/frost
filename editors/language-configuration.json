@@ -1,0 +1,28 @@
+{
+  "comments": {
+    "lineComment": "--"
+  },
+  "brackets": [
+    [
+      "(",
+      ")"
+    ]
+  ],
+  "autoClosingPairs": [
+    {
+      "open": "(",
+      "close": ")"
+    },
+    {
+      "open": "\"",
+      "close": "\"",
+      "notIn": [
+        "string"
+      ]
+    }
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(if\\b.*\\bthen\\s*$|repeat\\b|to\\b|else\\s*$|else\\s+if\\b.*\\bthen\\s*$|ensure\\s*$|(?:try\\s+to\\s+)?pipe\\b(?!.*\\bend\\s+pipe\\b))",
+    "decreaseIndentPattern": "^\\s*(end\\b|else\\b)"
+  }
+}

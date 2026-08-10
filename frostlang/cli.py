@@ -4,6 +4,7 @@
 import argparse
 import sys
 
+from . import __version__
 from .lexer import LexError
 from .parser import parse, ParseError
 from .interp import Interpreter, FrostError
@@ -83,6 +84,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="frost",
         description="Run a frost script.")
+    ap.add_argument("--version", action="version",
+                    version=f"frost {__version__}")
     ap.add_argument("script", nargs="?", help="path to a .frost file")
     ap.add_argument("--try", dest="try_mode", action="store_true",
                     help="open a scratchpad for trying chunk expressions")

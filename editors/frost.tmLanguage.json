@@ -1,0 +1,104 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "frost",
+  "scopeName": "source.frost",
+  "fileTypes": [
+    "frost"
+  ],
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#block"
+    },
+    {
+      "include": "#control"
+    },
+    {
+      "include": "#keyword"
+    },
+    {
+      "include": "#function"
+    },
+    {
+      "include": "#ordinal"
+    },
+    {
+      "include": "#noun"
+    },
+    {
+      "include": "#unit"
+    },
+    {
+      "include": "#special"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.double-dash.frost",
+          "match": "--.*$"
+        },
+        {
+          "name": "comment.line.number-sign.frost",
+          "match": "(?<!\\S)#.*$"
+        }
+      ]
+    },
+    "string": {
+      "name": "string.quoted.double.frost",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.frost",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "number": {
+      "name": "constant.numeric.frost",
+      "match": "\\b\\d+(\\.\\d+)?\\b"
+    },
+    "block": {
+      "name": "keyword.control.block.frost",
+      "match": "\\b(forever|repeat|ensure|while|until|then|else|pipe|each|end|for|if|to)\\b"
+    },
+    "control": {
+      "name": "keyword.control.flow.frost",
+      "match": "\\b(return|exit|next|quit|try)\\b"
+    },
+    "keyword": {
+      "name": "keyword.other.frost",
+      "match": "\\b(contains|multiply|standard|subtract|greater|matches|reading|replace|showing|before|delete|divide|exists|global|joined|starts|within|after|empty|every|false|least|split|times|whole|ends|from|into|less|like|most|step|than|true|with|add|and|are|not|put|run|the|as|at|by|in|is|it|of|or)\\b"
+    },
+    "function": {
+      "name": "support.function.frost",
+      "match": "(?<=\\bthe\\s)(lowercase|uppercase|absolute|reversed|smallest|average|largest|rounded|trimmed|sorted|unique|sum)\\b"
+    },
+    "ordinal": {
+      "name": "constant.language.ordinal.frost",
+      "match": "\\b(seventh|eighth|fourth|middle|second|fifth|first|ninth|sixth|tenth|third|last|any)\\s+(?=(characters|character|matches|chars|items|lines|match|words|char|item|line|word)\\b)"
+    },
+    "noun": {
+      "name": "entity.name.type.chunk.frost",
+      "match": "\\b(characters|character|matches|chars|items|lines|match|words|char|item|line|word)\\b(?=\\s+(\\d|of\\b|-))"
+    },
+    "unit": {
+      "name": "keyword.other.unit.frost",
+      "match": "(?<=\\d\\s)(milliseconds|millisecond|minutes|seconds|minute|second|hours|hour|ms)\\b"
+    },
+    "special": {
+      "name": "variable.language.frost",
+      "match": "(?<=\\bthe\\s)(result|arguments|whole|matches|environment|current|length|number|standard|global|empty)\\b"
+    }
+  }
+}
