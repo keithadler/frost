@@ -1,6 +1,6 @@
 # The frost Language Reference
 
-Version 0.4.0
+Version 0.5.0
 
 frost is a scripting language for the jobs shell scripts do, with a grammar
 descended from HyperTalk. It exists because the economics changed: scripts are

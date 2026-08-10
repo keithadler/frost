@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost 0.4.0 — language documentation</title>
+<title>frost 0.5.0 — language documentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -181,9 +181,9 @@ tbody tr:last-child td{border-bottom:none}
 
 <aside id="side">
   <p class="brand">fr<span>o</span>st</p>
-  <p class="brand-sub">v0.4.0 · language docs</p>
+  <p class="brand-sub">v0.5.0 · language docs</p>
   <button class="menu-btn" id="menu">Contents</button>
-  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-knowing-what-it-did-not-just-what-it-could-do">Knowing what it did, not just what it could do</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-12a-modules">12a. Modules</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-13c-recording-and-replaying-a-run">13c. Recording and replaying a run</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
+  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-what-you-get">What you get</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-why">Why</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-knowing-what-it-did-not-just-what-it-could-do">Knowing what it did, not just what it could do</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-12a-modules">12a. Modules</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-13c-recording-and-replaying-a-run">13c. Recording and replaying a run</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
 </aside>
 
 <main>
@@ -213,6 +213,74 @@ tbody tr:last-child td{border-bottom:none}
 humans only get to review them — readable by default, structurally immune to
 injection, and auditable before a single process starts.</strong></p>
 <p>A grammar descended from HyperTalk, an interpreter rather than a login shell.</p>
+<h2 id="guide-what-you-get">What you get</h2>
+<p>Everything below follows from one decision: <strong>a frost program is a parse tree,
+never a string.</strong> Nothing is interpolated, nothing is re-parsed, and no value
+can become syntax. That single property is what lets a script be checked as a
+contract instead of trusted as a guess.</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>What it buys you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>No interpolation, no <code>eval</code></strong></td>
+<td>Injection is <em>unrepresentable</em>, not mitigated. Hostile text stays text wherever it came from — a filename, an issue title, a web page an agent just read.</td>
+</tr>
+<tr>
+<td><strong><code>--explain</code></strong></td>
+<td>A capability manifest before anything runs: every program spawned, file read or written, secret released. Approving capabilities takes seconds; deriving them by reading code takes minutes, and that is where mistakes happen.</td>
+</tr>
+<tr>
+<td><strong><code>--policy</code></strong></td>
+<td>Business rules checked against the tree. Not just <em>may it use curl</em>, but how many times, for how long, and whether it cleans up after itself — and every rule explains itself when it fires. Violations exit 3 and the script never starts.</td>
+</tr>
+<tr>
+<td><strong>Sealed secrets</strong></td>
+<td>A value from the role-gated keystore cannot be printed by accident. The seal survives concatenation, comparison is constant-time, and <code>--explain</code> names every place a secret is released to a program.</td>
+</tr>
+<tr>
+<td><strong>Modules</strong></td>
+<td>An import declares a capability ceiling, so reading the entry file gives a sound upper bound on the whole program. A shared module that later grows a network call breaks the build at the import site rather than quietly widening someone's manifest.</td>
+</tr>
+<tr>
+<td><strong><code>--sandbox</code></strong></td>
+<td>The kernel holds the boundary while the script runs, so a path the analyser <em>could not</em> resolve is confined anyway. Fails closed: where the boundary cannot be enforced, frost refuses to run rather than warning and continuing.</td>
+</tr>
+<tr>
+<td><strong><code>--record</code> / <code>--replay</code></strong></td>
+<td>Snapshot testing for shell scripts. A recording is a fixture you can commit; replay spawns no process, writes no file, and reports a divergence rather than a stack trace. Secret values are never written down.</td>
+</tr>
+<tr>
+<td><strong><code>--json</code> / <code>--repair</code></strong></td>
+<td>Every diagnostic as structured data with the edit attached, so the model that wrote the script can repair it without a human in the loop.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="guide-the-lifecycle">The lifecycle</h3>
+<p>Each stage is optional, and each one narrows what the next has to trust:</p>
+<pre><code class="language-text">frost --check     s.frost      does it parse, and are the names real?
+frost --explain   s.frost      what could it possibly do?
+frost --policy p  s.frost      is that allowed here?
+frost --sandbox   s.frost      hold the boundary while it runs
+frost --record r  s.frost      write down what it actually did
+</code></pre>
+<p>The first three cost about a millisecond and all happen before a single
+process starts. The fourth is enforced by the operating system. The fifth
+turns a run into a fixture.</p>
+<h3 id="guide-where-the-rest-is-documented">Where the rest is documented</h3>
+<ul>
+<li><strong><a href="LANGUAGE.md">LANGUAGE.md</a></strong> — the full reference and grammar.</li>
+<li><strong><a href="MODEL-SPEC.md">MODEL-SPEC.md</a></strong> — a prompt-sized spec, built to be pasted
+  into a system prompt so a model writes correct frost first time.</li>
+<li><strong><a href="CHANGELOG.md">CHANGELOG.md</a></strong> — what changed and why.</li>
+<li><strong><a href="CONTRIBUTING.md">CONTRIBUTING.md</a></strong> — how the pieces fit together.</li>
+<li><code>docs.html</code>, <code>audit.html</code>, <code>play.html</code> — browsable reference, a visual audit
+  report, and a live scratchpad that runs frost in the browser.</li>
+</ul>
 <pre><code>#!/usr/bin/env frost
 
 put the number of lines in file &quot;access.log&quot; into request count
@@ -229,6 +297,24 @@ repeat for each line in it as tally
     put the second word of tally &amp;&amp; &quot;failed&quot; &amp;&amp; the first word of tally &amp;&amp; &quot;times&quot;
 end repeat
 </code></pre>
+<h2 id="guide-three-things-it-fixes">Three things it fixes</h2>
+<p><strong>Injection is unrepresentable, not mitigated.</strong> There is no interpolation and
+no <code>eval</code>. Arguments are a list handed to <code>execve</code>, never re-parsed.</p>
+<pre><code class="language-text">$ cat hostile.frost
+put &quot;notes.txt; rm -rf *&quot; into evil name
+run &quot;touch&quot; with evil name
+
+$ frost hostile.frost &amp;&amp; ls
+'notes.txt; rm -rf *'   keep_me.txt   precious.db
+
+$ bash -c &quot;touch $EVIL&quot; &amp;&amp; ls
+                        # empty. everything is gone.
+</code></pre>
+<p><strong>Failure stops the script.</strong> No <code>set -e</code> to forget. <code>run</code> aborts on non-zero
+exit; <code>try to run</code> opts out and is greppable in review.</p>
+<p><strong>Pipes fail if any stage fails.</strong> <code>cat missing.log | wc -l</code> reports success in
+bash. In frost the first failing stage wins, and there is no way to turn that
+off.</p>
 <h2 id="guide-why">Why</h2>
 <p>Shell syntax was optimised for a cost that no longer dominates. <code>cut -d: -f1</code>
 is terse because a human typed it a thousand times on a serial terminal. When a
@@ -256,24 +342,6 @@ once, spawning is paid per command.</strong> A script that runs ten commands spe
 ten process spawns against one parse, so the parse is a rounding error no
 matter which platform it runs on. Verbosity costs nothing at this scale
 because the front end is a fixed cost, not because it wins a race.</p>
-<h2 id="guide-three-things-it-fixes">Three things it fixes</h2>
-<p><strong>Injection is unrepresentable, not mitigated.</strong> There is no interpolation and
-no <code>eval</code>. Arguments are a list handed to <code>execve</code>, never re-parsed.</p>
-<pre><code class="language-text">$ cat hostile.frost
-put &quot;notes.txt; rm -rf *&quot; into evil name
-run &quot;touch&quot; with evil name
-
-$ frost hostile.frost &amp;&amp; ls
-'notes.txt; rm -rf *'   keep_me.txt   precious.db
-
-$ bash -c &quot;touch $EVIL&quot; &amp;&amp; ls
-                        # empty. everything is gone.
-</code></pre>
-<p><strong>Failure stops the script.</strong> No <code>set -e</code> to forget. <code>run</code> aborts on non-zero
-exit; <code>try to run</code> opts out and is greppable in review.</p>
-<p><strong>Pipes fail if any stage fails.</strong> <code>cat missing.log | wc -l</code> reports success in
-bash. In frost the first failing stage wins, and there is no way to turn that
-off.</p>
 <h2 id="guide-side-by-side">Side by side</h2>
 <pre><code class="language-bash">#!/bin/bash
 set -euo pipefail
@@ -781,11 +849,19 @@ frostlang/
     ast.py            node definitions
     interp.py         tree-walking evaluator
     audit.py          capability manifest, danger checks, policy engine
+    program_audit.py  the same, across an imported closure
+    modules.py        import resolution, ceilings, lockfile
+    sandbox.py        capability boundaries the kernel holds
+    sealed.py         values that cannot be printed by accident
+    keystore.py       role-gated envelope encryption
+    keystore_cli.py   the frost-keys command
+    journal.py        record and replay
+    diagnostics.py    structured findings and repair payloads
     formatter.py      canonical layout
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1457 tests — python3 -m pytest tests/ -q
+tests/                1464 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -797,7 +873,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.4.0. The language runs, the examples are real, and 1464 tests cover
+<p>Version 0.5.0. The language runs, the examples are real, and 1464 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -817,25 +893,43 @@ injection property.</p>
 <li><code>run "make" showing output</code> hands the terminal to the child, for long builds
   and interactive programs.</li>
 <li>Handlers are callable in expressions: <code>the double of 5</code>.</li>
+<li><strong>Modules</strong>: <code>use "lib/db.frost" for the connect which may run "psql"</code>,
+  declarations only, with a capability ceiling at the import site and
+  <code>--lock</code>/<code>--frozen</code> to pin the bytes.</li>
+<li><strong>Streaming input</strong>: <code>repeat for each line in the standard input</code> consumes
+  lines as they arrive, so a frost filter works against a producer that never
+  ends.</li>
+<li><strong>Quantitative policy</strong>: counts, ranges and limits, with units reconciled
+  and a hint on every rule.</li>
+<li><strong>Secrets</strong>: a role-gated keystore, sealed values, and redaction that
+  survives concatenation.</li>
+<li><strong>Runtime confinement</strong>: <code>--sandbox</code>, held by <code>sandbox-exec</code> on macOS and
+  <code>bubblewrap</code> on Linux, verified confining in CI on both.</li>
+<li><strong>Record and replay</strong>: <code>--record</code> writes a committable fixture; <code>--replay</code>
+  spawns nothing.</li>
 </ul>
 <p>Remaining, honestly:</p>
 <ul>
-<li><strong><code>--explain</code> reasons about literals only.</strong> A program name or path built at
-  runtime is reported as unknowable rather than guessed. This is deliberate,
-  but it does mean a determined script can put itself out of reach.</li>
-<li><strong>No modules.</strong> A script is one file; there is no way to share a handler
-  between two of them.</li>
-<li><strong>No structured data.</strong> Lists are flat lists of text. Nothing reads JSON.</li>
-<li><strong><code>the standard input</code> is read whole</strong>, so frost cannot filter a stream that
-  never ends.</li>
+<li><strong><code>--explain</code> resolves literals, not computation.</strong> A name whose every
+  definition is the same literal is followed through — <code>put "ls" into tool</code>
+  then <code>run tool</code> is reported as running <code>ls</code>. A value genuinely assembled at
+  runtime is reported as <em>unknowable</em> rather than guessed, which is why
+  <code>--sandbox</code> exists: the kernel confines what the analyser could not resolve.</li>
+<li><strong>No structured data in the language.</strong> Lists are flat lists of text, and
+  nothing parses JSON into a value. (<code>--json</code> is frost's own output <em>about</em> a
+  script, not a data type inside one.)</li>
 <li><strong>No compile-to-bash mode</strong> for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.</li>
+<li><strong>Network rules are all-or-nothing.</strong> <code>sandbox may reach "api.github.com"</code>
+  is a parse error, because macOS filters on addresses and a Linux namespace
+  has no middle setting. A per-host allowlist needs a proxy, which is a
+  different program.</li>
 </ul>
 <h2 id="guide-license">License</h2>
 <p>MIT. See <a href="LICENSE">LICENSE</a>. Do what you like with it; keep the copyright
 notice.</p></div>
-  <div class="doc"><p>Version 0.4.0</p>
+  <div class="doc"><p>Version 0.5.0</p>
 <p>frost is a scripting language for the jobs shell scripts do, with a grammar
 descended from HyperTalk. It exists because the economics changed: scripts are
 now written quickly and read carefully, often by someone who did not write them

@@ -7,7 +7,37 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
-## Unreleased
+## 0.5.0 — 2026-08-10
+
+The release that turns "frost can describe what a script may do" into "frost
+can hold it". Modules, secrets, runtime confinement, record/replay and
+structured diagnostics all landed here, and the version bump reflects
+substantial new language and tooling surface rather than a breaking change.
+
+### Fixed
+
+**The sandbox self-test could not fail.** It asked one question — did a write
+*outside* the boundary happen? — and a sandbox that dies before executing
+anything answers no. It certified a completely non-functional Linux backend
+as healthy across four CI runs. It now runs two controls: a forbidden write
+must be refused *and* a permitted write must succeed. An absence is only
+evidence if something was there to be absent.
+
+**macOS denied every write the boundary allowed, for any script under `/tmp`
+or `/var`.** Sandbox rules are matched against the resolved path and both of
+those are symlinks, so the generated profile named something the kernel never
+sees. Boundary patterns are now resolved through symlinks. Found by the
+positive control above, on the platform that had been green throughout.
+
+**The Linux backend never ran a single command.** `bwrap` needs a user
+namespace, and where one cannot be created it exits before starting the
+child. frost detects this and refuses to run; CI relaxes the restriction and
+asserts the backend actually confines, so a skipped sandbox test is now a
+failing one.
+
+**The sandbox gave its children no working directory.** `bwrap` starts a
+child in `/` whatever the parent's directory was, so a command writing to a
+relative path wrote somewhere else entirely.
 
 ### Added
 
