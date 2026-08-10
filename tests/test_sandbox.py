@@ -168,9 +168,12 @@ def test_a_write_inside_the_boundary_still_succeeds(project, tmp_path):
     project("rules.policy", POLICY)
     project("s.frost", ESCAPE.format(outside=outside))
 
-    frost("--policy", "rules.policy", "--sandbox", "s.frost",
-          cwd=str(tmp_path))
-    assert (tmp_path / "build" / "allowed.txt").exists()
+    status, out, err = frost("--policy", "rules.policy", "--sandbox",
+                             "s.frost", cwd=str(tmp_path))
+    assert (tmp_path / "build" / "allowed.txt").exists(), (
+        f"the allowed write did not happen.\n"
+        f"  exit={status}\n  stdout={out!r}\n  stderr={err!r}\n"
+        f"  boundary rooted at {tmp_path}")
 
 
 @needs_sandbox
@@ -354,6 +357,14 @@ def test_the_bubblewrap_argv_starts_in_the_right_directory(tmp_path):
 def test_the_bubblewrap_argv_falls_back_to_the_script_directory(tmp_path):
     argv = S.bubblewrap_argv(Boundary(), str(tmp_path), None)
     assert argv[argv.index("--chdir") + 1] == str(tmp_path)
+
+
+def test_the_bubblewrap_argv_does_not_mask_the_working_directory(tmp_path):
+    """A private /tmp is tempting and wrong: on a build machine the script's
+    own directory is often under /tmp, and mounting over it makes every
+    relative path resolve into an empty filesystem."""
+    argv = S.bubblewrap_argv(Boundary(), str(tmp_path), None)
+    assert "--tmpfs" not in argv
 
 
 def test_the_bubblewrap_argv_binds_what_the_boundary_allows(tmp_path):
