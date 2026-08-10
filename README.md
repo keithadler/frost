@@ -1,5 +1,9 @@
 # frost
 
+[![CI](https://github.com/keithadler/frost/actions/workflows/ci.yml/badge.svg)](https://github.com/keithadler/frost/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 **A shell scripting language for the era when machines write the scripts and
 humans only get to review them — readable by default, structurally immune to
 injection, and auditable before a single process starts.**
@@ -38,6 +42,18 @@ has to be short.
 The speed objection does not apply. A shell's runtime is dominated by
 `fork`/`exec`, not parsing — HyperTalk's whole grammar fit in HyperCard on a
 68000. You can parse verbose syntax faster than you can spawn a process.
+
+That is measured, not assumed. `python tools/benchmark.py` parses and audits
+every example against the cost of one `fork`/`exec`:
+
+```text
+release.frost           78 lines    parse 659us   audit 292us
+one fork+exec of true                            2002us
+```
+
+Reading the whole script and deriving its capability manifest costs about
+half what it costs to start a single program. A test fails if that ever
+stops being true, because the argument for verbosity rests on it.
 
 ## Three things it fixes
 
@@ -602,7 +618,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1119 tests — python3 -m pytest tests/ -q
+tests/                1125 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -616,7 +632,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1119 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1125 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
