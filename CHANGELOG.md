@@ -11,6 +11,28 @@ bump may change the language.
 
 ### Added
 
+**A loop that cannot end is a finding, and `--deadline` bounds the run.**
+
+`within` bounds one command and a policy can bound how many there are.
+Neither touches a loop doing arithmetic, which spawns nothing, reads nothing
+and writes nothing. Having no capabilities, it produced an empty manifest and
+a clean verdict: the cheapest way for a generated script to wedge a runner was
+the one thing frost reported as harmless.
+
+`repeat forever`, `repeat while true` and `repeat until false` are now checked
+for anything that could end them. Presence counts rather than reachability,
+which understates and never overstates, and a condition that is not literally
+true is left alone, because guessing is how a check earns a reputation for
+crying wolf.
+
+`--deadline SECONDS` and `require the run to finish within N minutes` bound the
+whole run, exiting 124, the code a shell uses for a timeout and the one frost
+already returns when a single command runs too long. It is raised rather than
+killed so `ensure` blocks still run, and the tightest budget wins so a flag
+cannot widen what a site policy imposed.
+
+### Added
+
 **PLATFORM.md**, for the team that operates the machines. It answers the
 question frost cannot answer about itself: what makes any of this mandatory.
 The honest answer is that frost cannot, and the parts that can are a

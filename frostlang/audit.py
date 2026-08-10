@@ -59,6 +59,11 @@ class Capabilities:
     # command's destination is not a literal, because a destination nobody can
     # read ahead of time is still a destination.
     reaches: List[tuple] = field(default_factory=list)
+    # (line, kind, escapable) for every loop that can run forever. A loop is
+    # not a capability, which is exactly why it went unreported: it touches
+    # nothing, so a script that never terminates read as "does nothing
+    # observable" and a clean verdict.
+    loops: List[tuple] = field(default_factory=list)
     waits: List[tuple] = field(default_factory=list)
     dynamic: int = 0              # count of runtime-built names
     # (line, [literal fragments]) for every path expression, so a sensitive
@@ -315,6 +320,38 @@ def constant_sets(stmts):
     return {name: sorted(v) for name, v in values.items() if v}
 
 
+def _can_escape(block):
+    """Whether anything in a loop body could end it.
+
+    Presence, not reachability: an `exit repeat` behind a condition that never
+    fires still counts. That understates the problem and never overstates it,
+    which is the right way round for a check that would otherwise flag working
+    code and be switched off.
+
+    A handler called from the body might `quit`, and this cannot see that. It
+    is a warning rather than a refusal for that reason.
+    """
+    found = [False]
+
+    def walk(node):
+        if found[0]:
+            return
+        if isinstance(node, (A.ExitRepeat, A.Quit, A.Return)):
+            found[0] = True
+            return
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+        elif hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value)
+
+    walk(block)
+    return found[0]
+
+
 def secret_sources(node):
     """Every secret-producing node anywhere in an expression."""
     found = []
@@ -567,6 +604,22 @@ class Auditor:
             self.caps.reaches.append((host, command.line))
         if not hosts and command.program in NETWORK_PROGRAMS:
             self.caps.reaches.append((RUNTIME_HOST, command.line))
+
+    def on_RepeatForever(self, node):
+        self.caps.loops.append(
+            (node.line, "forever", _can_escape(node.block)))
+
+    def on_RepeatWhile(self, node):
+        # Only a condition that is literally true. `repeat while n is less
+        # than 10` may well terminate, and guessing at that is how a check
+        # earns a reputation for crying wolf.
+        # `repeat until false` is the same loop written the other way round.
+        forever = (isinstance(node.cond, A.Lit)
+                   and node.cond.value is (False if node.until else True))
+        if forever:
+            self.caps.loops.append(
+                (node.line, "until false" if node.until else "while true",
+                 _can_escape(node.block)))
 
     def on_Wait(self, node):
         """A sleeping script is a script somebody is waiting on.
@@ -867,6 +920,7 @@ _noun("env_writes", "environment writes", "environment write")
 _noun("folder_changes", "folder changes", "folder change")
 _noun("cleanups", "cleanups", "cleanup", "ensure block", "ensure blocks")
 _noun("waits", "waits", "wait")
+_noun("loops", "unbounded loops", "unbounded loop")
 _noun("reaches", "hosts reached", "host reached", "hosts")
 _noun("unchecked", "unchecked commands", "unchecked command")
 _noun("untimed", "commands without a timeout", "command without a timeout")
@@ -904,6 +958,10 @@ RULE_PATTERNS = [
     (re.compile(r'^require\s+an\s+approval\s+signed\s+by\s+(.+?)\s*$'),
      "approval_signed"),
     (re.compile(r'^require\s+an\s+approval\s*$'), "approval"),
+    # A budget for the whole run, so a datacenter can bound what a wedged
+    # script costs without every author remembering to.
+    (re.compile(r'^require\s+the\s+run\s+to\s+finish\s+within\s+' + NUM +
+                r'\s+(\w+)\s*$'), "deadline"),
 
     # The sandbox boundary. Allow-shaped, because a deny-list cannot become
     # one: `forbid writing to "/etc/*"` says nothing about what writing is
@@ -1032,6 +1090,9 @@ def parse_policy(text):
                 rules.append(Rule(kind, g[0], "*", None, n))
             elif kind == "approval":
                 rules.append(Rule(kind, "forbid", "approval", None, n))
+            elif kind == "deadline":
+                rules.append(Rule(kind, "forbid", "deadline",
+                                  _seconds(g[0], g[1], n), n))
             elif kind == "approval_signed":
                 keys = re.findall(r'"([^"]+)"', g[0])
                 if not keys:
@@ -1238,6 +1299,10 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
                      f"changing the working folder to {path or '(runtime)'}",
                      line))
 
+        elif rule.kind == "deadline":
+            continue          # the driver applies this; a budget is a fact
+                              # about the run rather than about the text
+
         elif rule.kind in ("approval", "approval_signed"):
             continue          # the driver checks these: whether a file exists
                               # and who signed it are facts about the disk
@@ -1440,6 +1505,17 @@ def has_glob(text):
 def find_dangers(caps):
     """Checks that run with no policy file, on every script."""
     out = []
+
+    for line, kind, escapable in caps.loops:
+        if escapable:
+            continue
+        out.append(Finding(
+            "danger", f"A loop that cannot end (repeat {kind})",
+            "Nothing in the body exits the loop, quits, or returns, so this "
+            "runs until something outside stops it. A loop is not a "
+            "capability, so without this the script reports as doing nothing "
+            "observable. Use `--deadline` to bound the whole run.",
+            line))
 
     for c in caps.commands:
         prog = c.program

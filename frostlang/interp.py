@@ -36,6 +36,16 @@ class FrostError(Exception):
 TIMEOUT_STATUS = 124
 
 
+class DeadlineExceeded(FrostError):
+    """The run used its whole budget.
+
+    A distinct type because it is not the script being wrong. `within` bounds
+    one command and a policy can bound how many there are, but neither touches
+    a loop doing arithmetic, which is the cheapest way for a generated script
+    to wedge a runner and the one that reports as doing nothing observable.
+    """
+
+
 class QuitSignal(Exception):
     def __init__(self, status):
         self.status = status
@@ -292,6 +302,11 @@ class Interpreter:
         # rules to be enforced at spawn as well as read before the run. None
         # means the static check is the only one, which is the default.
         self.host_rules = None
+        # A monotonic instant after which the run stops, or None. Checked
+        # often enough that a tight loop cannot outrun it and rarely enough
+        # that reading the clock is not the program.
+        self.deadline = None
+        self._ticks = 0
         self.handler_tables = {}      # file -> {name: HandlerDef}
         self.handler_home = {}        # id(HandlerDef) -> defining file
         self.current_file = None      # whose table calls resolve in
@@ -420,12 +435,32 @@ class Interpreter:
 
     # -- statements
 
+    def tick(self, line=None):
+        """Stop if the run is out of time.
+
+        Raised rather than killed, so `ensure` blocks still run. A deadline
+        that skipped cleanup would leave exactly the mess it was meant to
+        bound.
+        """
+        if self.deadline is None:
+            return
+        self._ticks += 1
+        if self._ticks & 0x3F:            # every 64th statement
+            return
+        if time.monotonic() >= self.deadline:
+            raise DeadlineExceeded(
+                "the run used its whole time budget", line,
+                hint="raise it with --deadline, or find what is not "
+                     "finishing. A loop with no way out is reported by "
+                     "--explain.")
+
     def exec_statement(self, node):
         method = getattr(self, "exec_" + type(node).__name__, None)
         if method is None:
             raise FrostError(
                 f"cannot execute {type(node).__name__}",
                 getattr(node, "line", None))
+        self.tick(getattr(node, "line", None))
         if self.trace:
             self.write_trace(node)
         return method(node)

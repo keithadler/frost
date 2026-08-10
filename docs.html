@@ -275,6 +275,10 @@ contract instead of trusted as a guess.</p>
 <td>NDJSON for Splunk, New Relic, Datadog or a collector. Every command timed, every effect reported, secrets redacted. The finish event says which approved capabilities went <strong>unused</strong>, which is a signal a shell cannot produce and which drives tightening an approval before it is abused.</td>
 </tr>
 <tr>
+<td><strong><code>--deadline</code></strong></td>
+<td>A budget for the whole run, honoured with cleanup and exiting 124. A loop doing arithmetic has no capabilities, so the manifest called it clean; an unbounded loop is now a finding, and a policy can impose the budget centrally.</td>
+</tr>
+<tr>
 <td><strong>Site policy</strong></td>
 <td><code>/etc/frost/policy.d/*.policy</code> applies to every run on the host, whether or not anyone passed <code>--policy</code>. Site rules add to a project's and can only narrow them, and every policy applied is named by digest in the manifest and the recording.</td>
 </tr>
@@ -992,6 +996,7 @@ frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
 frost --automated s.frost        unattended: refuse anything that widens
 frost --events F s.frost         one JSON object per event (- for stderr)
 frost --events-format otel s.frost   OTLP/JSON traces instead of NDJSON
+frost --deadline N s.frost       stop the whole run after N seconds
 frost --enforce-hosts s.frost    check a command's real destination at spawn
 frost --egress-rules squid s.frost   the allow-list, as proxy configuration
 frost --new-approver-key F       a signing key for approvals
@@ -1060,7 +1065,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1901 tests — python3 -m pytest tests/ -q
+tests/                1921 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1077,7 +1082,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.7.0. The language runs, the examples are real, and 1901 tests cover
+<p>Version 0.7.0. The language runs, the examples are real, and 1921 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1525,6 +1530,39 @@ bounds what the <em>process</em> can reach, all or nothing. Keeping those apart
 matters, because the second is the stronger guarantee and the first is the
 more precise one, and pretending either is the other would be a lie in
 whichever direction someone relied on it.</p>
+<h3 id="ref-loops-that-cannot-end-and-runs-that-will-not">Loops that cannot end, and runs that will not</h3>
+<p><code>within 30 seconds</code> bounds one command, and a policy can bound how many
+commands there are. Neither touches a loop doing arithmetic, which spawns
+nothing, reads nothing and writes nothing. It has no capabilities at all, so
+the manifest had nothing to report and reported it approvingly:</p>
+<pre><code class="language-text">This script does nothing observable.
+
+Verdict: clean
+</code></pre>
+<p>That script never terminates. The cheapest way for a generated script to wedge
+a runner was the one thing frost called harmless.</p>
+<p><strong>A loop with no way out is now a finding.</strong> <code>repeat forever</code>, <code>repeat while
+true</code> and <code>repeat until false</code> are checked for anything in the body that could
+end them: an <code>exit repeat</code>, a <code>quit</code>, a <code>return</code>.</p>
+<pre><code class="language-text">[DANGER ] line 2  A loop that cannot end (repeat forever)
+</code></pre>
+<p>Presence counts, not reachability. An <code>exit repeat</code> behind a condition that
+never fires still counts, which understates the problem and never overstates
+it. That is the right way round for a check which would otherwise flag working
+code and be switched off. A condition that is not literally <code>true</code> is left
+alone, because <code>repeat while n is less than 10</code> may well terminate and
+guessing is how a check earns a reputation for crying wolf.</p>
+<p><strong>A budget bounds the whole run.</strong></p>
+<pre><code class="language-bash">frost --deadline 300 deploy.frost
+</code></pre>
+<pre><code class="language-policy">require the run to finish within 5 minutes
+</code></pre>
+<p>The run stops when the budget is spent, exiting 124 — what a shell reports for
+a timeout, and what frost already returns when a single command runs too long.
+The same answer to the same question at a different scale.</p>
+<p>It is raised rather than killed, so <code>ensure</code> blocks still run. A deadline that
+skipped cleanup would leave exactly the mess it was meant to bound. The
+tightest budget wins, so a flag cannot widen what a site policy imposed.</p>
 <h3 id="ref-telling-a-monitoring-system-what-happened">Telling a monitoring system what happened</h3>
 <pre><code class="language-bash">frost --events run.ndjson deploy.frost      # or - for standard error
 </code></pre>

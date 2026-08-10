@@ -31,6 +31,7 @@ contract instead of trusted as a guess.
 | **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
 | **Declared record shapes** | `with fields "status", "number"` makes a mistyped field a `--check` failure instead of a silent empty, and verifies the payload at the line that parsed it. |
 | **`--events`** | NDJSON for Splunk, New Relic, Datadog or a collector. Every command timed, every effect reported, secrets redacted. The finish event says which approved capabilities went **unused**, which is a signal a shell cannot produce and which drives tightening an approval before it is abused. |
+| **`--deadline`** | A budget for the whole run, honoured with cleanup and exiting 124. A loop doing arithmetic has no capabilities, so the manifest called it clean; an unbounded loop is now a finding, and a policy can impose the budget centrally. |
 | **Site policy** | `/etc/frost/policy.d/*.policy` applies to every run on the host, whether or not anyone passed `--policy`. Site rules add to a project's and can only narrow them, and every policy applied is named by digest in the manifest and the recording. |
 | **`--automated`** | An unattended run refuses `--approve` and `--ignore-approval`. A repair loop that can approve is one that approves its own capability escalation. |
 | **Signed approvals** | `--sign-with` binds an approval to a named approver and a commit; `require an approval signed by "..."` names who a host trusts. Verification never degrades: without the cipher, an unverifiable signature is refused. |
@@ -959,6 +960,7 @@ frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
 frost --automated s.frost        unattended: refuse anything that widens
 frost --events F s.frost         one JSON object per event (- for stderr)
 frost --events-format otel s.frost   OTLP/JSON traces instead of NDJSON
+frost --deadline N s.frost       stop the whole run after N seconds
 frost --enforce-hosts s.frost    check a command's real destination at spawn
 frost --egress-rules squid s.frost   the allow-list, as proxy configuration
 frost --new-approver-key F       a signing key for approvals
@@ -1034,7 +1036,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1901 tests — python3 -m pytest tests/ -q
+tests/                1921 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1053,7 +1055,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.7.0. The language runs, the examples are real, and 1901 tests cover
+Version 0.7.0. The language runs, the examples are real, and 1921 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
