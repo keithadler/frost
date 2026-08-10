@@ -90,13 +90,21 @@ def tokenize(src):
             tokens.append(Token("STR", "".join(buf), lineno, i))
             continue
 
-        # Number.
+        # Number. Scanned greedily and then checked, so that a typo like
+        # `1.2.3` is reported as a malformed number rather than escaping as a
+        # ValueError from float().
         if c.isdigit():
             start = i
             while i < n and (src[i].isdigit() or src[i] == "."):
                 i += 1
             text = src[start:i]
-            val = float(text) if "." in text else int(text)
+            if text.count(".") > 1:
+                raise LexError(
+                    f"{text!r} has more than one decimal point", lineno)
+            try:
+                val = float(text) if "." in text else int(text)
+            except ValueError:                       # pragma: no cover
+                raise LexError(f"{text!r} is not a number", lineno)
             tokens.append(Token("NUM", val, lineno, start))
             continue
 

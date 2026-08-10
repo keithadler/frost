@@ -1,0 +1,55 @@
+{
+  "commands": [
+    {
+      "args": [
+        "id name role\n1 ada engineer\n2 grace admiral\n3 alan cryptanalyst\n"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 8,
+      "program": "printf",
+      "source": "run \"printf\" with \"id name role\\n1 ada engineer\\n2 grace admiral\\n3 alan cryptanalyst\\n\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "delta\nalpha\ncharlie\nbravo\n"
+      ],
+      "checked": true,
+      "in_pipe": true,
+      "line": 33,
+      "program": "printf",
+      "source": "run \"printf\" with \"delta\\nalpha\\ncharlie\\nbravo\\n\"",
+      "timeout": false
+    },
+    {
+      "args": [],
+      "checked": true,
+      "in_pipe": true,
+      "line": 34,
+      "program": "sort",
+      "source": "run \"sort\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "-2"
+      ],
+      "checked": true,
+      "in_pipe": true,
+      "line": 35,
+      "program": "head",
+      "source": "run \"head\" with \"-2\"",
+      "timeout": false
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [],
+  "findings": [],
+  "reads": [],
+  "script": "examples/tour.frost",
+  "summary": "This script runs head, printf, sort.",
+  "verdict": "clean",
+  "writes": []
+}

@@ -1,0 +1,35 @@
+examples/danger.frost
+=====================
+This script runs chmod, curl, find, rm and 1 more, reaches the internet using curl, and writes 1 file (system).
+
+Runs these programs:
+  chmod  — line 18  (no timeout)
+  curl   — line 21, 25  (1 allowed to fail, no timeout)
+  find   — line 8  (no timeout)
+  rm     — line 12  (no timeout)
+  sh     — line 26  (no timeout)
+
+Writes these files:
+  /etc/cleanup.state  — line 15
+
+Findings:
+  [DANGER ] line 12  Recursive forced delete
+             rm -rf removes a whole tree without confirming and without reporting what it removed.
+  [DANGER ] line 15  Writes to a system location (/etc/cleanup.state)
+             Changes here affect every user and survive the script.
+  [DANGER ] line 18  Permissive or recursive permission change
+             Making files world-writable lets any local user modify them.
+  [caution] line 21  No timeout on curl
+             A network command with no deadline can hang the script indefinitely.
+  [caution] line 21  Failure ignored (curl)
+             This was written as 'try to run' but the result is never examined, so a failure passes silently.
+  [note   ] line 21  Reaches the network via curl (https://metrics.example.com/ping)
+             Data can leave this machine, and the result depends on a system you do not control.
+  [caution] line 25  No timeout on curl
+             A network command with no deadline can hang the script indefinitely.
+  [note   ] line 25  Reaches the network via curl (https://install.example.com/setup.sh)
+             Data can leave this machine, and the result depends on a system you do not control.
+  [DANGER ] line 26  Downloaded code piped into a shell
+             Whatever the server returns is executed. The script's behaviour is decided by a remote host.
+
+Verdict: dangerous

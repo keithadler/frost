@@ -50,6 +50,35 @@ def audit_json(path, caps, findings, source_lines):
     }
 
 
+# Options that take a separate value token, so the splitter below does not
+# mistake that value for the script path.
+VALUE_OPTIONS = {"--policy"}
+
+
+def split_argv(argv):
+    """Separate frost's own options from the script's arguments.
+
+    frost's options end at the script path; everything after it belongs to the
+    script, exactly as with `python script.py --flag`. Without this, a script
+    that takes `--check` as its own argument could never be given one, because
+    argparse would claim the flag for frost.
+    """
+    own = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg.startswith("-") and arg != "-":
+            own.append(arg)
+            if arg in VALUE_OPTIONS and i + 1 < len(argv):
+                own.append(argv[i + 1])
+                i += 1
+            i += 1
+            continue
+        own.append(arg)                  # the script path
+        return own, list(argv[i + 1:])
+    return own, []
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="frost",
@@ -57,7 +86,8 @@ def main(argv=None):
     ap.add_argument("script", nargs="?", help="path to a .frost file")
     ap.add_argument("--try", dest="try_mode", action="store_true",
                     help="open a scratchpad for trying chunk expressions")
-    ap.add_argument("args", nargs="*", help="arguments passed to the script")
+    ap.add_argument("args", nargs="*",
+                    help="arguments passed to the script, not to frost")
     ap.add_argument("--format", dest="fmt", action="store_true",
                     help="print the script in canonical layout")
     ap.add_argument("--write", action="store_true",
@@ -75,7 +105,10 @@ def main(argv=None):
     ap.add_argument("--policy", metavar="FILE",
                     help="check the script against a policy file, "
                          "then run it only if it passes")
-    opts = ap.parse_args(argv)
+    own, script_args = split_argv(
+        list(sys.argv[1:] if argv is None else argv))
+    opts = ap.parse_args(own)
+    opts.args = script_args
 
     if opts.try_mode:
         from .repl import main as repl_main
@@ -96,11 +129,12 @@ def main(argv=None):
 
     try:
         tree = parse(source)
-    except LexError as e:
-        report("Syntax error", e.msg, e.line, None, source_lines, opts.script)
-        return 2
-    except ParseError as e:
-        report("Syntax error", e.msg, e.line, e.hint, source_lines, opts.script)
+    except (LexError, ParseError) as e:
+        report("Syntax error", e.msg, e.line, getattr(e, "hint", None),
+               source_lines, opts.script)
+        if opts.fmt:
+            sys.stderr.write("frost: refusing to format a script that does "
+                             "not parse\n")
         return 2
 
     if opts.ast:
@@ -109,16 +143,10 @@ def main(argv=None):
         return 0
 
     if opts.fmt:
+        # The parse above already refused anything broken, so this cannot
+        # raise; format_source re-checks for the benefit of library callers.
         from .formatter import format_source
-        try:
-            formatted = format_source(source)
-        except (ParseError, LexError) as e:
-            report("Syntax error", getattr(e, "msg", str(e)),
-                   getattr(e, "line", None), getattr(e, "hint", None),
-                   source_lines, opts.script)
-            sys.stderr.write("frost: refusing to format a script that does "
-                             "not parse\n")
-            return 2
+        formatted = format_source(source)
         if opts.write:
             if formatted != source:
                 with open(opts.script, "w") as fh:

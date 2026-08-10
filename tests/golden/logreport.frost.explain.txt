@@ -1,0 +1,21 @@
+examples/logreport.frost
+========================
+This script runs awk, sort, uniq, and reads 3 files (runtime). It can exit with status 1, 2.
+
+Runs these programs:
+  awk   — line 43  (no timeout)
+  sort  — line 44, 46  (no timeout)
+  uniq  — line 45  (no timeout)
+
+Reads these files:
+  (path built at runtime)  — line 13
+  (path built at runtime)  — line 21
+  (path built at runtime)  — line 28
+
+Can exit with:
+  status 1
+  status 2
+
+Note: 3 name(s) are built at runtime and cannot be checked ahead of time.
+
+Verdict: clean

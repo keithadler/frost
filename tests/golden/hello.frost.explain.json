@@ -1,0 +1,24 @@
+{
+  "commands": [
+    {
+      "args": [
+        "+%Y-%m-%d"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 7,
+      "program": "date",
+      "source": "run \"date\" with \"+%Y-%m-%d\"",
+      "timeout": false
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [],
+  "findings": [],
+  "reads": [],
+  "script": "examples/hello.frost",
+  "summary": "This script runs date.",
+  "verdict": "clean",
+  "writes": []
+}

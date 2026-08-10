@@ -26,7 +26,7 @@ runs. Write for that reader. Do not compress.
 
 ## Statements
 
-```
+```text
 put EXPR                          write to standard output
 put EXPR into NAME                assign
 put EXPR into standard error
@@ -48,7 +48,7 @@ to NAME with A, B ... end NAME    handler; `return X` lands in `it`
 
 ## Chunk expressions — prefer these over cut/awk/sed
 
-```
+```text
 the first word of X          the third line of X       the last item of X
 word 3 of X                  words 2 to 4 of X         word -1 of X
 the number of lines in X     the length of X
@@ -61,7 +61,7 @@ Out-of-range yields empty text, not an error.
 
 ## Comparisons and patterns
 
-```
+```text
 is / is not / is greater than / is less than / is at least / is at most
 contains / starts with / ends with / is empty / is in
 X is like "*.tmp"            glob

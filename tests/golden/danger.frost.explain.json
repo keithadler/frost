@@ -1,0 +1,155 @@
+{
+  "commands": [
+    {
+      "args": [
+        null,
+        "-type",
+        "f",
+        "-mtime",
+        "+30"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 8,
+      "program": "find",
+      "source": "run \"find\" with scratch folder, \"-type\", \"f\", \"-mtime\", \"+30\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "-rf",
+        null
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 12,
+      "program": "rm",
+      "source": "run \"rm\" with \"-rf\", scratch folder",
+      "timeout": false
+    },
+    {
+      "args": [
+        "777",
+        "/var/cache"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 18,
+      "program": "chmod",
+      "source": "run \"chmod\" with \"777\", \"/var/cache\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "--silent",
+        "https://metrics.example.com/ping"
+      ],
+      "checked": false,
+      "in_pipe": false,
+      "line": 21,
+      "program": "curl",
+      "source": "try to run \"curl\" with \"--silent\", \"https://metrics.example.com/ping\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "--silent",
+        "https://install.example.com/setup.sh"
+      ],
+      "checked": true,
+      "in_pipe": true,
+      "line": 25,
+      "program": "curl",
+      "source": "run \"curl\" with \"--silent\", \"https://install.example.com/setup.sh\"",
+      "timeout": false
+    },
+    {
+      "args": [],
+      "checked": true,
+      "in_pipe": true,
+      "line": 26,
+      "program": "sh",
+      "source": "run \"sh\"",
+      "timeout": false
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [],
+  "findings": [
+    {
+      "detail": "rm -rf removes a whole tree without confirming and without reporting what it removed.",
+      "line": 12,
+      "severity": "danger",
+      "source": "run \"rm\" with \"-rf\", scratch folder",
+      "title": "Recursive forced delete"
+    },
+    {
+      "detail": "Changes here affect every user and survive the script.",
+      "line": 15,
+      "severity": "danger",
+      "source": "put \"cleaned\" into file \"/etc/cleanup.state\"",
+      "title": "Writes to a system location (/etc/cleanup.state)"
+    },
+    {
+      "detail": "Making files world-writable lets any local user modify them.",
+      "line": 18,
+      "severity": "danger",
+      "source": "run \"chmod\" with \"777\", \"/var/cache\"",
+      "title": "Permissive or recursive permission change"
+    },
+    {
+      "detail": "A network command with no deadline can hang the script indefinitely.",
+      "line": 21,
+      "severity": "caution",
+      "source": "try to run \"curl\" with \"--silent\", \"https://metrics.example.com/ping\"",
+      "title": "No timeout on curl"
+    },
+    {
+      "detail": "This was written as 'try to run' but the result is never examined, so a failure passes silently.",
+      "line": 21,
+      "severity": "caution",
+      "source": "try to run \"curl\" with \"--silent\", \"https://metrics.example.com/ping\"",
+      "title": "Failure ignored (curl)"
+    },
+    {
+      "detail": "Data can leave this machine, and the result depends on a system you do not control.",
+      "line": 21,
+      "severity": "note",
+      "source": "try to run \"curl\" with \"--silent\", \"https://metrics.example.com/ping\"",
+      "title": "Reaches the network via curl (https://metrics.example.com/ping)"
+    },
+    {
+      "detail": "A network command with no deadline can hang the script indefinitely.",
+      "line": 25,
+      "severity": "caution",
+      "source": "run \"curl\" with \"--silent\", \"https://install.example.com/setup.sh\"",
+      "title": "No timeout on curl"
+    },
+    {
+      "detail": "Data can leave this machine, and the result depends on a system you do not control.",
+      "line": 25,
+      "severity": "note",
+      "source": "run \"curl\" with \"--silent\", \"https://install.example.com/setup.sh\"",
+      "title": "Reaches the network via curl (https://install.example.com/setup.sh)"
+    },
+    {
+      "detail": "Whatever the server returns is executed. The script's behaviour is decided by a remote host.",
+      "line": 26,
+      "severity": "danger",
+      "source": "run \"sh\"",
+      "title": "Downloaded code piped into a shell"
+    }
+  ],
+  "reads": [],
+  "script": "examples/danger.frost",
+  "summary": "This script runs chmod, curl, find, rm and 1 more, reaches the internet using curl, and writes 1 file (system).",
+  "verdict": "dangerous",
+  "writes": [
+    {
+      "line": 15,
+      "path": "/etc/cleanup.state",
+      "source": "put \"cleaned\" into file \"/etc/cleanup.state\""
+    }
+  ]
+}
