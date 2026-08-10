@@ -78,7 +78,7 @@ def test_presence_counts_rather_than_reachability():
     caps = audit(parse("put 0 into n\nrepeat forever\n"
                        "    if 1 is 2 then exit repeat\nend repeat\n"))
     assert caps.loops[0][2] is True
-    assert find_dangers(caps) == []
+    assert not [f for f in find_dangers(caps) if "loop" in f.title]
 
 
 @pytest.mark.parametrize("source,kind", [
@@ -183,3 +183,92 @@ def test_the_budget_survives_a_loop_that_does_nothing(tmp_path):
     path = script(tmp_path, "repeat forever\n    put 1 into n\nend repeat\n")
     status, _, _ = frost("--deadline", "1", path, cwd=str(tmp_path))
     assert status == 124
+
+
+# ------------------------------------------------------------- dead code
+#
+# A script written by a machine has a shape. Invented helpers, statements
+# after a return, values computed and dropped: each is harmless alone and
+# together they are the clearest sign that what is on the page is not what
+# anybody intended.
+
+def dead_in(source):
+    return audit(parse(source)).dead
+
+
+def findings_in(source):
+    return [f.title for f in find_dangers(audit(parse(source)))]
+
+
+def test_a_statement_after_the_script_stops_is_reported():
+    titles = findings_in('put "a"\nquit with status 0\nput "never"\n')
+    assert any("already stopped" in t for t in titles)
+
+
+@pytest.mark.parametrize("terminator", [
+    "quit with status 0", "exit repeat", "next repeat",
+])
+def test_every_terminator_ends_its_block(terminator):
+    body = f"repeat forever\n    {terminator}\n    put \"never\"\nend repeat\n"
+    assert any(k == "unreachable" for _, k, _ in dead_in(body))
+
+
+def test_only_the_first_unreachable_statement_is_reported():
+    """One report per block. A run of ten dead lines is one mistake."""
+    source = 'quit with status 0\nput "a"\nput "b"\nput "c"\n'
+    assert len([k for _, k, _ in dead_in(source) if k == "unreachable"]) == 1
+
+
+def test_a_handler_nobody_calls_is_reported():
+    assert any("never called" in t for t in
+               findings_in('to helper\n    put 1\nend helper\nput "x"\n'))
+
+
+def test_a_handler_that_is_called_is_not():
+    assert not any("never called" in t for t in findings_in(
+        "to double with n\n    return n * 2\nend double\n"
+        "put the double of 2\n"))
+
+
+def test_a_handler_defined_in_a_module_and_called_from_the_entry_is_used():
+    """The bug this replaced. Findings were computed per file and merged, so
+    every handler a module exported read as dead. Defined here and called
+    there is the normal shape of an import."""
+    import subprocess as sp
+    out = sp.run([sys.executable, os.path.join(REPO, "frost"), "--explain",
+                  os.path.join(REPO, "examples", "summarise.frost")],
+                 capture_output=True, text=True,
+                 env={**os.environ, "PYTHONPATH": REPO})
+    assert "never called" not in out.stdout
+
+
+def test_a_value_computed_and_dropped_is_reported():
+    assert any("never read" in t for t in
+               findings_in('put 1 into dropped\nput "x"\n'))
+
+
+@pytest.mark.parametrize("source", [
+    "put 0 into n\nadd 1 to n\nput n\n",
+    "put 0 into n\nrepeat 3 times\n    add 1 to n\nend repeat\nput n\n",
+    'put "a" into s\nput "b" after s\nput s\n',
+    'put "a" into the "k" of rec\nput rec\n',
+])
+def test_a_name_that_is_read_by_any_route_is_not_dead(source):
+    """`add 1 to n` reads n before writing it. Counting only plain reads
+    called every counter in the language unused, which is the shape of false
+    positive that gets a check switched off in a week."""
+    assert not any("never read" in t for t in findings_in(source))
+
+
+def test_dead_code_does_not_make_a_script_dangerous():
+    """It is a smell, not a hazard. A verdict that shouted at unused code
+    would be a verdict people stop reading."""
+    from frostlang.audit import verdict
+    caps = audit(parse('to helper\n    put 1\nend helper\nput "x"\n'))
+    assert verdict(find_dangers(caps)) == "clean"
+
+
+def test_a_policy_can_refuse_dead_code():
+    from frostlang.audit import check
+    caps = audit(parse('put "a"\nquit with status 0\nput "never"\n'))
+    assert check(caps, parse_policy("require at most 0 dead code\n"))

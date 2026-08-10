@@ -486,6 +486,49 @@ matters, because the second is the stronger guarantee and the first is the
 more precise one, and pretending either is the other would be a lie in
 whichever direction someone relied on it.
 
+### Code that cannot run, and code nobody uses
+
+A script written by a machine has a shape. Invented helpers, a branch after a
+`return`, a value computed and dropped: each is harmless on its own, and
+together they are the clearest sign that what is on the page is not what
+anybody intended.
+
+```text
+[caution] line 9   Code after the script has already stopped
+[note   ] line 1   The handler 'helper' is never called
+[note   ] line 5   'error count' is set and never read
+```
+
+Three separate questions, all decidable from the text. **Unreachable**:
+statements after a `quit`, `return`, `exit repeat` or `next repeat` in the
+same block, reported once per block rather than once per line, because a run
+of ten dead lines is one mistake. **Never called**: a handler used nowhere in
+the program — across an import, not within one file, since defined here and
+called there is the normal shape of a module. **Never read**: a name assigned
+and never used, where reading it by any route counts, including `add 1 to n`,
+which reads the value before writing it.
+
+These are notes rather than dangers, except the unreachable one. Dead code is
+a smell, not a hazard, and a verdict that shouted about an unused variable
+would be a verdict people stop reading. A policy can still refuse it:
+`require at most 0 dead code`.
+
+### Rules about the environment
+
+```policy
+forbid reading the environment "AWS_*"       -- credentials come from the keystore
+require reading only the environment "PATH", "HOME", "CI"
+```
+
+Setting a variable already had a rule and reading one did not, which is the
+wrong way round: what a script *takes* from the environment is where the
+credentials are. Both forms exist now, and they are separate from
+`forbid setting`, because a policy that looked like it covered reads while
+only covering writes would be worse than one that plainly does not.
+
+A variable named at runtime fails an allow-list closed, on the same rule as
+everywhere else: cannot be shown to be allowed is not allowed.
+
 ### Loops that cannot end, and runs that will not
 
 `within 30 seconds` bounds one command, and a policy can bound how many

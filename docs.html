@@ -275,6 +275,14 @@ contract instead of trusted as a guess.</p>
 <td>NDJSON for Splunk, New Relic, Datadog or a collector. Every command timed, every effect reported, secrets redacted. The finish event says which approved capabilities went <strong>unused</strong>, which is a signal a shell cannot produce and which drives tightening an approval before it is abused.</td>
 </tr>
 <tr>
+<td><strong>Dead code</strong></td>
+<td>Unreachable statements, handlers nobody calls, values computed and dropped. Harmless individually, and together the clearest sign a generated script contains more than anyone intended.</td>
+</tr>
+<tr>
+<td><strong>Environment rules</strong></td>
+<td><code>forbid reading the environment "AWS_*"</code> and <code>require reading only the environment "PATH"</code>. Setting had a rule and reading did not, which was the wrong way round.</td>
+</tr>
+<tr>
 <td><strong><code>--deadline</code></strong></td>
 <td>A budget for the whole run, honoured with cleanup and exiting 124. A loop doing arithmetic has no capabilities, so the manifest called it clean; an unbounded loop is now a finding, and a policy can impose the budget centrally.</td>
 </tr>
@@ -1065,7 +1073,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1921 tests — python3 -m pytest tests/ -q
+tests/                1945 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1082,7 +1090,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.7.0. The language runs, the examples are real, and 1921 tests cover
+<p>Version 0.7.0. The language runs, the examples are real, and 1945 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1530,6 +1538,38 @@ bounds what the <em>process</em> can reach, all or nothing. Keeping those apart
 matters, because the second is the stronger guarantee and the first is the
 more precise one, and pretending either is the other would be a lie in
 whichever direction someone relied on it.</p>
+<h3 id="ref-code-that-cannot-run-and-code-nobody-uses">Code that cannot run, and code nobody uses</h3>
+<p>A script written by a machine has a shape. Invented helpers, a branch after a
+<code>return</code>, a value computed and dropped: each is harmless on its own, and
+together they are the clearest sign that what is on the page is not what
+anybody intended.</p>
+<pre><code class="language-text">[caution] line 9   Code after the script has already stopped
+[note   ] line 1   The handler 'helper' is never called
+[note   ] line 5   'error count' is set and never read
+</code></pre>
+<p>Three separate questions, all decidable from the text. <strong>Unreachable</strong>:
+statements after a <code>quit</code>, <code>return</code>, <code>exit repeat</code> or <code>next repeat</code> in the
+same block, reported once per block rather than once per line, because a run
+of ten dead lines is one mistake. <strong>Never called</strong>: a handler used nowhere in
+the program — across an import, not within one file, since defined here and
+called there is the normal shape of a module. <strong>Never read</strong>: a name assigned
+and never used, where reading it by any route counts, including <code>add 1 to n</code>,
+which reads the value before writing it.</p>
+<p>These are notes rather than dangers, except the unreachable one. Dead code is
+a smell, not a hazard, and a verdict that shouted about an unused variable
+would be a verdict people stop reading. A policy can still refuse it:
+<code>require at most 0 dead code</code>.</p>
+<h3 id="ref-rules-about-the-environment">Rules about the environment</h3>
+<pre><code class="language-policy">forbid reading the environment &quot;AWS_*&quot;       -- credentials come from the keystore
+require reading only the environment &quot;PATH&quot;, &quot;HOME&quot;, &quot;CI&quot;
+</code></pre>
+<p>Setting a variable already had a rule and reading one did not, which is the
+wrong way round: what a script <em>takes</em> from the environment is where the
+credentials are. Both forms exist now, and they are separate from
+<code>forbid setting</code>, because a policy that looked like it covered reads while
+only covering writes would be worse than one that plainly does not.</p>
+<p>A variable named at runtime fails an allow-list closed, on the same rule as
+everywhere else: cannot be shown to be allowed is not allowed.</p>
 <h3 id="ref-loops-that-cannot-end-and-runs-that-will-not">Loops that cannot end, and runs that will not</h3>
 <p><code>within 30 seconds</code> bounds one command, and a policy can bound how many
 commands there are. Neither touches a loop doing arithmetic, which spawns
