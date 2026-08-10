@@ -710,6 +710,15 @@ RULE_PATTERNS = [
      "readsecret"),
     (re.compile(r'^(forbid|warn)\s+changing\s+folder\s*$'), "chfolder"),
 
+    # The sandbox boundary. Allow-shaped, because a deny-list cannot become
+    # one: `forbid writing to "/etc/*"` says nothing about what writing is
+    # permitted, and confinement needs the positive form.
+    (re.compile(r'^sandbox\s+may\s+reach\s+the\s+network\s*$'),
+     "sandbox_network"),
+    (re.compile(r'^sandbox\s+may\s+(run|read|write|delete)\s+(.+?)\s*$'),
+     "sandbox"),
+    (re.compile(r'^sandbox\s+may\s+reach\s+(.+?)\s*$'), "sandbox_host"),
+
     # Bounded timeouts. These must precede the bare `require timeout on`
     # pattern only for clarity; that one anchors at end of line and so cannot
     # match these anyway.
@@ -789,6 +798,23 @@ def _seconds(amount, unit, policy_line):
     return float(amount) * TIME_UNITS[unit]
 
 
+def boundary_from(rules):
+    """The sandbox boundary a policy declares, if it declares one."""
+    from .sandbox import Boundary
+    boundary = Boundary()
+    for rule in rules:
+        if rule.kind == "sandbox_network":
+            boundary.network = True
+            boundary.declared = True
+        elif rule.kind == "sandbox":
+            boundary.declared = True
+            getattr(boundary, {"run": "programs", "read": "reads",
+                               "write": "writes",
+                               "delete": "deletes"}[rule.subject]).extend(
+                rule.detail)
+    return boundary
+
+
 def parse_policy(text):
     rules = []
     for n, raw in enumerate(text.splitlines(), start=1):
@@ -809,6 +835,25 @@ def parse_policy(text):
                 rules.append(Rule(kind, g[0], g[1], g[2], n))
             elif kind == "chfolder":
                 rules.append(Rule(kind, g[0], "*", None, n))
+            elif kind == "sandbox_network":
+                rules.append(Rule(kind, "allow", "network", None, n))
+            elif kind == "sandbox_host":
+                raise PolicyError(
+                    f"policy line {n}: a sandbox cannot allow one host.\n"
+                    f"  macOS filters on addresses, not names, and a Linux "
+                    f"namespace is all-or-nothing, so a host allow-list would "
+                    f"be accepted here and not enforced.\n"
+                    f'  Write `sandbox may reach the network` and mean it, or '
+                    f"leave it out and have no network at all.")
+            elif kind == "sandbox":
+                subjects = re.findall(r'"([^"]*)"', g[1])
+                if not subjects:
+                    raise PolicyError(
+                        f"policy line {n}: name what the sandbox may "
+                        f'{g[0]}, in quotes')
+                rules.append(Rule(kind, "allow", g[0], None, n,
+                                  noun=" ".join(subjects)))
+                rules[-1].detail = subjects
             elif kind == "timeout_max":
                 rules.append(Rule("timeout_bound", "forbid", g[0], None, n,
                                   high=_seconds(g[1], g[2], n)))

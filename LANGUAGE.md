@@ -1673,6 +1673,69 @@ A count that is exceeded reports the line of the occurrence that crossed the
 limit, not the whole script. A count that falls short has no line to point at,
 so it is reported against the file.
 
+#### The sandbox boundary
+
+Every rule above is a statement about the *text* of a script, and every one of
+them is honest about its limits: a path built at runtime is reported as
+unknowable rather than guessed. That honesty is also the gap. Once the script
+runs, an unknowable path is a real path.
+
+A boundary closes it. Declared in the same file, but **allow-shaped**, because
+a deny-list cannot become a sandbox — `forbid writing to "/etc/*"` says
+nothing about what writing *is* permitted:
+
+```policy
+sandbox may run "git", "make"
+sandbox may read "*"
+sandbox may write "build/*", "/tmp/frost-*"
+sandbox may reach the network
+```
+
+```bash
+frost --policy prod.policy --sandbox deploy.frost
+```
+
+A path the analyser could not resolve is still confined, because the
+confinement never needed it resolved.
+
+##### Two enforcers, and the difference is real
+
+**Child processes are confined by the operating system** — `sandbox-exec` on
+macOS, `bubblewrap` on Linux. Once a program runs inside one, frost is not in
+the loop: the kernel refuses the write. That holds even if the program is
+hostile, even if frost has a bug.
+
+**frost's own file operations are confined by frost.** `put X into file
+(path)` never becomes a child process, so the check is a check in the
+interpreter — enforced by the same code being trusted to run the script at
+all. A weaker claim, and named differently here for that reason.
+
+##### What it cannot do
+
+**Per-host network rules.** The obvious thing to want is *may reach
+api.github.com and nothing else*. macOS's sandbox language filters on
+addresses, not names; a Linux namespace gives you a network or no network. A
+hostname allow-list needs a proxy, which is a different program. So network is
+all-or-nothing, `sandbox may reach the network` says exactly that, and
+
+```text
+sandbox may reach "api.github.com"
+```
+
+is **refused when the policy is read** rather than accepted and quietly
+under-enforced. A boundary that does not hold is worse than no boundary,
+because somebody relies on it.
+
+**Platforms with no backend.** If a boundary is declared and cannot be
+enforced here, frost refuses to run — it does not warn and continue. Before
+each run it also executes a real confined command that tries to write outside
+its boundary, and refuses if that write succeeds: present is not the same as
+working.
+
+**Anything a permitted program then does.** A sandbox that may run `git` may
+run every `git` subcommand. Confinement bounds the blast radius; it does not
+read intent.
+
 #### Bounded timeouts
 
 `require timeout on "curl"` asks only that a deadline exists. A deadline of

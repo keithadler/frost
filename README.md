@@ -467,6 +467,39 @@ repaired deploy.frost (3 change(s))
 That is the loop: generate, check, repair, re-check — with a policy deciding
 what is acceptable and a manifest a human approves at the end.
 
+### Boundaries the kernel holds
+
+Everything above reasons about the text of a script, and is careful to say
+when it cannot know something. Once the script runs, an unknowable path is a
+real path. So the boundary is declared once and held at runtime:
+
+```policy
+sandbox may run "git", "make"
+sandbox may read "*"
+sandbox may write "build/*"
+```
+
+```bash
+frost --policy prod.policy --sandbox deploy.frost
+```
+
+```text
+sh: /tmp/anywhere-else.txt: Operation not permitted
+```
+
+Child processes are confined by the operating system — `sandbox-exec` on
+macOS, `bubblewrap` on Linux — so a path the analyser could not resolve is
+confined anyway. frost's own file operations are checked by frost, which is a
+weaker guarantee, and the docs keep the two apart rather than blurring them.
+
+Two things it deliberately will not do. **Per-host network rules are refused,
+not faked**: macOS filters on addresses and a Linux namespace is
+all-or-nothing, so `sandbox may reach "api.github.com"` is a parse error and
+`sandbox may reach the network` means exactly what it says. And if a boundary
+is declared but cannot be enforced here, **frost refuses to run** rather than
+warning and continuing — including when the backend is present but a live
+self-test shows it not actually confining.
+
 Built-in checks catch the classics with no policy at all — `curl … | sh` is
 reported as *downloaded code piped into a shell*, and a script that reads
 `~/.ssh/id_rsa` and then makes a network call is flagged as *secrets read, then
@@ -701,6 +734,7 @@ frost --lock s.frost             record the sha256 of every module
 frost --frozen s.frost           refuse to run if a module changed
 frost --record run.json s.frost  run it and write down everything it did
 frost --replay run.json s.frost  run it against a recording, spawning nothing
+frost --policy p --sandbox s.frost   hold the declared boundary at runtime
 frost --explain --json s.frost   the manifest, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
@@ -738,7 +772,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1379 tests — python3 -m pytest tests/ -q
+tests/                1453 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -752,7 +786,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1379 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1453 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

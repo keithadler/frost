@@ -213,6 +213,22 @@ all, and is refused if it exceeds what the import allows. Vocabulary: `run`,
 `read`, `write`, `delete`, `set`, `read secret`, `change folder`, each taking
 globs, joined with `and`. Declare the narrowest thing that works.
 
+## Sandboxing
+
+If the caller runs with `--sandbox`, the policy declares an allow-list and the
+runtime holds it — child processes are confined by the OS, so a path built at
+runtime is confined too:
+
+```text
+sandbox may run "git", "make"
+sandbox may write "build/*"
+sandbox may reach the network
+```
+
+Network is all-or-nothing; a per-host rule is refused rather than faked. Write
+scripts that stay inside a narrow boundary: prefer a scratch directory the job
+owns over /tmp, and name only the programs actually needed.
+
 ## When frost refuses
 
 Ask for JSON and act on it rather than reading the prose:

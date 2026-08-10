@@ -224,6 +224,10 @@ class Interpreter:
         # A Recorder writes down every effect; a Player serves them back and
         # performs none. None means run normally.
         self.journal = None
+        # A capability boundary the operating system holds for children, and
+        # this interpreter holds for its own file operations. None means the
+        # script runs with whatever permissions frost itself has.
+        self.sandbox = None
         self.handler_tables = {}      # file -> {name: HandlerDef}
         self.handler_home = {}        # id(HandlerDef) -> defining file
         self.current_file = None      # whose table calls resolve in
@@ -385,6 +389,7 @@ class Interpreter:
             # A deliberate release: writing a config file is a real need, and
             # --explain reports it as a secret leaving the process.
             written = to_argument(value)
+            self.guard("write", path, node.line)
 
             def do_write():
                 if node.mode == "before":
@@ -490,6 +495,29 @@ class Interpreter:
                 hint="if this failure is expected, write 'try to run ...' "
                      "and check 'the result'")
 
+    def confine(self, argv, line):
+        """The command line that runs `argv` inside the boundary."""
+        from .sandbox import SandboxError
+        try:
+            return self.sandbox.wrap(argv)
+        except SandboxError as e:
+            raise FrostError(e.msg, line, hint=e.hint)
+
+    def guard(self, action, path, line):
+        """Check one of frost's own file operations against the boundary.
+
+        Enforced here rather than by the kernel, because this never becomes a
+        child process. A weaker guarantee than the one covering commands, and
+        named differently in the documentation for that reason.
+        """
+        if self.sandbox is None:
+            return
+        from .sandbox import SandboxError
+        try:
+            getattr(self.sandbox, "check_" + action)(path, line)
+        except SandboxError as e:
+            raise FrostError(e.msg, line, hint=e.hint)
+
     def eval_timeout(self, node):
         if node.timeout is None:
             return None
@@ -528,6 +556,8 @@ class Interpreter:
 
         argv = [program] + args
         folder = self.child_folder(node)
+        if self.sandbox is not None:
+            argv = self.confine(argv, node.line)
 
         if self.journal is not None:
             return self.journal_run(node, program, argv, stdin_text, folder,
@@ -589,7 +619,10 @@ class Interpreter:
                     args.extend(to_argument(x) for x in v)
                 else:
                     args.append(to_argument(v))
-            commands.append(([program] + args, stage.line))
+            argv = [program] + args
+            if self.sandbox is not None:
+                argv = self.confine(argv, stage.line)
+            commands.append((argv, stage.line))
 
         folder = self.child_folder(node)
         seconds = self.eval_timeout(node)
@@ -848,6 +881,7 @@ class Interpreter:
 
     def exec_DeleteFile(self, node):
         path = self.resolve_path(to_text(self.eval(node.path)))
+        self.guard("delete", path, node.line)
 
         def remove():
             try:
@@ -983,6 +1017,7 @@ class Interpreter:
 
     def eval_FileRef(self, node):
         path = self.resolve_path(to_text(self.eval(node.path)))
+        self.guard("read", path, node.line)
 
         def read():
             try:

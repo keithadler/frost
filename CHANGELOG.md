@@ -11,6 +11,46 @@ bump may change the language.
 
 ### Added
 
+**Runtime capability sandboxing.** `--explain` and `--policy` reason about
+the text of a script and are honest about their limits: a path built at
+runtime is reported as unknowable rather than guessed. That honesty is also
+the gap, because once the script runs an unknowable path is a real path.
+
+A boundary is declared in the policy file, allow-shaped — a deny-list cannot
+become a sandbox, since `forbid writing to "/etc/*"` says nothing about what
+writing is permitted:
+
+```
+sandbox may run "git", "make"
+sandbox may read "*"
+sandbox may write "build/*"
+sandbox may reach the network
+```
+
+`frost --policy prod.policy --sandbox deploy.frost` then holds it. Child
+processes are confined by the operating system — sandbox-exec on macOS,
+bubblewrap on Linux — so a path the analyser could not resolve is confined
+anyway, because the confinement never needed it resolved. frost's own file
+operations are checked by the interpreter, which is a weaker guarantee, and
+the two are named apart rather than blurred.
+
+Three refusals, each chosen because the alternative would be a boundary
+somebody relies on and that does not hold:
+
+- **Per-host network rules are refused when the policy is read.** macOS
+  filters on addresses rather than names and a Linux namespace is
+  all-or-nothing, so `sandbox may reach "api.github.com"` cannot be enforced.
+  `sandbox may reach the network` means exactly what it says.
+- **No backend means no run.** Not a warning and a run anyway.
+- **Present is not working.** Before each run frost executes a real confined
+  command that tries to write outside its boundary, and refuses if that write
+  succeeds.
+
+The tests do the forbidden thing and then look at the filesystem, rather than
+asserting the wrapper was built. Disabling confinement entirely fails nine of
+them, including the canary.
+
+
 **`--record` and `--replay`.** A run's capabilities were knowable before it
 started; what it actually did was not knowable at all. `--record` writes down
 every command with its arguments, input, output and status, every file read,
