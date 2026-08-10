@@ -30,6 +30,7 @@ contract instead of trusted as a guess.
 | **Records and JSON** | `the "name" of the "user" of report` — API responses without a second language in the file. Shelling out to `jq` handed the auditor a string it could not see into; a record is part of the tree. |
 | **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
 | **Declared record shapes** | `with fields "status", "number"` makes a mistyped field a `--check` failure instead of a silent empty, and verifies the payload at the line that parsed it. |
+| **`--events`** | NDJSON for Splunk, New Relic, Datadog or a collector. Every command timed, every effect reported, secrets redacted. The finish event says which approved capabilities went **unused**, which is a signal a shell cannot produce and which drives tightening an approval before it is abused. |
 | **Site policy** | `/etc/frost/policy.d/*.policy` applies to every run on the host, whether or not anyone passed `--policy`. Site rules add to a project's and can only narrow them, and every policy applied is named by digest in the manifest and the recording. |
 | **`--automated`** | An unattended run refuses `--approve` and `--ignore-approval`. A repair loop that can approve is one that approves its own capability escalation. |
 | **Signed approvals** | `--sign-with` binds an approval to a named approver and a commit; `require an approval signed by "..."` names who a host trusts. Verification never degrades: without the cipher, an unverifiable signature is refused. |
@@ -899,6 +900,7 @@ frost --trace script.frost       print each statement as it runs
 frost --trace-to-file F s.frost  write that trace to a file instead
 frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
 frost --automated s.frost        unattended: refuse anything that widens
+frost --events F s.frost         one JSON object per event (- for stderr)
 frost --new-approver-key F       a signing key for approvals
 frost --approve --sign-with F s.frost   an approval somebody is accountable for
 frost --check --sarif s.frost    findings for code scanning on a pull request
@@ -955,6 +957,7 @@ frostlang/
     baseline.py       what a script was approved to do
     runid.py          one identity per execution
     site.py           policy the host brings, and its provenance
+    telemetry.py      events for a monitoring system
     signing.py        approvals bound to an approver and a commit
     sarif.py          findings for code review tools
     scaffold.py       a starter policy from a manifest
@@ -970,7 +973,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1833 tests — python3 -m pytest tests/ -q
+tests/                1851 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -987,7 +990,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1833 tests cover
+Version 0.7.0. The language runs, the examples are real, and 1851 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

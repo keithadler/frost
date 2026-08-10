@@ -1,6 +1,6 @@
 # The frost Language Reference
 
-Version 0.6.0
+Version 0.7.0
 
 frost is a scripting language for the jobs shell scripts do, with a grammar
 descended from HyperTalk. It exists because the economics changed: scripts are
@@ -443,6 +443,48 @@ bounds what the *process* can reach, all or nothing. Keeping those apart
 matters, because the second is the stronger guarantee and the first is the
 more precise one, and pretending either is the other would be a lie in
 whichever direction someone relied on it.
+
+### Telling a monitoring system what happened
+
+```bash
+frost --events run.ndjson deploy.frost      # or - for standard error
+```
+
+One JSON object per line, flushed as things happen. NDJSON is what Splunk's
+HTTP collector, New Relic's log API, Datadog, Vector and Fluent Bit all ingest
+without a translator, and a line-oriented file survives a run that is killed
+halfway, which a single JSON document does not.
+
+Every event shares an envelope: `ts`, `run`, `script`, `seq`, `event`. A
+collector routes on `event` and groups on `run` without knowing anything else
+about frost.
+
+```json
+{"event": "run.start",      "declares": {"programs": ["curl"], "hosts": ["x.example"]}}
+{"event": "command.start",  "program": "curl", "argv": ["curl", "-fsS", "..."]}
+{"event": "command.finish", "program": "curl", "status": 0, "seconds": 0.412}
+{"event": "run.finish",     "status": 0, "commands": 3, "waited_seconds": 2.0,
+ "programs_unused": ["psql"], "hosts_unused": ["db.internal"]}
+```
+
+**The resolution worth having is the pairing.** Any tool can log that a
+command ran. frost knows what the script was *allowed* to do before it ran,
+what a person *approved*, and what the host *permits*, so the finish event can
+say which approved capabilities went unused. A script approved for six
+programs that uses two is an approval that should be tightened, and that is
+only visible holding the manifest and the run side by side.
+
+Commands are timed, and the run separates time spent working from time spent
+waiting, so a slow job can be attributed rather than guessed at.
+
+Contents are never emitted, sizes are: "wrote 4kb" is useful and the 4kb is
+not. Secrets are redacted before an event is written, including in a command's
+arguments, because telemetry leaves the building more often than a recording
+does.
+
+It composes with the other modes. `--events` alongside `--record` gives both,
+and a replayed run is marked `"replayed": true` so a dashboard does not count
+a fixture as production traffic.
 
 ### Policy the machine brings
 

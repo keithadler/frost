@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost 0.6.0 — language documentation</title>
+<title>frost 0.7.0 — language documentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -181,7 +181,7 @@ tbody tr:last-child td{border-bottom:none}
 
 <aside id="side">
   <p class="brand">fr<span>o</span>st</p>
-  <p class="brand-sub">v0.6.0 · language docs</p>
+  <p class="brand-sub">v0.7.0 · language docs</p>
   <button class="menu-btn" id="menu">Contents</button>
   <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-what-you-get">What you get</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-why">Why</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-structured-data-without-a-second-grammar">Structured data, without a second grammar</a></li><li><a href="#guide-knowing-why-it-failed">Knowing why it failed</a></li><li><a href="#guide-a-clock-that-replays">A clock that replays</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-knowing-what-it-did-not-just-what-it-could-do">Knowing what it did, not just what it could do</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-the-name">The name</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-12a-modules">12a. Modules</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-13c-recording-and-replaying-a-run">13c. Recording and replaying a run</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
 </aside>
@@ -269,6 +269,10 @@ contract instead of trusted as a guess.</p>
 <tr>
 <td><strong>Declared record shapes</strong></td>
 <td><code>with fields "status", "number"</code> makes a mistyped field a <code>--check</code> failure instead of a silent empty, and verifies the payload at the line that parsed it.</td>
+</tr>
+<tr>
+<td><strong><code>--events</code></strong></td>
+<td>NDJSON for Splunk, New Relic, Datadog or a collector. Every command timed, every effect reported, secrets redacted. The finish event says which approved capabilities went <strong>unused</strong>, which is a signal a shell cannot produce and which drives tightening an approval before it is abused.</td>
 </tr>
 <tr>
 <td><strong>Site policy</strong></td>
@@ -942,6 +946,7 @@ frost --trace script.frost       print each statement as it runs
 frost --trace-to-file F s.frost  write that trace to a file instead
 frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
 frost --automated s.frost        unattended: refuse anything that widens
+frost --events F s.frost         one JSON object per event (- for stderr)
 frost --new-approver-key F       a signing key for approvals
 frost --approve --sign-with F s.frost   an approval somebody is accountable for
 frost --check --sarif s.frost    findings for code scanning on a pull request
@@ -991,6 +996,7 @@ frostlang/
     baseline.py       what a script was approved to do
     runid.py          one identity per execution
     site.py           policy the host brings, and its provenance
+    telemetry.py      events for a monitoring system
     signing.py        approvals bound to an approver and a commit
     sarif.py          findings for code review tools
     scaffold.py       a starter policy from a manifest
@@ -1006,7 +1012,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1833 tests — python3 -m pytest tests/ -q
+tests/                1851 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1021,7 +1027,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.6.0. The language runs, the examples are real, and 1833 tests cover
+<p>Version 0.7.0. The language runs, the examples are real, and 1851 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1101,7 +1107,7 @@ entire point. The poet is a better model for that than the shell ever was.</p>
 <h2 id="guide-license">License</h2>
 <p>MIT. See <a href="LICENSE">LICENSE</a>. Do what you like with it; keep the copyright
 notice.</p></div>
-  <div class="doc"><p>Version 0.6.0</p>
+  <div class="doc"><p>Version 0.7.0</p>
 <p>frost is a scripting language for the jobs shell scripts do, with a grammar
 descended from HyperTalk. It exists because the economics changed: scripts are
 now written quickly and read carefully, often by someone who did not write them
@@ -1421,6 +1427,37 @@ bounds what the <em>process</em> can reach, all or nothing. Keeping those apart
 matters, because the second is the stronger guarantee and the first is the
 more precise one, and pretending either is the other would be a lie in
 whichever direction someone relied on it.</p>
+<h3 id="ref-telling-a-monitoring-system-what-happened">Telling a monitoring system what happened</h3>
+<pre><code class="language-bash">frost --events run.ndjson deploy.frost      # or - for standard error
+</code></pre>
+<p>One JSON object per line, flushed as things happen. NDJSON is what Splunk's
+HTTP collector, New Relic's log API, Datadog, Vector and Fluent Bit all ingest
+without a translator, and a line-oriented file survives a run that is killed
+halfway, which a single JSON document does not.</p>
+<p>Every event shares an envelope: <code>ts</code>, <code>run</code>, <code>script</code>, <code>seq</code>, <code>event</code>. A
+collector routes on <code>event</code> and groups on <code>run</code> without knowing anything else
+about frost.</p>
+<pre><code class="language-json">{&quot;event&quot;: &quot;run.start&quot;,      &quot;declares&quot;: {&quot;programs&quot;: [&quot;curl&quot;], &quot;hosts&quot;: [&quot;x.example&quot;]}}
+{&quot;event&quot;: &quot;command.start&quot;,  &quot;program&quot;: &quot;curl&quot;, &quot;argv&quot;: [&quot;curl&quot;, &quot;-fsS&quot;, &quot;...&quot;]}
+{&quot;event&quot;: &quot;command.finish&quot;, &quot;program&quot;: &quot;curl&quot;, &quot;status&quot;: 0, &quot;seconds&quot;: 0.412}
+{&quot;event&quot;: &quot;run.finish&quot;,     &quot;status&quot;: 0, &quot;commands&quot;: 3, &quot;waited_seconds&quot;: 2.0,
+ &quot;programs_unused&quot;: [&quot;psql&quot;], &quot;hosts_unused&quot;: [&quot;db.internal&quot;]}
+</code></pre>
+<p><strong>The resolution worth having is the pairing.</strong> Any tool can log that a
+command ran. frost knows what the script was <em>allowed</em> to do before it ran,
+what a person <em>approved</em>, and what the host <em>permits</em>, so the finish event can
+say which approved capabilities went unused. A script approved for six
+programs that uses two is an approval that should be tightened, and that is
+only visible holding the manifest and the run side by side.</p>
+<p>Commands are timed, and the run separates time spent working from time spent
+waiting, so a slow job can be attributed rather than guessed at.</p>
+<p>Contents are never emitted, sizes are: "wrote 4kb" is useful and the 4kb is
+not. Secrets are redacted before an event is written, including in a command's
+arguments, because telemetry leaves the building more often than a recording
+does.</p>
+<p>It composes with the other modes. <code>--events</code> alongside <code>--record</code> gives both,
+and a replayed run is marked <code>"replayed": true</code> so a dashboard does not count
+a fixture as production traffic.</p>
 <h3 id="ref-policy-the-machine-brings">Policy the machine brings</h3>
 <p>Rules in <code>/etc/frost/policy.d/*.policy</code> apply to every run on that host,
 whether or not anyone passed <code>--policy</code>. A policy beside the script is

@@ -4,6 +4,7 @@
 import argparse
 import os
 import sys
+import time
 
 from . import __version__
 from .lexer import LexError
@@ -446,6 +447,10 @@ def build_parser():
     ap.add_argument("--new-approver-key", metavar="KEYFILE",
                     dest="new_approver_key",
                     help="write a new signing key and print its public half")
+    ap.add_argument("--events", metavar="FILE",
+                    help="write one JSON object per event, for Splunk, New "
+                         "Relic and anything else that reads NDJSON; - for "
+                         "standard error")
     ap.add_argument("--automated", action="store_true",
                     help="this run is unattended: refuse anything that would "
                          "widen what a script may do")
@@ -916,6 +921,37 @@ def main(argv=None):
             sys.stderr.write(f"frost: cannot write the trace: {e}\n")
             return 2
 
+    events = observer = None
+    if opts.events:
+        from . import telemetry as T
+        try:
+            stream = (sys.stderr if opts.events == "-"
+                      else open(opts.events, "w"))
+        except OSError as e:
+            sys.stderr.write(f"frost: cannot write the event log: {e}\n")
+            return 2
+        events = T.Sink(stream, run_id=run_id, script=opts.script)
+        caps_now = audit_program(program).merged
+        events.emit("run.start",
+                    frost=__version__,
+                    run_id_from=run_id_from,
+                    automated=automated,
+                    policies=provenance,
+                    approved=os.path.exists(
+                        __import__("frostlang.baseline", fromlist=["x"])
+                        .path_for(opts.script)),
+                    declares={
+                        "programs": sorted({c.program for c in caps_now.commands
+                                            if c.program}),
+                        "hosts": sorted({h for h, _ in caps_now.reaches}),
+                        "reads": len(caps_now.reads),
+                        "writes": len(caps_now.writes),
+                        "deletes": len(caps_now.deletes),
+                        "secrets": sorted({n for n, _, _ in
+                                           caps_now.secret_reads if n}),
+                        "unknowable": caps_now.dynamic,
+                    })
+
     interp = Interpreter(argv=opts.args, trace=opts.trace, source=source,
                          trace_to=trace_stream, run_id=run_id,
                          keystore=store, role=opts.role)
@@ -947,6 +983,12 @@ def main(argv=None):
             sys.stderr.write(f"frost: {getattr(e, 'msg', e)}\n")
             return 2
     outcome = 1
+    if events is not None:
+        from . import telemetry as T
+        observer = T.Observer(events, interp.journal)
+        interp.journal = observer
+
+    started_at = time.monotonic()
     try:
         outcome = status = interp.run_program(tree)
         if player is not None:
@@ -997,7 +1039,20 @@ def main(argv=None):
         # However the run ended. A recording that only survives success is
         # useless for the case it is most wanted in: the run that failed,
         # was interrupted, or wedged is exactly the one somebody needs to
-        # read afterwards, and it was the one being thrown away.
+        # read afterwards, and it was the one being thrown away. The finish
+        # event is on the same footing: a monitoring system that only hears
+        # about runs which succeeded is monitoring the wrong half.
+        if events is not None:
+            from . import telemetry as T
+            events.emit(
+                "run.finish", status=outcome,
+                seconds=round(time.monotonic() - started_at, 6),
+                commands=observer.commands,
+                command_seconds=round(observer.busy, 6),
+                waited_seconds=round(observer.waited, 6),
+                replayed=bool(opts.replay),
+                **T.utilisation(audit_program(program).merged, observer))
+            events.close()
         if trace_stream is not None:
             trace_stream.close()
         if recorder is not None:
