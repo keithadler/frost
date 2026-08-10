@@ -341,6 +341,30 @@ def test_the_macos_profile_opens_the_network_only_when_asked(tmp_path):
     assert "(allow network*)" in S.macos_profile(boundary, str(tmp_path))
 
 
+def test_the_bubblewrap_argv_starts_in_the_right_directory(tmp_path):
+    """bwrap starts the child in `/` whatever the parent's directory was, so
+    without --chdir a command writing to a relative path writes somewhere
+    else and the allowed write silently fails. Checked on every platform,
+    because the behavioural test for it only runs where bwrap exists."""
+    argv = S.bubblewrap_argv(Boundary(), str(tmp_path), str(tmp_path / "work"))
+    assert "--chdir" in argv
+    assert argv[argv.index("--chdir") + 1] == str(tmp_path / "work")
+
+
+def test_the_bubblewrap_argv_falls_back_to_the_script_directory(tmp_path):
+    argv = S.bubblewrap_argv(Boundary(), str(tmp_path), None)
+    assert argv[argv.index("--chdir") + 1] == str(tmp_path)
+
+
+def test_the_bubblewrap_argv_binds_what_the_boundary_allows(tmp_path):
+    (tmp_path / "build").mkdir()
+    boundary = Boundary()
+    boundary.writes = ["build/*"]
+    argv = S.bubblewrap_argv(boundary, str(tmp_path), None)
+    assert "--bind" in argv
+    assert str(tmp_path / "build") in argv
+
+
 @pytest.mark.skipif(BACKEND != S.BACKEND_LINUX, reason="Linux backend")
 def test_the_bubblewrap_argv_unshares_the_network_by_default(tmp_path):
     argv = S.bubblewrap_argv(Boundary(), str(tmp_path))

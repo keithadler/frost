@@ -495,11 +495,11 @@ class Interpreter:
                 hint="if this failure is expected, write 'try to run ...' "
                      "and check 'the result'")
 
-    def confine(self, argv, line):
+    def confine(self, argv, line, folder=None):
         """The command line that runs `argv` inside the boundary."""
         from .sandbox import SandboxError
         try:
-            return self.sandbox.wrap(argv)
+            return self.sandbox.wrap(argv, folder)
         except SandboxError as e:
             raise FrostError(e.msg, line, hint=e.hint)
 
@@ -557,7 +557,7 @@ class Interpreter:
         argv = [program] + args
         folder = self.child_folder(node)
         if self.sandbox is not None:
-            argv = self.confine(argv, node.line)
+            argv = self.confine(argv, node.line, folder)
 
         if self.journal is not None:
             return self.journal_run(node, program, argv, stdin_text, folder,
@@ -609,6 +609,9 @@ class Interpreter:
                      "and check 'the result'")
 
     def exec_Pipe(self, node):
+        # Resolved before the stages, because confining one needs to know
+        # where it will run.
+        folder = self.child_folder(node)
         commands = []
         for stage in node.stages:
             program = to_text(self.eval(stage.program))
@@ -621,10 +624,9 @@ class Interpreter:
                     args.append(to_argument(v))
             argv = [program] + args
             if self.sandbox is not None:
-                argv = self.confine(argv, stage.line)
+                argv = self.confine(argv, stage.line, folder)
             commands.append((argv, stage.line))
 
-        folder = self.child_folder(node)
         seconds = self.eval_timeout(node)
 
         # `pipe reading X` feeds the first stage. The text goes through a
