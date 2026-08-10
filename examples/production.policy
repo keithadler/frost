@@ -1,0 +1,17 @@
+-- A policy is a readable contract about what a script may do.
+-- Checked against the parse tree, before anything runs.
+
+forbid running "rm" with "-rf"
+forbid running "dd"
+forbid running "chmod" with "777"
+forbid running "sudo"
+
+forbid writing to "/etc/*"
+forbid writing to "/usr/*"
+forbid deleting "/*"
+
+warn running "curl"
+warn writing to "/tmp/*"
+
+require timeout on "curl"
+require every command to be checked

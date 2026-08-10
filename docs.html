@@ -1,0 +1,1477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>frost 0.3.0 — language documentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper:#EAF0F4;
+  --card:#FFFFFF;
+  --ink:#0D1418;
+  --muted:#5B6C77;
+  --frost:#14657F;
+  --frost-deep:#0B3F52;
+  --ice:#CBDFE9;
+  --ice-soft:#E2EDF3;
+  --ember:#A6401B;
+  --rule:#BFD3DE;
+  --display:"Space Grotesk",system-ui,sans-serif;
+  --body:"Newsreader",Georgia,serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:1.5rem}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--body);font-size:17.5px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------------------------------------------------------- structure */
+.shell{display:grid;grid-template-columns:255px minmax(0,1fr);gap:0;
+  max-width:1240px;margin:0 auto;}
+
+aside{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  padding:2.2rem 1.4rem 3rem 1.6rem;
+  border-right:1px solid var(--rule);
+}
+.brand{font-family:var(--display);font-weight:700;font-size:1.45rem;
+  letter-spacing:-.03em;line-height:1;margin:0 0 .1rem;}
+.brand span{color:var(--frost)}
+.brand-sub{font-family:var(--mono);font-size:.68rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 1.8rem}
+.nav-title{font-family:var(--mono);font-size:.66rem;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--frost);margin:1.5rem 0 .5rem;
+  padding-bottom:.35rem;border-bottom:1px solid var(--rule);}
+aside ul{list-style:none;margin:0;padding:0}
+aside li a{
+  display:block;padding:.2rem 0;color:var(--muted);text-decoration:none;
+  font-family:var(--display);font-size:.83rem;font-weight:500;
+  line-height:1.35;border-left:2px solid transparent;padding-left:.65rem;
+  margin-left:-.65rem;transition:color .15s,border-color .15s;
+}
+aside li a:hover{color:var(--ink)}
+aside li a.here{color:var(--frost-deep);border-left-color:var(--frost)}
+
+main{padding:2.2rem 3.2rem 8rem;min-width:0}
+.doc{max-width:74ch}
+
+/* ------------------------------------------------------------- hero */
+.hero{margin:0 0 3.5rem}
+.eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--frost);margin:0 0 .9rem}
+.hero h1{font-family:var(--display);font-weight:700;font-size:clamp(2.1rem,5vw,3.1rem);
+  letter-spacing:-.035em;line-height:1.02;margin:0 0 .8rem}
+.hero .lede{font-size:1.18rem;color:var(--muted);margin:0 0 2.2rem;max-width:52ch}
+
+/* signature: the nested chunk expression, decomposed */
+.thesis{
+  background:var(--card);border:1px solid var(--rule);
+  border-radius:3px;padding:1.7rem 1.6rem 1.4rem;
+}
+.thesis-label{font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 1.1rem}
+.expr{font-family:var(--mono);font-size:clamp(.85rem,2.1vw,1.05rem);
+  line-height:2.5;white-space:nowrap;overflow-x:auto;padding-bottom:.3rem}
+.layer{
+  padding:.3em .45em;border-radius:2px;cursor:default;
+  transition:background .18s ease, color .18s ease;
+  border-bottom:2px solid transparent;
+}
+.layer[data-on="1"]{background:var(--ice-soft);border-bottom-color:var(--ice)}
+.layer[data-on="2"]{background:var(--ice);border-bottom-color:#9FC3D4}
+.layer[data-on="3"]{background:var(--frost);color:#fff;border-bottom-color:var(--frost-deep)}
+.sample{
+  margin-top:1.2rem;padding-top:1.1rem;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:.76rem;line-height:1.95;color:var(--muted);
+  white-space:pre;overflow-x:auto;
+}
+.sample b{font-weight:400;color:var(--muted)}
+.sample .row.lit{color:var(--ink)}
+.sample .row.lit .hit{background:var(--frost);color:#fff;padding:.1em .25em;border-radius:2px}
+.thesis-note{margin:1.1rem 0 0;font-size:.9rem;color:var(--muted)}
+.thesis-note code{background:none;border:none;padding:0;color:var(--ember);font-size:.85rem}
+
+/* ---------------------------------------------------------- typography */
+main h2{
+  font-family:var(--display);font-weight:700;font-size:1.62rem;
+  letter-spacing:-.022em;line-height:1.15;
+  margin:3.6rem 0 1rem;padding-top:1.5rem;border-top:1px solid var(--rule);
+}
+main h3{font-family:var(--display);font-weight:500;font-size:1.13rem;
+  letter-spacing:-.01em;margin:2.2rem 0 .6rem}
+main p{margin:0 0 1.05rem}
+main strong{font-weight:600}
+main ul,main ol{margin:0 0 1.15rem;padding-left:1.25rem}
+main li{margin-bottom:.42rem}
+main hr{display:none}
+a{color:var(--frost);text-underline-offset:3px}
+
+/* inline code */
+main p code,main li code,main td code{
+  font-family:var(--mono);font-size:.83em;background:var(--ice-soft);
+  border:1px solid var(--ice);border-radius:2px;padding:.08em .34em;
+  color:var(--frost-deep);
+}
+
+/* code blocks */
+pre{
+  background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--frost);
+  border-radius:2px;padding:1.05rem 1.15rem;margin:0 0 1.35rem;
+  overflow-x:auto;font-size:.83rem;line-height:1.72;
+}
+pre code{font-family:var(--mono);background:none;border:none;padding:0;color:var(--ink)}
+pre.shell{border-left-color:var(--muted);background:#0D1418;color:#C6D6DE}
+pre.shell code{color:#C6D6DE}
+pre.diagnostic{border-left-color:var(--ember);background:#FBF2EE}
+pre.grammar{border-left-color:var(--ice);font-size:.78rem}
+pre.transcript{border-left-color:var(--muted);background:#F5F8FA;color:#33454F}
+pre.transcript code{color:#33454F}
+pre.policy{border-left-color:#8A6212;background:#FAF6EC}
+
+/* frost syntax colours */
+.tk-kw{color:var(--frost);font-weight:600}
+.tk-noun{color:var(--frost-deep)}
+.tk-str{color:var(--ember)}
+.tk-num{color:#6B3FA0}
+.tk-com{color:#8A9AA5;font-style:italic}
+
+/* tables */
+table{border-collapse:collapse;width:100%;margin:0 0 1.4rem;font-size:.92rem}
+th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--rule);
+  vertical-align:top}
+th{font-family:var(--display);font-weight:500;font-size:.78rem;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--frost);
+  border-bottom:1px solid var(--frost)}
+tbody tr:last-child td{border-bottom:none}
+
+/* ------------------------------------------------------------ mobile */
+.menu-btn{display:none}
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-right:none;
+    border-bottom:1px solid var(--rule);padding:1.4rem 1.4rem 1.8rem}
+  aside .nav-body{display:none}
+  aside.open .nav-body{display:block}
+  .menu-btn{display:block;font-family:var(--mono);font-size:.72rem;
+    letter-spacing:.12em;text-transform:uppercase;background:none;
+    border:1px solid var(--rule);border-radius:2px;padding:.4rem .7rem;
+    color:var(--frost);cursor:pointer}
+  main{padding:1.8rem 1.3rem 5rem}
+  .expr{white-space:normal;line-height:2.7}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+  html{scroll-behavior:auto}
+}
+
+.layer{animation:settle .5s ease both}
+@keyframes settle{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside id="side">
+  <p class="brand">fr<span>o</span>st</p>
+  <p class="brand-sub">v0.3.0 · language docs</p>
+  <button class="menu-btn" id="menu">Contents</button>
+  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
+</aside>
+
+<main>
+  <header class="hero">
+    <p class="eyebrow">A scripting language for readable shell scripts</p>
+    <h1>Scripts are written once<br>and read at 3am.</h1>
+    <p class="lede">A shell scripting language for the era when machines write
+    the scripts and humans only get to review them — readable by default,
+    structurally immune to injection, and auditable before a single process
+    starts.</p>
+    <p class="lede" style="font-size:1rem"><a href="audit.html">See a live audit report &rarr;</a></p>
+
+    <div class="thesis">
+      <p class="thesis-label">Chunk expressions — hover a layer</p>
+      <div class="expr" id="expr">
+        <span class="layer" data-depth="1">the third word of<span class="layer" data-depth="2"> line 7 of<span class="layer" data-depth="3"> file "access.log"</span></span></span>
+      </div>
+      <div class="sample" id="sample"></div>
+      <p class="thesis-note">In bash: <code>sed -n '7p' access.log | awk '{print $3}'</code> — two tool dialects instead of one grammar.</p>
+    </div>
+  </header>
+
+  <div class="doc"><p><strong>A shell scripting language for the era when machines write the scripts and
+humans only get to review them — readable by default, structurally immune to
+injection, and auditable before a single process starts.</strong></p>
+<p>A grammar descended from HyperTalk, an interpreter rather than a login shell.</p>
+<pre><code>#!/usr/bin/env frost
+
+put the number of lines in file &quot;access.log&quot; into request count
+put &quot;processing&quot; &amp;&amp; request count &amp;&amp; &quot;requests&quot;
+
+pipe
+    run &quot;grep&quot; with &quot;ERROR&quot;, &quot;access.log&quot;
+    run &quot;awk&quot; with &quot;{print $1}&quot;
+    run &quot;sort&quot;
+    run &quot;uniq&quot; with &quot;-c&quot;
+end pipe
+
+repeat for each line in it as tally
+    put the second word of tally &amp;&amp; &quot;failed&quot; &amp;&amp; the first word of tally &amp;&amp; &quot;times&quot;
+end repeat
+</code></pre>
+<h2 id="guide-why">Why</h2>
+<p>Shell syntax was optimised for a cost that no longer dominates. <code>cut -d: -f1</code>
+is terse because a human typed it a thousand times on a serial terminal. When a
+model writes the script and a human reads it once — at 3am, while production is
+down — the scarce resource is comprehension at review time, not keystrokes.</p>
+<p>frost inverts the optimisation. It is not a login shell; it is an interpreter
+you point at a file. Because nobody types it at a prompt, nothing in the design
+has to be short.</p>
+<p>The speed objection does not apply. A shell's runtime is dominated by
+<code>fork</code>/<code>exec</code>, not parsing — HyperTalk's whole grammar fit in HyperCard on a
+68000. You can parse verbose syntax faster than you can spawn a process.</p>
+<h2 id="guide-three-things-it-fixes">Three things it fixes</h2>
+<p><strong>Injection is unrepresentable, not mitigated.</strong> There is no interpolation and
+no <code>eval</code>. Arguments are a list handed to <code>execve</code>, never re-parsed.</p>
+<pre><code class="language-text">$ cat hostile.frost
+put &quot;notes.txt; rm -rf *&quot; into evil name
+run &quot;touch&quot; with evil name
+
+$ frost hostile.frost &amp;&amp; ls
+'notes.txt; rm -rf *'   keep_me.txt   precious.db
+
+$ bash -c &quot;touch $EVIL&quot; &amp;&amp; ls
+                        # empty. everything is gone.
+</code></pre>
+<p><strong>Failure stops the script.</strong> No <code>set -e</code> to forget. <code>run</code> aborts on non-zero
+exit; <code>try to run</code> opts out and is greppable in review.</p>
+<p><strong>Pipes fail if any stage fails.</strong> <code>cat missing.log | wc -l</code> reports success in
+bash. In frost the first failing stage wins, and there is no way to turn that
+off.</p>
+<h2 id="guide-side-by-side">Side by side</h2>
+<pre><code class="language-bash">#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+LOG=&quot;${1:?usage: report LOGFILE}&quot;
+[[ -f &quot;$LOG&quot; ]] || { echo &quot;no log at $LOG&quot; &gt;&amp;2; exit 1; }
+
+n=$(wc -l &lt; &quot;$LOG&quot;)
+errs=$(awk '$4 ~ /^5/' &quot;$LOG&quot; | wc -l)
+
+echo &quot;requests: $n&quot;
+echo &quot;errors:   $errs&quot;
+(( errs &gt; 2 )) &amp;&amp; { echo &quot;ALERT&quot; &gt;&amp;2; exit 1; }
+</code></pre>
+<pre><code>#!/usr/bin/env frost
+
+put item 1 of the arguments into log path
+if log path is empty then
+    put &quot;usage: report &lt;logfile&gt;&quot; into standard error
+    quit with status 2
+end if
+
+if not file (log path) exists then
+    put &quot;no log at&quot; &amp;&amp; log path into standard error
+    quit with status 1
+end if
+
+put the number of lines in file (log path) into request count
+
+put 0 into error count
+repeat for each line in file (log path) as this request
+    if the fourth word of this request starts with &quot;5&quot; then
+        add 1 to error count
+    end if
+end repeat
+
+put &quot;requests:&quot; &amp;&amp; request count
+put &quot;errors:  &quot; &amp;&amp; error count
+
+if error count is greater than 2 then
+    put &quot;ALERT&quot; into standard error
+    quit with status 1
+end if
+</code></pre>
+<p>Longer, and that is the trade. Nothing in the second version needs explaining
+to someone who has never seen frost — no <code>set -euo pipefail</code>, no <code>IFS</code>
+incantation, no <code>${1:?}</code>, no <code>$4 ~ /^5/</code>, no <code>&gt;&amp;2</code>. The safety that bash gets
+from three lines of ceremony, frost gets from having no other mode.</p>
+<h2 id="guide-patterns-and-timeouts">Patterns and timeouts</h2>
+<p>Globs for filenames, regex when you actually need it, and neither pretending to
+be the other:</p>
+<pre><code>if filename is like &quot;*.tmp&quot; then delete file filename
+
+if request matches &quot;^(\S+) (\w+) (\d+)$&quot; then
+    put match 1 into client address
+    put the last match into status code
+end if
+
+put every match of &quot;\d+&quot; in request into numbers
+replace &quot;(\d+)-(\d+)-(\d+)&quot; with &quot;\3/\2/\1&quot; in date text
+</code></pre>
+<p>Capture groups use the same chunk grammar as everything else — <code>match 1</code>,
+<code>the last match</code>, <code>the number of matches</code>, <code>the whole match</code>.</p>
+<p>Any command can carry a deadline, with a required unit:</p>
+<pre><code>run &quot;curl&quot; with &quot;--silent&quot;, endpoint within 30 seconds
+
+try to pipe within 1 minute
+    run &quot;find&quot; with &quot;/&quot;, &quot;-name&quot;, &quot;*.log&quot;
+    run &quot;xargs&quot; with &quot;wc&quot;, &quot;-l&quot;
+end pipe
+
+if the result is 124 then put &quot;took too long&quot; into standard error
+</code></pre>
+<p>Timed-out children are killed and reaped — no orphans, no wedged script.</p>
+<h2 id="guide-why-this-matters-for-ai-agents">Why this matters for AI agents</h2>
+<p>Shell scripts are increasingly written by models and reviewed by people. That
+inverts the assumption every shell was designed under, and it breaks in three
+specific places.</p>
+<p><strong>Review does not scale at generation speed.</strong> A model can produce forty lines
+of bash faster than a person can verify one of them, and <code>set -euo pipefail</code>,
+<code>IFS=$'\n\t'</code>, <code>${1:?}</code>, and <code>$4 ~ /^5/</code> all have to be read carefully to be
+read at all. The reviewer either slows to the speed of careful reading, or
+starts skimming. Most people skim. frost moves the cost: the script is longer,
+but nothing in it needs decoding, so skimming and reading converge.</p>
+<p><strong>Prompt injection becomes shell injection.</strong> An agent that reads a web page, a
+filename, an issue title, or a log line and puts that text into a generated
+command has handed an attacker a shell. This is not hypothetical; it is the
+main path by which agent tooling gets compromised. In frost a value cannot
+become syntax — arguments are a list handed to <code>execve</code>, never re-parsed —
+so hostile text stays text no matter where it came from. The <code>rm -rf *</code> in a
+filename above is the whole demonstration.</p>
+<p><strong>Approval needs something to approve.</strong> "Do you want to run this script?"
+asks a person to simulate an interpreter in their head. <code>--explain</code> replaces
+that with a capability manifest:</p>
+<pre><code class="language-text">This script runs tar and date, reads 2 files (runtime),
+and writes 3 files (temporary).
+</code></pre>
+<p>A human can approve <em>capabilities</em> in seconds. Reading the code to derive those
+capabilities takes minutes and is where mistakes happen.</p>
+<h3 id="guide-the-part-that-is-actually-new">The part that is actually new</h3>
+<p>Because a frost script is a parse tree rather than a string, an agent's output
+can be checked mechanically <strong>before</strong> anything executes:</p>
+<pre><code class="language-policy">forbid running &quot;rm&quot; with &quot;-rf&quot;
+forbid writing to &quot;/etc/*&quot;
+forbid running &quot;sudo&quot;
+require timeout on &quot;curl&quot;
+require every command to be checked
+</code></pre>
+<p>Violations exit 3 and the script never starts. This is sandboxing at the
+language level rather than the container level, and it composes with a
+container rather than competing with it. The agent proposes; the policy
+disposes; the human reads a manifest instead of code.</p>
+<p>Built-in checks catch the classics with no policy at all — <code>curl … | sh</code> is
+reported as <em>downloaded code piped into a shell</em>, and a script that reads
+<code>~/.ssh/id_rsa</code> and then makes a network call is flagged as <em>secrets read, then
+the network is contacted</em> — the shape of data theft. Both are facts about the
+tree, not pattern matches on the text, and both hold even when the sensitive
+path is assembled at runtime from a variable and a string fragment.</p>
+<h3 id="guide-what-this-does-not-do">What this does not do</h3>
+<p>Analysis covers literals. If a script builds a program name or path at runtime,
+frost reports it as <em>built at runtime</em> rather than guessing — the manifest tells
+you that something is unknowable, not what it is. A determined script can still
+put itself out of reach that way, and a policy that permits a command permits
+its consequences. This narrows the blast radius and makes review tractable; it
+is not a sandbox and does not claim to be.</p>
+<h2 id="guide-the-feature-that-carries-the-language">The feature that carries the language</h2>
+<p>Chunk expressions. One uniform grammar replaces <code>cut</code>, <code>awk '{print $3}'</code>,
+<code>sed -n '7p'</code>, <code>head</code>, and <code>tail</code>:</p>
+<pre><code>put the third word of line 7 of file &quot;access.log&quot;
+put the last item of csv row
+put words 2 to 4 of headline
+put the number of lines in report
+</code></pre>
+<p>Text addressing is most of what shell scripting actually is, and this is the
+best notation anyone has shipped for it. It was HyperTalk's, and it deserves
+another run.</p>
+<h2 id="guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</h2>
+<p><strong>Before you run it, you can read exactly what it is allowed to do. Bash
+cannot do this.</strong></p>
+<p>Because frost is parsed rather than string-substituted, a script's capabilities
+are visible in the tree. <code>--explain</code> prints them:</p>
+<pre><code class="language-text">Runs these programs:
+  rm    - line 8   (no timeout)
+  curl  - line 12  (1 allowed to fail, no timeout)
+
+Writes these files:
+  /etc/cleanup.state  - line 11
+</code></pre>
+<p>And <code>--policy</code> enforces rules before anything is spawned:</p>
+<pre><code class="language-policy">forbid running &quot;rm&quot; with &quot;-rf&quot;
+forbid writing to &quot;/etc/*&quot;
+require timeout on &quot;curl&quot;
+require every command to be checked
+</code></pre>
+<pre><code class="language-text">REFUSED: running &quot;rm&quot; with &quot;-rf&quot;
+  cleanup.frost:8   run &quot;rm&quot; with &quot;-rf&quot;, scratch folder
+
+2 rule violation(s); the script was not run.
+</code></pre>
+<p><code>rm -rf "$DIR"</code> in bash is a string until it executes, so there is nothing to
+inspect first. In frost the program and its arguments are separate nodes, which
+is what makes a script checkable as a contract instead of trusted as a guess.</p>
+<h3 id="guide-built-in-checks">Built-in checks</h3>
+<p>Beyond a policy file, every script gets a standing set of checks. On a script
+that looks like routine cleanup:</p>
+<pre><code class="language-text">Findings:
+  [DANGER ] line 12  Recursive forced delete
+  [DANGER ] line 15  Writes to a system location (/etc/cleanup.state)
+  [DANGER ] line 18  Permissive or recursive permission change
+  [caution] line 21  No timeout on curl
+  [caution] line 21  Failure ignored (curl)
+  [DANGER ] line 26  Downloaded code piped into a shell
+
+Verdict: dangerous
+</code></pre>
+<p><code>open audit.html</code> for a visual report of four scripts — a fake "dotfile backup"
+that exfiltrates your keys and a cleanup script that quietly does four dangerous
+things, both refused, alongside a health check and a log analyzer that pass.</p>
+<h2 id="guide-install">Install</h2>
+<p>Requires Python 3.10+. No dependencies.</p>
+<pre><code class="language-bash">git clone &lt;repo&gt; frost &amp;&amp; cd frost
+ln -s &quot;$PWD/frost&quot; /usr/local/bin/frost
+frost examples/hello.frost
+</code></pre>
+<p>Coexists with zsh — you are adding an interpreter, not replacing your shell.
+Make scripts executable with a shebang and run them directly:</p>
+<pre><code class="language-bash">chmod +x report.frost
+./report.frost access.log
+</code></pre>
+<h2 id="guide-try-it-in-30-seconds">Try it in 30 seconds</h2>
+<p>No dependencies beyond Python 3.10. Paste this whole block:</p>
+<pre><code class="language-bash">git clone &lt;repo&gt; frost &amp;&amp; cd frost
+
+cat &gt; hello.frost &lt;&lt;'END'
+run &quot;date&quot; with &quot;+%A&quot;
+put &quot;Today is&quot; &amp;&amp; it
+
+put the number of lines in file &quot;/etc/hosts&quot; into host lines
+put &quot;Your hosts file has&quot; &amp;&amp; host lines &amp;&amp; &quot;lines&quot;
+END
+
+./frost hello.frost
+</code></pre>
+<pre><code class="language-text">Today is Monday
+Your hosts file has 4 lines
+</code></pre>
+<p>Now ask what that script is allowed to do, without running it:</p>
+<pre><code class="language-bash">./frost --explain hello.frost
+</code></pre>
+<pre><code class="language-text">This script runs date, and reads 1 file (system).
+
+Runs these programs:
+  date  - line 1  (no timeout)
+
+Reads these files:
+  /etc/hosts  - line 4
+
+Verdict: clean
+</code></pre>
+<p>Then try to break it. This filename is a shell injection payload:</p>
+<pre><code class="language-bash">cat &gt; risky.frost &lt;&lt;'END'
+put &quot;notes.txt; rm -rf *&quot; into filename
+run &quot;touch&quot; with filename
+run &quot;ls&quot; with &quot;-1&quot;
+put it
+END
+
+./frost risky.frost
+</code></pre>
+<pre><code class="language-text">hello.frost
+keep_me.txt
+notes.txt; rm -rf *
+risky.frost
+</code></pre>
+<p>A file was created with that literal name. Nothing was deleted. The same two
+lines in bash would have emptied the directory.</p>
+<h2 id="guide-tooling">Tooling</h2>
+<p><strong>Scratchpad</strong> — the fastest way to understand chunk expressions:</p>
+<pre><code class="language-bash">frost --try
+</code></pre>
+<pre><code class="language-text">frost&gt; the third word of line 2 of it
+/api/login
+frost&gt; the number of lines in it
+7
+frost&gt; every match of &quot;\d+&quot; in the first line of it
+5 items: 10, 0, 0, 1, 200
+</code></pre>
+<p><code>play.html</code> is the same thing in a browser, with the text editable and a set of
+worked examples. Its evaluator is a second implementation, and
+<code>tools/verify_chunks.py</code> runs 1,288 expressions through both it and the real
+interpreter on every build — the page is not written if they disagree.</p>
+<p><strong>Formatter</strong> — canonical layout, comments preserved:</p>
+<pre><code class="language-bash">frost --format script.frost          # print
+frost --format --write script.frost  # rewrite in place
+</code></pre>
+<p>It refuses to format a script that does not parse, is idempotent, and produces
+an identical parse tree, so it cannot quietly change meaning. The examples in
+this repo are its style reference, and a test fails if any of them drifts.</p>
+<p><strong>For code-generating models</strong> — <code>MODEL-SPEC.md</code> is a compact reference sized
+for a system prompt. Point a model at it and it will emit frost instead of
+bash; then <code>--explain</code> and <code>--policy</code> check the result before it runs.</p>
+<h2 id="guide-usage">Usage</h2>
+<pre><code class="language-text">frost script.frost [args...]     run a script
+frost --check script.frost       parse only, report errors
+frost --ast script.frost         dump the syntax tree
+frost --trace script.frost       print each statement as it runs
+frost --explain script.frost     describe what it can do, without running it
+frost --policy rules.policy s.frost   enforce rules, then run if it passes
+frost --try                      scratchpad for chunk expressions
+frost --format [--write] s.frost canonical layout
+</code></pre>
+<h2 id="guide-layout">Layout</h2>
+<pre><code class="language-text">frost                 executable entry point
+frostlang/
+    lexer.py          tokeniser
+    parser.py         recursive-descent parser
+    ast.py            node definitions
+    interp.py         tree-walking evaluator
+    cli.py            driver and error reporting
+examples/             runnable scripts
+tests/                165 tests — python3 -m pytest tests/ -q
+LANGUAGE.md           full reference and grammar
+docs.html             browsable docs (tools/build_docs.py)
+audit.html            visual audit report (tools/build_audit.py)
+play.html             live scratchpad (tools/build_play.py)
+MODEL-SPEC.md         prompt-sized reference (tools/build_model_spec.py)
+web/chunks.js         browser evaluator, verified against frostlang/
+</code></pre>
+<h2 id="guide-status">Status</h2>
+<p>Version 0.3.0. The language runs, the examples are real, and 165 tests cover
+lexing, parsing, chunk semantics, pattern matching, timeouts, process
+execution, pipe failure, static analysis, policy enforcement, and the
+injection property.</p>
+<p>Known gaps, roughly in the order they hurt:</p>
+<ul>
+<li><strong>Handlers read globals but cannot write them.</strong> <code>put 99 into total</code> inside a
+  handler silently creates a local even when a global of that name is readable
+  two lines up. Needs either real lexical scoping or an explicit global form.</li>
+<li><strong>No way to feed text into a program's stdin.</strong> Pipes chain program to
+  program; there is no equivalent of a heredoc.</li>
+<li><strong>No cleanup on abort.</strong> Failure aborts hard, so lock files and temp
+  directories leak. Given that abort-on-failure is the headline default, this
+  is a design hole rather than a missing convenience.</li>
+<li><strong>No real lists.</strong> <code>put "b" after xs</code> concatenates text. <code>the arguments</code> and
+  <code>every match</code> are the only lists the language can produce.</li>
+<li><strong>No string functions</strong> — no uppercase, trim, or splitting on an arbitrary
+  delimiter.</li>
+<li><strong>No environment control</strong> for child processes, and no way to change the
+  working directory.</li>
+<li>Output is captured, not streamed, so long-running commands show nothing until
+  they finish and interactive programs do not work at all.</li>
+<li>Handlers cannot be called from inside an expression; results arrive in <code>it</code>.</li>
+</ul>
+<p>Not yet built: a REPL for evaluating chunk expressions against sample text, a
+formatter, and a compile-to-bash mode for machines without frost installed. The
+interpreter is a tree walker; a bytecode pass would be straightforward if
+process spawn ever stopped dominating the runtime, which it will not.</p></div>
+  <div class="doc"><p>Version 0.3.0</p>
+<p>frost is a scripting language for the jobs shell scripts do, with a grammar
+descended from HyperTalk. It exists because the economics changed: scripts are
+now written quickly and read carefully, often by someone who did not write them
+and is reading at 3am while something is broken. Terseness was the right
+optimisation for a serial terminal. It is the wrong one for a code review.</p>
+<p>frost is not a login shell. It is an interpreter you point at a file:</p>
+<pre><code class="language-policy">#!/usr/bin/env frost
+</code></pre>
+<p>That choice is deliberate. Because nobody types frost at a prompt forty times a
+day, there is no pressure anywhere in the design to shorten anything.</p>
+<hr />
+<hr />
+<h2 id="ref-1-design-rules">1. Design rules</h2>
+<p>Four rules explain nearly every decision in the language.</p>
+<p><strong>Values never become syntax.</strong> There is no string interpolation and no
+<code>eval</code>. Arguments to a program are a list, passed directly to <code>execve</code>. A
+variable holding <code>notes.txt; rm -rf *</code> produces a file with that literal name.
+Injection is not mitigated in frost; it is unrepresentable.</p>
+<p><strong>Failure stops the script.</strong> <code>run</code> aborts on a non-zero exit unless you wrote
+<code>try to run</code>. There is no <code>set -e</code> to remember, because there is no other mode.</p>
+<p><strong>Pipes fail if any stage fails.</strong> Not just the last one. <code>bash</code>'s default here
+has probably caused more silent data loss than any other decision in shell
+design.</p>
+<p><strong>The keyword vocabulary is small and closed.</strong> This is what makes <code>error
+count</code> a legal variable name, and it is also the discipline that keeps frost
+from pretending to understand English. <code>put the first line of X into Y</code> works;
+<code>grab the first line from X</code> does not, and says so clearly.</p>
+<hr />
+<h2 id="ref-2-lexical-structure">2. Lexical structure</h2>
+<p><strong>Line-oriented.</strong> One statement per line. Newlines are significant.</p>
+<p><strong>Comments</strong> run from <code>--</code> or <code>#</code> to end of line.</p>
+<pre><code class="language-policy">-- This is a comment.
+# So is this.
+</code></pre>
+<p><strong>Line continuation.</strong> A trailing backslash folds the next line in. An argument
+list may also wrap after a comma without one.</p>
+<pre><code>run &quot;rsync&quot; with &quot;--archive&quot;, &quot;--verbose&quot;, \
+    source folder, destination folder
+</code></pre>
+<p><strong>Case-insensitive keywords and names.</strong> <code>Put</code>, <code>put</code>, and <code>PUT</code> are the same
+word. Names are normalised to lowercase internally.</p>
+<p><strong>Shebang.</strong> A first line beginning <code>#!</code> is ignored.</p>
+<p><strong>String literals</strong> use double quotes and support <code>\n</code>, <code>\t</code>, <code>\"</code>, <code>\\</code>.</p>
+<hr />
+<h2 id="ref-3-values">3. Values</h2>
+<p>frost has four value types.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Examples</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Text</td>
+<td><code>"hello"</code>, <code>empty</code></td>
+<td><code>empty</code> is the empty string</td>
+</tr>
+<tr>
+<td>Number</td>
+<td><code>42</code>, <code>3.14</code>, <code>-7</code></td>
+<td>Integers stay integers</td>
+</tr>
+<tr>
+<td>Truth</td>
+<td><code>true</code>, <code>false</code></td>
+<td></td>
+</tr>
+<tr>
+<td>List</td>
+<td><code>the arguments</code></td>
+<td>Produced by the language, not written literally</td>
+</tr>
+</tbody>
+</table>
+<p>Conversion is automatic and predictable. <code>"10" is greater than "9"</code> is true,
+because both sides look like numbers, so both are compared as numbers. If
+either side does not look like a number, both are compared as text.</p>
+<p>Truthiness: <code>false</code>, <code>0</code>, <code>""</code>, <code>"false"</code>, and <code>"no"</code> are false. Everything
+else is true.</p>
+<hr />
+<h2 id="ref-4-variables-and-names">4. Variables and names</h2>
+<p>A name is one or more ordinary words separated by spaces.</p>
+<pre><code>put 0 into error count
+put &quot;release-1.4&quot; into tag name
+put the current folder into working directory
+</code></pre>
+<p>This is the reason the keyword list is short. A word is available for use in a
+name unless it is structurally load-bearing. Chunk nouns (<code>line</code>, <code>word</code>,
+<code>item</code>, <code>character</code>) are <em>not</em> reserved — <code>line count</code> is a perfectly good
+variable — because frost recognises chunk expressions by context rather than by
+reserving the noun.</p>
+<p>Assignment is <code>put ... into ...</code>. Reading a name that was never assigned is an
+error, not an empty string:</p>
+<pre><code class="language-text">Error at report.frost:12
+    12 |     put total cost
+       there is no variable named 'total cost'
+       hint: assign it first with:  put ... into total cost
+</code></pre>
+<p>You can also build text onto an existing variable:</p>
+<pre><code>put &quot;world&quot; into message
+put &quot;hello &quot; before message      -- &quot;hello world&quot;
+put &quot;!&quot; after message            -- &quot;hello world!&quot;
+</code></pre>
+<hr />
+<h2 id="ref-5-chunk-expressions">5. Chunk expressions</h2>
+<p>This is the centre of the language. Chunk expressions replace <code>cut</code>, <code>awk
+'{print $3}'</code>, <code>sed -n '7p'</code>, <code>head</code>, and <code>tail</code> with one uniform grammar that
+reads the same everywhere.</p>
+<p>Four chunk nouns: <strong>character</strong>, <strong>word</strong>, <strong>line</strong>, <strong>item</strong>.</p>
+<ul>
+<li><code>word</code> splits on whitespace</li>
+<li><code>line</code> splits on newlines</li>
+<li><code>item</code> splits on commas, trimming surrounding spaces</li>
+<li><code>character</code> splits into single characters</li>
+</ul>
+<h3 id="ref-by-ordinal">By ordinal</h3>
+<pre><code>put the first word of headline
+put the third line of report
+put the last item of csv row
+put the middle word of phrase
+put any line of quotes file        -- picks one at random
+</code></pre>
+<p>Ordinals run <code>first</code> through <code>tenth</code>, plus <code>last</code>, <code>middle</code>, and <code>any</code>.</p>
+<h3 id="ref-by-number">By number</h3>
+<pre><code>put word 3 of headline
+put the line 7 of report
+put word -1 of headline            -- negative counts from the end
+</code></pre>
+<h3 id="ref-by-range">By range</h3>
+<pre><code>put words 2 to 4 of headline
+put lines 10 to 20 of report
+put characters 1 to 3 of name      -- &quot;fro&quot;
+</code></pre>
+<p>A range is rejoined with the natural separator for its kind: words with spaces,
+lines with newlines, items with <code>", "</code>.</p>
+<h3 id="ref-counting">Counting</h3>
+<pre><code>put the number of lines in file &quot;access.log&quot;
+put the number of words in this sentence
+put the length of name             -- characters, or list elements
+</code></pre>
+<h3 id="ref-nesting">Nesting</h3>
+<p>Chunk expressions compose, and this is where they pay for themselves:</p>
+<pre><code>put the third word of line 7 of file &quot;access.log&quot;
+</code></pre>
+<p>The bash equivalent is <code>sed -n '7p' access.log | awk '{print $3}'</code>, which
+requires knowing two tool dialects. The frost version requires knowing English.</p>
+<h3 id="ref-out-of-range">Out of range</h3>
+<p>Asking for a chunk that does not exist yields empty text, not an error. This
+matches HyperTalk and avoids a class of defensive length checks.</p>
+<pre><code>put word 99 of &quot;short phrase&quot;      -- empty, not a crash
+</code></pre>
+<hr />
+<h2 id="ref-6-operators">6. Operators</h2>
+<h3 id="ref-text">Text</h3>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Meaning</th>
+<th>Example</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&amp;</code></td>
+<td>join</td>
+<td><code>"a" &amp; "b"</code></td>
+<td><code>ab</code></td>
+</tr>
+<tr>
+<td><code>&amp;&amp;</code></td>
+<td>join with a space</td>
+<td><code>"a" &amp;&amp; "b"</code></td>
+<td><code>a b</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="ref-arithmetic">Arithmetic</h3>
+<p><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>^</code>, with conventional precedence. Parentheses group.
+Division by zero is an error.</p>
+<h3 id="ref-comparison">Comparison</h3>
+<p>Both word forms and symbols are accepted. The word forms are preferred in
+scripts; the symbols exist so that dense arithmetic conditions stay readable.</p>
+<table>
+<thead>
+<tr>
+<th>Word form</th>
+<th>Symbol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>is</code></td>
+<td><code>=</code></td>
+</tr>
+<tr>
+<td><code>is not</code></td>
+<td><code>!=</code></td>
+</tr>
+<tr>
+<td><code>is greater than</code></td>
+<td><code>&gt;</code></td>
+</tr>
+<tr>
+<td><code>is less than</code></td>
+<td><code>&lt;</code></td>
+</tr>
+<tr>
+<td><code>is at least</code></td>
+<td><code>&gt;=</code></td>
+</tr>
+<tr>
+<td><code>is at most</code></td>
+<td><code>&lt;=</code></td>
+</tr>
+</tbody>
+</table>
+<p>Additional text comparisons, which have no symbol form:</p>
+<pre><code>if name contains &quot;test&quot; then put &quot;looks like a test&quot;
+if path starts with &quot;/usr&quot; then put &quot;system path&quot;
+if filename ends with &quot;.tmp&quot; then delete file filename
+if answer is empty then quit with status 1
+if branch name is in allowed branches then put &quot;allowed&quot;
+if filename is like &quot;*.tmp&quot; then put &quot;temporary&quot;
+if line matches &quot;^\d+$&quot; then put &quot;all digits&quot;
+</code></pre>
+<p>The article is optional on ordinal chunks, so <code>first word of line</code> and <code>the
+first word of line</code> are the same expression. Prefer the article in scripts; it
+reads better in a sentence.</p>
+<h3 id="ref-logic">Logic</h3>
+<p><code>and</code>, <code>or</code>, <code>not</code>. Short-circuiting.</p>
+<hr />
+<h2 id="ref-6a-patterns">6a. Patterns</h2>
+<p>Two forms, because the two jobs are different.</p>
+<h3 id="ref-globs-is-like">Globs — <code>is like</code></h3>
+<p>For filename-shaped matching, where regex is overkill and unreadable:</p>
+<pre><code>if filename is like &quot;*.tmp&quot; then delete file filename
+if name is not like &quot;test_*&quot; then put &quot;not a test&quot;
+if log is like &quot;log-????-??.txt&quot; then put &quot;dated log&quot;
+</code></pre>
+<p><code>*</code> matches any run of characters, <code>?</code> matches one, <code>[abc]</code> matches a set.
+Case-sensitive.</p>
+<h3 id="ref-regular-expressions-matches">Regular expressions — <code>matches</code></h3>
+<p>For everything else. frost does not pretend regex is readable; it makes it
+explicit instead, so a reader knows to slow down at exactly the places that
+deserve it.</p>
+<pre><code>if request matches &quot;^(\S+) (\w+) (\d+)$&quot; then
+    put match 1 into client address
+    put match 2 into method
+    put the last match into status code
+end if
+</code></pre>
+<p>A successful <code>matches</code> records its capture groups, which are then addressed
+with the same chunk grammar as everything else:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>match 1</code>, <code>match 2</code></td>
+<td>Capture group by number</td>
+</tr>
+<tr>
+<td><code>the first match</code>, <code>the last match</code></td>
+<td>Capture group by ordinal</td>
+</tr>
+<tr>
+<td><code>the number of matches</code></td>
+<td>How many groups captured</td>
+</tr>
+<tr>
+<td><code>the whole match</code></td>
+<td>The entire matched text</td>
+</tr>
+</tbody>
+</table>
+<p>Groups persist until the next <code>matches</code>. A failed match clears them, so
+<code>the number of matches</code> is <code>0</code> after a miss rather than stale. A group that
+did not participate in the match reads as empty, never as missing.</p>
+<p>Patterns are searched, not anchored. Use <code>^</code> and <code>$</code> when you mean the whole
+subject. Syntax is standard regular expressions; an invalid pattern is a clear
+runtime error naming the problem.</p>
+<h3 id="ref-finding-every-occurrence">Finding every occurrence</h3>
+<pre><code>put every match of &quot;\d+&quot; in request into numbers
+put the number of items in numbers
+put item 1 of numbers
+</code></pre>
+<p>Returns a list of the matched text, not of groups.</p>
+<h3 id="ref-replacing">Replacing</h3>
+<pre><code>put &quot;2026-08-09&quot; into date text
+replace &quot;(\d+)-(\d+)-(\d+)&quot; with &quot;\3/\2/\1&quot; in date text
+-- date text is now &quot;09/08/2026&quot;
+</code></pre>
+<p><code>replace</code> edits a variable in place and replaces every occurrence.
+Backreferences are <code>\1</code>, <code>\2</code>, and so on.</p>
+<h3 id="ref-a-note-on-escapes">A note on escapes</h3>
+<p><code>\n</code>, <code>\t</code>, <code>\r</code>, <code>\0</code>, <code>\"</code> and <code>\\</code> are translated in string literals.
+Every other backslash is preserved, so <code>"\d+"</code> reaches the pattern engine
+intact and needs no doubling.</p>
+<hr />
+<h2 id="ref-7-statements">7. Statements</h2>
+<h3 id="ref-put">put</h3>
+<pre><code>put EXPRESSION                          -- writes to standard output
+put EXPRESSION into NAME
+put EXPRESSION into standard error
+put EXPRESSION into standard output
+put EXPRESSION into file &quot;path.txt&quot;     -- overwrites
+put EXPRESSION after file &quot;log.txt&quot;     -- appends
+put EXPRESSION before NAME              -- prepends to a variable
+</code></pre>
+<h3 id="ref-if">if</h3>
+<pre><code class="language-text">if COND then
+    ...
+else if COND then
+    ...
+else
+    ...
+end if
+</code></pre>
+<p>A single-line form exists for guards:</p>
+<pre><code>if attempts is 0 then quit with status 1
+</code></pre>
+<h3 id="ref-repeat">repeat</h3>
+<p>Five forms, all closed by <code>end repeat</code>.</p>
+<pre><code class="language-text">repeat 3 times
+    ...
+end repeat
+
+repeat with counter from 1 to 10
+    ...
+end repeat
+
+repeat with counter from 10 to 1 by -1
+    ...
+end repeat
+
+repeat for each line in file &quot;hosts.txt&quot; as this host
+    ...
+end repeat
+
+repeat while queue depth is greater than 0
+    ...
+end repeat
+
+repeat until file &quot;ready.flag&quot; exists
+    ...
+end repeat
+
+repeat forever
+    ...
+end repeat
+</code></pre>
+<p><code>exit repeat</code> leaves the loop. <code>next repeat</code> starts the next pass.</p>
+<h3 id="ref-arithmetic-statements">Arithmetic statements</h3>
+<pre><code>add 1 to error count
+subtract 5 from budget
+multiply 2 into scale factor
+divide 3 into portion size
+</code></pre>
+<h3 id="ref-quit">quit</h3>
+<pre><code>quit                    -- status 0
+quit with status 1
+</code></pre>
+<hr />
+<h2 id="ref-8-running-programs">8. Running programs</h2>
+<pre><code>run &quot;git&quot;
+run &quot;git&quot; with &quot;status&quot;, &quot;--short&quot;
+run &quot;cp&quot; with source path, destination path
+</code></pre>
+<p>The program name comes first. Every argument is a separate expression in the
+<code>with</code> list. <strong>The list is passed straight to the operating system.</strong> Nothing is
+re-parsed, so nothing needs quoting or escaping:</p>
+<pre><code>put &quot;my report (final).pdf&quot; into filename
+run &quot;cp&quot; with filename, &quot;/backup&quot;
+</code></pre>
+<p>That works. There is no shell in the middle to be confused by the spaces or the
+parentheses.</p>
+<p>Writing a whole command line as one string is a syntax error, caught at parse
+time with a suggested fix:</p>
+<pre><code class="language-text">Syntax error at build.frost:4
+     4 | run &quot;ls -la&quot;
+       run takes a program name, not a command line
+       hint: did you mean:  run &quot;ls&quot; with &quot;-la&quot;
+</code></pre>
+<h3 id="ref-timeouts">Timeouts</h3>
+<p>Any <code>run</code> may carry a deadline:</p>
+<pre><code>run &quot;curl&quot; with &quot;--silent&quot;, endpoint within 30 seconds
+run &quot;make&quot; with &quot;test&quot; within 10 minutes
+try to run &quot;ping&quot; with &quot;-c&quot;, &quot;1&quot;, host within 500 milliseconds
+</code></pre>
+<p>Units are required — <code>within 5</code> is a syntax error, because a bare number could
+mean seconds or milliseconds and the reader should not have to guess. Accepted
+units: <code>milliseconds</code> (or <code>ms</code>), <code>seconds</code>, <code>minutes</code>, <code>hours</code>, singular or
+plural.</p>
+<p>When the deadline passes the child is killed. A plain <code>run</code> then aborts the
+script; a <code>try to run</code> sets <code>the result</code> to <strong>124</strong>, the same status GNU
+<code>timeout</code> uses, and leaves any partial output in <code>it</code>.</p>
+<p>Pipes take a deadline for the whole chain, not per stage:</p>
+<pre><code>try to pipe within 1 minute
+    run &quot;find&quot; with &quot;/&quot;, &quot;-name&quot;, &quot;*.log&quot;
+    run &quot;xargs&quot; with &quot;wc&quot;, &quot;-l&quot;
+end pipe
+
+if the result is 124 then
+    put &quot;search took too long&quot; into standard error
+end if
+</code></pre>
+<p>Putting <code>within</code> on an individual stage is a syntax error that says so. When a
+pipe times out, every stage is killed and reaped — no orphans.</p>
+<h3 id="ref-output">Output</h3>
+<p><code>run</code> captures standard output into <code>it</code>, with the trailing newline removed.
+Standard error passes straight through to the terminal. The exit code lands in
+<code>the result</code>.</p>
+<pre><code>run &quot;git&quot; with &quot;rev-parse&quot;, &quot;--short&quot;, &quot;HEAD&quot;
+put &quot;building revision&quot; &amp;&amp; it
+</code></pre>
+<p>To show a program's output, put it:</p>
+<pre><code>run &quot;df&quot; with &quot;-h&quot;
+put it
+</code></pre>
+<hr />
+<h2 id="ref-9-pipes">9. Pipes</h2>
+<p>A pipe is a block, not a connective. English has no graceful N-ary connective
+for this, so frost does not invent one — position carries the meaning.</p>
+<pre><code>pipe
+    run &quot;cat&quot; with &quot;access.log&quot;
+    run &quot;grep&quot; with &quot;ERROR&quot;
+    run &quot;sort&quot;
+    run &quot;uniq&quot; with &quot;-c&quot;
+end pipe
+
+put the number of lines in it into distinct errors
+</code></pre>
+<p>Advantages over <code>a | b | c | d</code> that matter in review: it reads top to bottom,
+it survives ten stages without becoming a wall, a diff shows exactly which stage
+changed, and you can comment one stage.</p>
+<p>Every stage must be a <code>run</code>. A pipe needs at least two stages.</p>
+<p><strong>Pipes fail if any stage fails</strong>, and <code>the result</code> reports the first failure.
+This is <code>set -o pipefail</code> with no way to turn it off.</p>
+<pre><code>try to pipe
+    run &quot;cat&quot; with &quot;missing.log&quot;
+    run &quot;wc&quot; with &quot;-l&quot;
+end pipe
+
+put the result       -- 1, not 0
+</code></pre>
+<hr />
+<h2 id="ref-10-failure-handling">10. Failure handling</h2>
+<p>Plain <code>run</code> and <code>pipe</code> mean <em>this must succeed</em>. If it does not, the script
+stops and reports the line:</p>
+<pre><code class="language-text">Error at deploy.frost:18
+    18 | run &quot;make&quot; with &quot;test&quot;
+       'make' failed with status 2
+       hint: if this failure is expected, write 'try to run ...' and check 'the result'
+</code></pre>
+<p><code>try to</code> means <em>I will handle this myself</em>, and is the only case where checking
+<code>the result</code> is meaningful:</p>
+<pre><code>try to run &quot;ping&quot; with &quot;-c&quot;, &quot;1&quot;, host name
+if the result is not 0 then
+    put host name &amp;&amp; &quot;is unreachable&quot; into standard error
+    quit with status 1
+end if
+</code></pre>
+<p>The safe path is shorter to write than the risky one, and the risky one
+announces itself in the source. A reviewer looking for unchecked failures greps
+for <code>try to</code>.</p>
+<hr />
+<h2 id="ref-11-files">11. Files</h2>
+<p>Reading a file is an expression:</p>
+<pre><code>put file &quot;config.txt&quot; into settings
+put the first line of file &quot;VERSION&quot;
+</code></pre>
+<p>If the path is in a variable, parenthesise it — this is how frost tells
+<code>file "x"</code> from a variable named <code>file path</code>:</p>
+<pre><code>put item 1 of the arguments into log path
+put the number of lines in file (log path)
+</code></pre>
+<p>Writing and appending are <code>put</code> targets:</p>
+<pre><code>put report text into file &quot;report.txt&quot;
+put &quot;another line&quot; after file &quot;report.txt&quot;
+</code></pre>
+<p>Testing and removing:</p>
+<pre><code>if file &quot;lock.pid&quot; exists then
+    quit with status 1
+end if
+
+delete file &quot;lock.pid&quot;
+</code></pre>
+<p>Missing files are a clear error, never silent empty text.</p>
+<p>Relative paths resolve against the working directory. <code>~</code> expands.</p>
+<hr />
+<h2 id="ref-12-handlers">12. Handlers</h2>
+<p>A handler is a named block of statements.</p>
+<pre><code>to warn about with subject, detail
+    put &quot;WARNING:&quot; &amp;&amp; subject &amp; &quot; — &quot; &amp; detail into standard error
+end warn about
+
+warn about with &quot;disk&quot;, &quot;92% full&quot;
+</code></pre>
+<p>The handler name may be several words. <code>end</code> must repeat the name — a rule that
+costs one word and makes long scripts navigable.</p>
+<p>Handlers may return a value, which arrives in <code>it</code>:</p>
+<pre><code>to short revision
+    run &quot;git&quot; with &quot;rev-parse&quot;, &quot;--short&quot;, &quot;HEAD&quot;
+    return it
+end short revision
+
+short revision
+put &quot;at revision&quot; &amp;&amp; it
+</code></pre>
+<p>Parameters are local. Handlers do not see the caller's variables, and variables
+assigned inside a handler do not leak out. Argument count is checked at the
+call.</p>
+<hr />
+<h2 id="ref-13-special-values">13. Special values</h2>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>it</code></td>
+<td>Output of the last <code>run</code>, <code>pipe</code>, or handler <code>return</code></td>
+</tr>
+<tr>
+<td><code>the result</code></td>
+<td>Exit status of the last <code>run</code> or <code>pipe</code></td>
+</tr>
+<tr>
+<td><code>the arguments</code></td>
+<td>Command-line arguments, as a list</td>
+</tr>
+<tr>
+<td><code>the environment variable "NAME"</code></td>
+<td>Environment lookup; empty if unset</td>
+</tr>
+<tr>
+<td><code>the current folder</code></td>
+<td>Working directory</td>
+</tr>
+<tr>
+<td><code>empty</code></td>
+<td>The empty string</td>
+</tr>
+</tbody>
+</table>
+<pre><code>put item 1 of the arguments into target
+put the number of items in the arguments into argument count
+put the environment variable &quot;HOME&quot; into home folder
+</code></pre>
+<hr />
+<h2 id="ref-14-grammar">14. Grammar</h2>
+<p>EBNF. <code>{ }</code> is zero or more, <code>[ ]</code> optional, <code>|</code> alternation.</p>
+<pre><code class="language-ebnf">program      = { statement NEWLINE } ;
+
+statement    = put | run | try | pipe | if | repeat | quit
+             | handler | return | arith | loopctl | delete | call ;
+
+put          = &quot;put&quot; expression [ (&quot;into&quot; | &quot;before&quot; | &quot;after&quot;) target ] ;
+target       = &quot;standard&quot; (&quot;output&quot; | &quot;error&quot;)
+             | &quot;file&quot; expression
+             | identifier ;
+
+run          = &quot;run&quot; expression [ &quot;with&quot; arglist ] [ timeout ] ;
+timeout      = &quot;within&quot; expression timeunit ;
+timeunit     = &quot;millisecond&quot; | &quot;milliseconds&quot; | &quot;ms&quot;
+             | &quot;second&quot; | &quot;seconds&quot; | &quot;minute&quot; | &quot;minutes&quot;
+             | &quot;hour&quot; | &quot;hours&quot; ;
+arglist      = expression { &quot;,&quot; expression } ;
+try          = &quot;try&quot; &quot;to&quot; ( run | pipe ) ;
+
+pipe         = &quot;pipe&quot; [ timeout ] NEWLINE run NEWLINE run { NEWLINE run }
+               NEWLINE &quot;end&quot; &quot;pipe&quot; ;
+
+if           = &quot;if&quot; expression &quot;then&quot;
+               ( statement
+               | NEWLINE block [ &quot;else&quot; ( if | NEWLINE block ) ]
+                 &quot;end&quot; &quot;if&quot; ) ;
+
+repeat       = &quot;repeat&quot; repeatspec NEWLINE block &quot;end&quot; &quot;repeat&quot; ;
+repeatspec   = expression &quot;times&quot;
+             | &quot;with&quot; identifier &quot;from&quot; expression &quot;to&quot; expression
+               [ (&quot;by&quot; | &quot;step&quot;) expression ]
+             | &quot;for&quot; &quot;each&quot; chunknoun &quot;in&quot; expression &quot;as&quot; identifier
+             | (&quot;while&quot; | &quot;until&quot;) expression
+             | &quot;forever&quot; ;
+loopctl      = (&quot;exit&quot; | &quot;next&quot;) &quot;repeat&quot; ;
+
+quit         = &quot;quit&quot; [ &quot;with&quot; &quot;status&quot; expression ] ;
+handler      = &quot;to&quot; identifier [ &quot;with&quot; identifier { &quot;,&quot; identifier } ]
+               NEWLINE block &quot;end&quot; identifier ;
+return       = &quot;return&quot; [ expression ] ;
+arith        = &quot;add&quot; expression &quot;to&quot; identifier
+             | &quot;subtract&quot; expression &quot;from&quot; identifier
+             | (&quot;multiply&quot; | &quot;divide&quot;) expression &quot;into&quot; identifier ;
+delete       = &quot;delete&quot; &quot;file&quot; expression ;
+replace      = &quot;replace&quot; expression &quot;with&quot; expression &quot;in&quot; identifier ;
+call         = identifier [ &quot;with&quot; arglist ] ;
+
+block        = { statement NEWLINE } ;
+
+(* expressions, loosest binding first *)
+expression   = or ;
+or           = and { &quot;or&quot; and } ;
+and          = notexpr { &quot;and&quot; notexpr } ;
+notexpr      = &quot;not&quot; notexpr | comparison ;
+comparison   = concat [ compop concat | &quot;exists&quot; ] ;
+compop       = &quot;is&quot; [ &quot;not&quot; ] [ &quot;greater&quot; &quot;than&quot; | &quot;less&quot; &quot;than&quot;
+                              | &quot;at&quot; &quot;least&quot; | &quot;at&quot; &quot;most&quot; | &quot;in&quot; | &quot;empty&quot; ]
+             | &quot;contains&quot; | &quot;matches&quot; | &quot;is&quot; &quot;like&quot;
+             | &quot;starts&quot; &quot;with&quot; | &quot;ends&quot; &quot;with&quot;
+             | &quot;=&quot; | &quot;!=&quot; | &quot;&lt;&quot; | &quot;&gt;&quot; | &quot;&lt;=&quot; | &quot;&gt;=&quot; ;
+concat       = additive { (&quot;&amp;&quot; | &quot;&amp;&amp;&quot;) additive } ;
+additive     = multiplicative { (&quot;+&quot; | &quot;-&quot;) multiplicative } ;
+multiplicative = unary { (&quot;*&quot; | &quot;/&quot; | &quot;^&quot;) unary } ;
+unary        = [ &quot;-&quot; ] primary ;
+
+primary      = NUMBER | STRING | &quot;it&quot; | &quot;empty&quot; | &quot;true&quot; | &quot;false&quot;
+             | &quot;(&quot; expression &quot;)&quot;
+             | &quot;file&quot; ( STRING | &quot;(&quot; expression &quot;)&quot; )
+             | &quot;every&quot; &quot;match&quot; &quot;of&quot; primary &quot;in&quot; primary
+             | thephrase
+             | chunk
+             | identifier ;
+
+thephrase    = &quot;the&quot; ( &quot;result&quot; | &quot;arguments&quot; | &quot;current&quot; &quot;folder&quot;
+                     | &quot;whole&quot; &quot;match&quot; | &quot;matches&quot;
+                     | &quot;environment&quot; &quot;variable&quot; primary
+                     | &quot;length&quot; &quot;of&quot; primary
+                     | &quot;number&quot; &quot;of&quot; chunknoun (&quot;in&quot; | &quot;of&quot;) primary
+                     | ordinal chunknoun &quot;of&quot; primary
+                     | chunknoun index [ &quot;to&quot; index ] &quot;of&quot; primary ) ;
+
+chunk        = chunknoun index [ &quot;to&quot; index ] &quot;of&quot; primary ;
+index        = ordinal | [ &quot;-&quot; ] NUMBER | additive ;
+ordinal      = &quot;first&quot; | &quot;second&quot; | ... | &quot;tenth&quot;
+             | &quot;last&quot; | &quot;middle&quot; | &quot;any&quot; ;
+chunknoun    = &quot;character&quot; | &quot;char&quot; | &quot;word&quot; | &quot;line&quot; | &quot;item&quot; | &quot;match&quot;
+             | plural forms ;
+(* for chunknoun &quot;match&quot; the `of X` tail is implicit: the last match *)
+
+identifier   = WORD { WORD }   (* words not in the reserved set *) ;
+</code></pre>
+<h3 id="ref-reserved-words">Reserved words</h3>
+<p>These cannot appear inside a name:</p>
+<pre><code class="language-text">add        after      and        are        as         at
+before     by         contains   delete     divide     each
+else       empty      end        ends       every      exists
+exit       false      for        forever    from       greater
+if         in         into       is         it         least
+less       like       matches    most       multiply   next
+not        of         or         pipe       put        repeat
+replace    return     run        standard   starts     step
+subtract   than       the        then       times      to
+true       try        until      while      whole      with
+within
+</code></pre>
+<p>Notably absent: <code>line</code>, <code>word</code>, <code>item</code>, <code>character</code>, <code>match</code>, <code>file</code>, <code>status</code>,
+<code>error</code>, <code>output</code>, <code>count</code>, <code>name</code>, <code>path</code>, <code>result</code>. These are recognised by position,
+so they remain available for names like <code>line count</code>, <code>error count</code>, <code>match
+count</code>, <code>file path</code>, and <code>exit status</code>.</p>
+<hr />
+<h2 id="ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</h2>
+<p>A frost script is parsed, not string-substituted, so everything it can do is
+visible in the tree. Two tools use that.</p>
+<h3 id="ref---explain"><code>--explain</code></h3>
+<p>A capability manifest — what the script touches, without running it.</p>
+<pre><code class="language-text">$ frost --explain cleanup.frost
+
+Runs these programs:
+  chmod  - line 13  (no timeout)
+  curl   - line 12  (1 allowed to fail, no timeout)
+  find   - line 4   (no timeout)
+  rm     - line 8   (no timeout)
+
+Writes these files:
+  /etc/cleanup.state  - line 11
+
+Can exit with:
+  status 1
+</code></pre>
+<p>Only literals are reported. A program name or path assembled at runtime is
+listed as built at runtime and counted in a closing note, because a manifest
+that quietly omits things is worse than no manifest.</p>
+<p><code>--explain</code> also runs a set of built-in checks that need no policy file at
+all. They fire on every script:</p>
+<table>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>danger</td>
+<td><code>rm -rf</code>, delete with a wildcard, <code>sudo</code>, <code>chmod 777</code>, <code>dd</code>, writing or deleting under <code>/etc</code> <code>/usr</code> <code>/System</code>, reading <code>~/.ssh</code> <code>.env</code> <code>*.pem</code>, a shell escape via <code>sh -c</code>, a network fetch piped into an interpreter, and <strong>secrets read followed by a network call</strong> (the exfiltration pattern)</td>
+</tr>
+<tr>
+<td>caution</td>
+<td>recursive delete, a network command with no timeout, a <code>try to run</code> whose result is never examined, a program name built at runtime</td>
+</tr>
+<tr>
+<td>note</td>
+<td>any command that reaches the network, with the host named where it is a literal</td>
+</tr>
+</tbody>
+</table>
+<p>The verdict is <code>clean</code>, <code>caution</code>, <code>dangerous</code>, or <code>blocked</code>, and <code>--explain</code>
+exits non-zero on <code>dangerous</code> so it can gate a commit hook.</p>
+<h3 id="ref---policy"><code>--policy</code></h3>
+<p>Rules checked before a single process is spawned. If any rule is broken the
+script does not run, and frost exits with status 3.</p>
+<pre><code class="language-policy">forbid running &quot;rm&quot; with &quot;-rf&quot;
+forbid running &quot;sudo&quot;
+forbid writing to &quot;/etc/*&quot;
+forbid deleting &quot;/*&quot;
+
+warn running &quot;curl&quot;
+
+require timeout on &quot;curl&quot;
+require every command to be checked
+</code></pre>
+<pre><code class="language-text">$ frost --policy production.policy cleanup.frost
+
+REFUSED: running &quot;rm&quot; with &quot;-rf&quot;
+  cleanup.frost:8   run &quot;rm&quot; with &quot;-rf&quot;, scratch folder
+REFUSED: writing to /etc/cleanup.state
+  cleanup.frost:11  put &quot;cleaned&quot; into file &quot;/etc/cleanup.state&quot;
+warning: running &quot;curl&quot;
+  cleanup.frost:12  try to run &quot;curl&quot; with &quot;--silent&quot;, metrics url
+
+2 rule violation(s); the script was not run.
+</code></pre>
+<p>Subjects are globs, so <code>forbid writing to "/etc/*"</code> covers the whole tree.
+<code>forbid running "rm" with "-rf"</code> matches the program <em>and</em> an argument, so
+ordinary <code>rm</code> still works — the rule targets the dangerous combination rather
+than banning a useful tool.</p>
+<p><code>require every command to be checked</code> understands the difference between an
+ignored failure and a handled one: a <code>try to run</code> whose result is examined in
+the next statement or two passes, while one whose failure is silently dropped
+does not.</p>
+<p>Sensitive-path detection works on literal <em>fragments</em>, so a path assembled at
+runtime — <code>file (home &amp; "/.ssh/id_rsa")</code> — is still recognised even though no
+whole-string literal ever appears in the source.</p>
+<p>This is the part a traditional shell cannot offer. <code>rm -rf "$DIR"</code> is a string
+until the moment it executes, so there is nothing to inspect beforehand. In
+frost the program and its arguments are separate nodes in a tree, which is what
+makes a script checkable as a contract rather than trusted as a guess.</p>
+<hr />
+<h2 id="ref-15-deliberate-omissions">15. Deliberate omissions</h2>
+<p>Things frost does not have, and why.</p>
+<p><strong>String interpolation.</strong> The entire injection surface of shell comes from
+values being re-read as syntax after substitution. Use <code>&amp;</code> and <code>&amp;&amp;</code>.</p>
+<p><strong>A shell escape / <code>eval</code>.</strong> Same reason. If you need shell behaviour, run the
+shell explicitly: <code>run "sh" with "-c", script text</code>. That line is greppable in
+review, which is the point.</p>
+<p><strong>Globbing in <code>run</code> arguments.</strong> <code>run "rm" with "*.tmp"</code> passes a literal
+asterisk. Expansion happens where you can see it — loop over the output of
+<code>find</code>, or hand the pattern to a program that expands it.</p>
+<p><strong>Background jobs, job control, <code>&amp;</code>, <code>fg</code>, <code>bg</code>.</strong> These belong to an
+interactive shell. frost is not one.</p>
+<p><strong>A login shell mode.</strong> Deliberate. Terminal modes, line editing, process
+groups, and prompt expansion are most of the work in a shell and none of it is
+this idea. Keep zsh; add frost.</p>
+<p><strong>Terse aliases for anything.</strong> There is no <code>-v</code> flag syntax, no punctuation
+variables, no abbreviations. If a construct is worth having, it is worth
+spelling.</p></div>
+</main>
+</div>
+
+<script>
+const KEYWORDS = new Set(["add", "after", "and", "are", "as", "at", "before", "by", "contains", "delete", "divide", "each", "else", "empty", "end", "ends", "every", "exists", "exit", "false", "for", "forever", "from", "greater", "if", "in", "into", "is", "it", "least", "less", "like", "matches", "most", "multiply", "next", "not", "of", "or", "pipe", "put", "quit", "repeat", "replace", "return", "run", "standard", "starts", "step", "subtract", "than", "the", "then", "times", "to", "true", "try", "until", "while", "whole", "with", "within"]);
+const NOUNS = new Set(["any", "arguments", "char", "character", "characters", "chars", "current", "eighth", "environment", "error", "fifth", "first", "folder", "fourth", "hour", "hours", "item", "items", "last", "length", "line", "lines", "match", "matches", "middle", "millisecond", "milliseconds", "minute", "minutes", "ms", "ninth", "number", "output", "result", "second", "seconds", "seventh", "sixth", "status", "tenth", "third", "variable", "word", "words"]);
+
+/* ---- frost syntax highlighting ------------------------------------- */
+const NOT_FROST = /^\s*(\$|#\s|Error at|Syntax error at|frost\s+\S+\.frost|frost\s{2,})/;
+
+function highlight(code) {
+  const out = [];
+  let i = 0;
+  while (i < code.length) {
+    const rest = code.slice(i);
+
+    let m = rest.match(/^(--|#)[^\n]*/);
+    if (m) { out.push(['com', m[0]]); i += m[0].length; continue; }
+
+    m = rest.match(/^"(\\.|[^"\\])*"?/);
+    if (m) { out.push(['str', m[0]]); i += m[0].length; continue; }
+
+    m = rest.match(/^\d+(\.\d+)?/);
+    if (m) { out.push(['num', m[0]]); i += m[0].length; continue; }
+
+    m = rest.match(/^[A-Za-z_][A-Za-z0-9_]*/);
+    if (m) {
+      const w = m[0].toLowerCase();
+      out.push([KEYWORDS.has(w) ? 'kw' : (NOUNS.has(w) ? 'noun' : null), m[0]]);
+      i += m[0].length; continue;
+    }
+    out.push([null, code[i]]); i += 1;
+  }
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return out.map(([c, t]) => c ? `<span class="tk-${c}">${esc(t)}</span>` : esc(t)).join('');
+}
+
+document.querySelectorAll('pre > code').forEach(code => {
+  const pre = code.parentElement;
+  const cls = code.className || '';
+  const text = code.textContent;
+
+  if (/language-(bash|sh)/.test(cls)) { pre.classList.add('shell'); return; }
+  if (/language-text/.test(cls)) { pre.classList.add('transcript'); return; }
+  if (/language-policy/.test(cls)) { pre.classList.add('policy'); return; }
+  if (/language-ebnf/.test(cls)) { pre.classList.add('grammar'); return; }
+  if (/^(Error at|Syntax error at|REFUSED|\s*\[DANGER)/m.test(text) || /Verdict: dangerous/.test(text)) {
+    pre.classList.add('diagnostic'); return;
+  }
+  if (NOT_FROST.test(text)) { pre.classList.add('shell'); return; }
+
+  code.innerHTML = highlight(text);
+});
+
+/* ---- the hero demo -------------------------------------------------- */
+const LOG = [
+  '10.0.0.1  GET   /index.html   200',
+  '10.0.0.2  POST  /api/login    500',
+  '10.0.0.3  GET   /about.html   200',
+  '10.0.0.2  POST  /api/login    500',
+  '10.0.0.9  GET   /missing      404',
+  '10.0.0.4  GET   /index.html   200',
+  '10.0.0.2  POST  /api/pay      500'
+];
+
+const sample = document.getElementById('sample');
+
+function paint(depth) {
+  sample.innerHTML = LOG.map((line, idx) => {
+    const n = idx + 1;
+    const lit = depth >= 2 && n === 7;
+    if (!lit) return `<div class="row"><b>${String(n).padStart(2)} </b>${line}</div>`;
+    if (depth < 3 && depth >= 2) {
+      return `<div class="row lit"><b>${String(n).padStart(2)} </b>${line}</div>`;
+    }
+    const parts = line.split(/(\s+)/);
+    let wordNo = 0;
+    const marked = parts.map(p => {
+      if (/^\s+$/.test(p)) return p;
+      wordNo += 1;
+      return wordNo === 3 ? `<span class="hit">${p}</span>` : p;
+    }).join('');
+    return `<div class="row lit"><b>${String(n).padStart(2)} </b>${marked}</div>`;
+  }).join('');
+}
+
+/* Depth 3 = file, 2 = line 7, 1 = the third word of that line. */
+function setDepth(d) {
+  document.querySelectorAll('.layer').forEach(el => {
+    const own = Number(el.dataset.depth);
+    el.dataset.on = (d && own >= d) ? String(4 - own) : '';
+  });
+  paint(d ? (4 - d) : 0);
+}
+
+document.querySelectorAll('.layer').forEach(el => {
+  el.addEventListener('mouseenter', e => {
+    e.stopPropagation();
+    setDepth(Number(el.dataset.depth));
+  });
+});
+document.getElementById('expr').addEventListener('mouseleave', () => setDepth(0));
+paint(3);
+setTimeout(() => setDepth(0), 2200);
+
+/* ---- nav ------------------------------------------------------------ */
+const links = [...document.querySelectorAll('aside a')];
+const targets = links.map(a => document.getElementById(a.hash.slice(1))).filter(Boolean);
+const spy = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    links.forEach(a => a.classList.toggle('here', a.hash === '#' + en.target.id));
+  });
+}, {rootMargin: '0px 0px -78% 0px'});
+targets.forEach(t => spy.observe(t));
+
+const side = document.getElementById('side');
+document.getElementById('menu').addEventListener('click', () => side.classList.toggle('open'));
+links.forEach(a => a.addEventListener('click', () => side.classList.remove('open')));
+</script>
+</body>
+</html>

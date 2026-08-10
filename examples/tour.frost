@@ -1,0 +1,37 @@
+#!/usr/bin/env frost
+-- Everything at once, for the demo.
+
+put "frost 0.2.0" into version
+put "=== " & version & " ==="
+
+-- chunks, nested three deep
+run "printf" with "id name role\n1 ada engineer\n2 grace admiral\n3 alan cryptanalyst\n"
+put it into staff table
+put "second person is" && the second word of line 3 of staff table
+
+-- optional article
+put "roles:" && last word of line 2 of staff table & "," && last word of line 4 of staff table
+
+-- loops over chunks
+put 0 into name length total
+repeat for each line in staff table as row
+    if the first word of row is "id" then next repeat
+    add the length of the second word of row to name length total
+end repeat
+put "total name characters:" && name length total
+
+-- handler with a multi-word name
+to describe person with row
+    return the second word of row & " is a " & the third word of row
+end describe person
+
+describe person with line 4 of staff table
+put it
+
+-- pipeline
+pipe
+    run "printf" with "delta\nalpha\ncharlie\nbravo\n"
+    run "sort"
+    run "head" with "-2"
+end pipe
+put "first two sorted:" && the first line of it & "," && the second line of it

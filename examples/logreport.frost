@@ -1,0 +1,59 @@
+#!/usr/bin/env frost
+--
+-- Log analysis. This is the script that justifies the language: every line
+-- that would have been cut, awk, sed or a pipeline of them is now one
+-- readable chunk expression.
+
+put item 1 of the arguments into log path
+if log path is empty then
+    put "usage: logreport.frost <logfile>" into standard error
+    quit with status 2
+end if
+
+if not file (log path) exists then
+    put "no log file at" && log path into standard error
+    quit with status 1
+end if
+
+put "Report for" && log path
+put "----------------------------------------"
+
+put the number of lines in file (log path) into request count
+put "requests:      " & request count
+
+-- Chunk expressions replace `awk '{print $4}' | sort | uniq -c`
+put 0 into error count
+put 0 into missing count
+
+repeat for each line in file (log path) as this request
+    put the fourth word of this request into status code
+    if status code starts with "5" then
+        add 1 to error count
+    end if
+    if status code is "404" then
+        add 1 to missing count
+    end if
+end repeat
+
+put "server errors: " & error count
+put "not found:     " & missing count
+
+-- And the same job handed to real tools, when they are the right answer.
+pipe
+    run "awk" with "{print $1}", log path
+    run "sort"
+    run "uniq" with "-c"
+    run "sort" with "-rn"
+end pipe
+
+put ""
+put "busiest clients:"
+repeat for each line in it as tally
+    put "  " & the first word of tally && "requests from" && the second word of tally
+end repeat
+
+if error count is greater than 2 then
+    put ""
+    put "ALERT: more than two server errors" into standard error
+    quit with status 1
+end if

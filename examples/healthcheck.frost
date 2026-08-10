@@ -1,0 +1,72 @@
+#!/usr/bin/env frost
+--
+-- Poll a list of endpoints, parse the results, and report.
+-- Shows patterns and timeouts doing the work they were added for.
+
+put item 1 of the arguments into endpoint list
+if endpoint list is empty then
+    put "usage: healthcheck.frost <file of urls>" into standard error
+    quit with status 2
+end if
+
+put 0 into checked count
+put 0 into failure count
+put "" into failures
+
+repeat for each line in file (endpoint list) as endpoint
+    if endpoint is empty then next repeat
+    if endpoint starts with "#" then next repeat
+
+    -- A malformed line should be reported, not silently probed.
+    if not endpoint matches "^https?://[^\s]+$" then
+        put "  skipping malformed url:" && endpoint into standard error
+        next repeat
+    end if
+
+    add 1 to checked count
+
+    -- A hung endpoint must not hang the whole check.
+    try to run "curl" with "--silent", "--show-error", "--output", "/dev/null", \
+        "--write-out", "%{http_code} %{time_total}", endpoint within 5 seconds
+
+    if the result is 124 then
+        put endpoint && "TIMED OUT"
+        put endpoint & " (no response in 5 seconds)\n" after failures
+        add 1 to failure count
+        next repeat
+    end if
+
+    if the result is not 0 then
+        put endpoint && "UNREACHABLE"
+        put endpoint & " (curl status " & the result & ")\n" after failures
+        add 1 to failure count
+        next repeat
+    end if
+
+    if it matches "^(\d{3}) ([\d.]+)$" then
+        put match 1 into status code
+        put match 2 into elapsed
+
+        if status code is like "2*" then
+            put endpoint && "ok" && status code && "in" && elapsed & "s"
+        else
+            put endpoint && "BAD STATUS" && status code
+            put endpoint & " (http " & status code & ")\n" after failures
+            add 1 to failure count
+        end if
+    else
+        put endpoint && "unparseable response"
+        add 1 to failure count
+    end if
+end repeat
+
+put ""
+put "checked" && checked count & "," && failure count && "failing"
+
+if failure count is greater than 0 then
+    put "failures:" into standard error
+    repeat for each line in failures as problem
+        put "  " & problem into standard error
+    end repeat
+    quit with status 1
+end if

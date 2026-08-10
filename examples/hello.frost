@@ -1,0 +1,13 @@
+#!/usr/bin/env frost
+--
+-- The smallest useful frost script.
+
+put "What frost looks like:"
+
+run "date" with "+%Y-%m-%d"
+put "Today is" && it
+
+put "hello" && "world" into greeting
+put greeting
+
+put the number of characters in greeting && "characters"
