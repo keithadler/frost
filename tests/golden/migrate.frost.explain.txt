@@ -3,16 +3,16 @@ examples/migrate.frost
 This script runs psql, reads 1 file (runtime), writes 1 file (runtime), deletes 1 file, sets 1 environment variable (PGDATABASE), reads 1 secret (db password), and lets a secret leave the process in 1 place. It can exit with status 1, 2.
 
 Runs these programs:
-  psql  — line 43  (given input)
+  psql  — line 45  (given input)
 
 Reads these files:
   (path built at runtime)  — line 18
 
 Writes these files:
-  (path built at runtime)  — line 35
+  (path built at runtime)  — line 37
 
 Deletes these files:
-  (path built at runtime)  — line 38
+  (path built at runtime)  — line 40
 
 Sets these environment variables:
   PGDATABASE  — line 29
@@ -21,10 +21,10 @@ Reads these secrets:
   db password  — line 23  (from the keystore)
 
 Lets a secret leave the process:
-  on the standard input of psql  — line 43
+  on the standard input of psql  — line 45
 
 Cleans up on exit:
-  ensure block  — line 37
+  ensure block  — line 39
 
 Can exit with:
   status 1

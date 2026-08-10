@@ -79,8 +79,17 @@ def test_reading_credentials_is_flagged():
                for t in titles('put file "~/.ssh/id_rsa" into key'))
 
 
+def test_a_literal_reaching_a_name_is_resolved_not_guessed():
+    """`put "ls" into tool` then `run tool` is knowable, and calling it
+    unknowable understates the manifest as badly as guessing would
+    overstate it."""
+    assert not any("built at runtime" in t
+                   for t in titles('put "ls" into tool\nrun tool with "-l"'))
+
+
 def test_runtime_program_name_is_a_caution():
-    src = 'put "ls" into tool\nrun tool with "-l"'
+    """Genuinely unknowable: the name comes out of another program."""
+    src = 'run "cat" with "which.txt"\nput it into tool\nrun tool'
     assert any("built at runtime" in t for t in titles(src))
 
 

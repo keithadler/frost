@@ -2,7 +2,7 @@
   "commands": [
     {
       "args": [
-        null,
+        "/var/cache/build",
         "-type",
         "f",
         "-mtime",
@@ -18,7 +18,7 @@
     {
       "args": [
         "-rf",
-        null
+        "/var/cache/build"
       ],
       "checked": true,
       "in_pipe": false,

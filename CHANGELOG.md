@@ -11,6 +11,52 @@ bump may change the language.
 
 ### Added
 
+**`--record` and `--replay`.** A run's capabilities were knowable before it
+started; what it actually did was not knowable at all. `--record` writes down
+every command with its arguments, input, output and status, every file read,
+every environment variable read, and whatever was piped in. `--replay` serves
+those answers back and **performs nothing** — no process spawned, no file
+written, nothing deleted.
+
+That makes a recording a fixture: change the script, replay it, and a refactor
+meant to preserve behaviour either did or did not. A difference is reported
+rather than raised, with both sides named, and matching is on the identity of
+the effect rather than line numbers, so reformatting replays clean. Exit
+status 4, distinct from a policy refusal.
+
+Secret values are never recorded, only names, and revealed plaintext is
+scrubbed from everything written down, so a recording is safe to commit.
+
+**Streaming standard input.** `repeat for each line in the standard input`
+consumes lines as they arrive instead of reading the whole stream first, so a
+filter works against a producer that never ends. `exit repeat` gets out and
+leaves the rest in the pipe.
+
+**Constant propagation in the static analyzer.** `put "ls" into tool` then
+`run tool` now resolves to `ls` rather than being reported as built at
+runtime. The analysis only claims a value it is certain of: a name is a
+constant when every definition of it is the same literal and it is never
+mutated. Two different literals, an append, an arithmetic statement, a loop
+variable, a handler parameter or a value from a command all keep it unknown,
+which is the safe answer and the one the manifest already knows how to say.
+
+This immediately found something: `examples/migrate.frost` deleted a lock
+file in `/tmp`, which `examples/production.policy` forbids with `forbid
+deleting "/*"`. The violation had been invisible because the path was
+unknowable. The example now keeps its lock beside the migration, which is
+better practice anyway — a lock in a world-readable directory is one any
+other user can remove.
+
+### Fixed
+
+- A recording scrubbed secrets from command *output* but not from command
+  *arguments*, so `run "psql" with password` wrote the credential into the
+  file. Every string in an event is scrubbed now, so a field added later is
+  covered without anyone remembering to.
+- Only keystore secrets were registered for scrubbing; `the secret
+  environment variable` and `the secret file` were not.
+
+
 **Modules, designed around one constraint.** Everything frost is worth using
 for rests on the invariant that the tree you audit is the program you run and
 the audit sees all of it. Modules are the feature most likely to break that,

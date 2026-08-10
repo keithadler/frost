@@ -187,7 +187,7 @@ def audit_json(path, caps, findings, source_lines):
 
 # Options that take a separate value token, so the splitter below does not
 # mistake that value for the script path.
-VALUE_OPTIONS = {"--policy", "--keystore", "--role"}
+VALUE_OPTIONS = {"--policy", "--keystore", "--role", "--record", "--replay"}
 
 
 def split_argv(argv):
@@ -355,6 +355,11 @@ def main(argv=None):
     ap.add_argument("--frozen", action="store_true",
                     help="refuse to run if any module differs from the "
                          "lockfile")
+    ap.add_argument("--record", metavar="FILE",
+                    help="run the script and write down everything it did")
+    ap.add_argument("--replay", metavar="FILE",
+                    help="run the script against a recording, spawning "
+                         "nothing and changing nothing")
     own, script_args = split_argv(raw)
     opts = ap.parse_args(own)
     opts.args = script_args
@@ -584,8 +589,45 @@ def main(argv=None):
                          keystore=store, role=opts.role)
     if len(program.modules) > 1:
         interp.install(program)
+
+    from . import journal as J
+    recorder = player = None
+    if opts.record and opts.replay:
+        sys.stderr.write("frost: use --record or --replay, not both\n")
+        return 2
+    if opts.record:
+        recorder = interp.journal = J.Recorder()
+    elif opts.replay:
+        try:
+            player = interp.journal = J.Player.load(opts.replay)
+        except FileNotFoundError:
+            sys.stderr.write(f"frost: cannot read {opts.replay}\n")
+            return 2
+        except (ValueError, J.Divergence) as e:
+            sys.stderr.write(f"frost: {getattr(e, 'msg', e)}\n")
+            return 2
     try:
-        return interp.run_program(tree)
+        status = interp.run_program(tree)
+        if recorder is not None:
+            recorder.status = status
+            recorder.save(opts.record, opts.script, opts.args)
+            sys.stderr.write(f"frost: recorded {len(recorder.events)} "
+                             f"event(s) to {opts.record}\n")
+        if player is not None:
+            left = player.unconsumed()
+            if left:
+                for event in left:
+                    sys.stderr.write(
+                        f"DIVERGED: the recording also did: "
+                        f"{J._describe(event)}\n")
+                sys.stderr.write(f"\n{len(left)} recorded effect(s) did not "
+                                 f"happen this time.\n")
+                return 4
+        return status
+    except J.Divergence as e:
+        where = f"{opts.script}:{e.line}" if e.line else opts.script
+        sys.stderr.write(f"\nDIVERGED at {where}\n    {e.msg}\n\n")
+        return 4
     except FrostError as e:
         if opts.json:
             e.candidates = sorted(interp.globals)

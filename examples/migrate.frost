@@ -31,7 +31,9 @@ put "database" into the environment variable "PGDATABASE"
 -- The log line keeps its context and loses only the credential.
 put "applying" && migration file && "with password" && password
 
-put "/tmp/migrate.lock" into lock path
+-- Beside the migration, not in /tmp: a lock in a world-readable
+-- directory is one any other user can watch or remove.
+put migration file & ".lock" into lock path
 put "held" into file (lock path)
 
 ensure

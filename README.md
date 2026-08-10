@@ -294,6 +294,30 @@ nothing at this layer can. And once the plaintext reaches another program,
 frost cannot follow it. The manifest reports the release rather than pretending
 otherwise.
 
+## Knowing what it did, not just what it could do
+
+`--explain` answers what a script *can* do. What it *did* needed watching.
+
+```bash
+frost --record run.json deploy.frost      # run it, write down everything
+frost --replay run.json deploy.frost      # run it again, spawn nothing
+```
+
+Replay performs nothing at all — no process, no write, no delete — and serves
+the recorded answers back. So a recording is a fixture: change the script,
+replay it, and a refactor meant to preserve behaviour either did or did not.
+
+```text
+DIVERGED at deploy.frost:3
+    the recording ran: echo two
+    this run wants:  echo CHANGED
+```
+
+Reformatting replays clean, because matching is on the identity of the effect
+rather than on line numbers. Secret values are never written down — only their
+names — and any revealed plaintext is scrubbed from everything recorded, so
+the fixture is safe to commit.
+
 ## Why this matters for AI agents
 
 Shell scripts are increasingly written by models and reviewed by people. That
@@ -675,6 +699,8 @@ frost --check --json s.frost     diagnostics as JSON, with repairs
 frost --repair [--write] s.frost apply the repairs frost is sure about
 frost --lock s.frost             record the sha256 of every module
 frost --frozen s.frost           refuse to run if a module changed
+frost --record run.json s.frost  run it and write down everything it did
+frost --replay run.json s.frost  run it against a recording, spawning nothing
 frost --explain --json s.frost   the manifest, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
@@ -694,6 +720,7 @@ Exit status is the contract:
   1  the script failed, or --explain judged it dangerous
   2  could not read or parse it, or the arguments were wrong
   3  a policy refused it; nothing was run
+  4  a replay diverged from its recording
 130  interrupted
 ```
 
@@ -711,7 +738,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1345 tests — python3 -m pytest tests/ -q
+tests/                1379 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -725,7 +752,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1345 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1379 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
