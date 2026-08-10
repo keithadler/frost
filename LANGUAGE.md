@@ -1,0 +1,916 @@
+# The frost Language Reference
+
+Version 0.3.0
+
+frost is a scripting language for the jobs shell scripts do, with a grammar
+descended from HyperTalk. It exists because the economics changed: scripts are
+now written quickly and read carefully, often by someone who did not write them
+and is reading at 3am while something is broken. Terseness was the right
+optimisation for a serial terminal. It is the wrong one for a code review.
+
+frost is not a login shell. It is an interpreter you point at a file:
+
+```policy
+#!/usr/bin/env frost
+```
+
+That choice is deliberate. Because nobody types frost at a prompt forty times a
+day, there is no pressure anywhere in the design to shorten anything.
+
+---
+
+## Contents
+
+1. [Design rules](#1-design-rules)
+2. [Lexical structure](#2-lexical-structure)
+3. [Values](#3-values)
+4. [Variables and names](#4-variables-and-names)
+5. [Chunk expressions](#5-chunk-expressions)
+6. [Operators](#6-operators)
+7. [Statements](#7-statements)
+8. [Running programs](#8-running-programs)
+9. [Pipes](#9-pipes)
+10. [Failure handling](#10-failure-handling)
+11. [Files](#11-files)
+12. [Handlers](#12-handlers)
+13. [Special values](#13-special-values)
+14. [Grammar](#14-grammar)
+15. [Deliberate omissions](#15-deliberate-omissions)
+
+---
+
+## 1. Design rules
+
+Four rules explain nearly every decision in the language.
+
+**Values never become syntax.** There is no string interpolation and no
+`eval`. Arguments to a program are a list, passed directly to `execve`. A
+variable holding `notes.txt; rm -rf *` produces a file with that literal name.
+Injection is not mitigated in frost; it is unrepresentable.
+
+**Failure stops the script.** `run` aborts on a non-zero exit unless you wrote
+`try to run`. There is no `set -e` to remember, because there is no other mode.
+
+**Pipes fail if any stage fails.** Not just the last one. `bash`'s default here
+has probably caused more silent data loss than any other decision in shell
+design.
+
+**The keyword vocabulary is small and closed.** This is what makes `error
+count` a legal variable name, and it is also the discipline that keeps frost
+from pretending to understand English. `put the first line of X into Y` works;
+`grab the first line from X` does not, and says so clearly.
+
+---
+
+## 2. Lexical structure
+
+**Line-oriented.** One statement per line. Newlines are significant.
+
+**Comments** run from `--` or `#` to end of line.
+
+```policy
+-- This is a comment.
+# So is this.
+```
+
+**Line continuation.** A trailing backslash folds the next line in. An argument
+list may also wrap after a comma without one.
+
+```
+run "rsync" with "--archive", "--verbose", \
+    source folder, destination folder
+```
+
+**Case-insensitive keywords and names.** `Put`, `put`, and `PUT` are the same
+word. Names are normalised to lowercase internally.
+
+**Shebang.** A first line beginning `#!` is ignored.
+
+**String literals** use double quotes and support `\n`, `\t`, `\"`, `\\`.
+
+---
+
+## 3. Values
+
+frost has four value types.
+
+| Type | Examples | Notes |
+|---|---|---|
+| Text | `"hello"`, `empty` | `empty` is the empty string |
+| Number | `42`, `3.14`, `-7` | Integers stay integers |
+| Truth | `true`, `false` | |
+| List | `the arguments` | Produced by the language, not written literally |
+
+Conversion is automatic and predictable. `"10" is greater than "9"` is true,
+because both sides look like numbers, so both are compared as numbers. If
+either side does not look like a number, both are compared as text.
+
+Truthiness: `false`, `0`, `""`, `"false"`, and `"no"` are false. Everything
+else is true.
+
+---
+
+## 4. Variables and names
+
+A name is one or more ordinary words separated by spaces.
+
+```
+put 0 into error count
+put "release-1.4" into tag name
+put the current folder into working directory
+```
+
+This is the reason the keyword list is short. A word is available for use in a
+name unless it is structurally load-bearing. Chunk nouns (`line`, `word`,
+`item`, `character`) are *not* reserved — `line count` is a perfectly good
+variable — because frost recognises chunk expressions by context rather than by
+reserving the noun.
+
+Assignment is `put ... into ...`. Reading a name that was never assigned is an
+error, not an empty string:
+
+```text
+Error at report.frost:12
+    12 |     put total cost
+       there is no variable named 'total cost'
+       hint: assign it first with:  put ... into total cost
+```
+
+You can also build text onto an existing variable:
+
+```
+put "world" into message
+put "hello " before message      -- "hello world"
+put "!" after message            -- "hello world!"
+```
+
+---
+
+## 5. Chunk expressions
+
+This is the centre of the language. Chunk expressions replace `cut`, `awk
+'{print $3}'`, `sed -n '7p'`, `head`, and `tail` with one uniform grammar that
+reads the same everywhere.
+
+Four chunk nouns: **character**, **word**, **line**, **item**.
+
+- `word` splits on whitespace
+- `line` splits on newlines
+- `item` splits on commas, trimming surrounding spaces
+- `character` splits into single characters
+
+### By ordinal
+
+```
+put the first word of headline
+put the third line of report
+put the last item of csv row
+put the middle word of phrase
+put any line of quotes file        -- picks one at random
+```
+
+Ordinals run `first` through `tenth`, plus `last`, `middle`, and `any`.
+
+### By number
+
+```
+put word 3 of headline
+put the line 7 of report
+put word -1 of headline            -- negative counts from the end
+```
+
+### By range
+
+```
+put words 2 to 4 of headline
+put lines 10 to 20 of report
+put characters 1 to 3 of name      -- "fro"
+```
+
+A range is rejoined with the natural separator for its kind: words with spaces,
+lines with newlines, items with `", "`.
+
+### Counting
+
+```
+put the number of lines in file "access.log"
+put the number of words in this sentence
+put the length of name             -- characters, or list elements
+```
+
+### Nesting
+
+Chunk expressions compose, and this is where they pay for themselves:
+
+```
+put the third word of line 7 of file "access.log"
+```
+
+The bash equivalent is `sed -n '7p' access.log | awk '{print $3}'`, which
+requires knowing two tool dialects. The frost version requires knowing English.
+
+### Out of range
+
+Asking for a chunk that does not exist yields empty text, not an error. This
+matches HyperTalk and avoids a class of defensive length checks.
+
+```
+put word 99 of "short phrase"      -- empty, not a crash
+```
+
+---
+
+## 6. Operators
+
+### Text
+
+| Operator | Meaning | Example | Result |
+|---|---|---|---|
+| `&` | join | `"a" & "b"` | `ab` |
+| `&&` | join with a space | `"a" && "b"` | `a b` |
+
+### Arithmetic
+
+`+`, `-`, `*`, `/`, `^`, with conventional precedence. Parentheses group.
+Division by zero is an error.
+
+### Comparison
+
+Both word forms and symbols are accepted. The word forms are preferred in
+scripts; the symbols exist so that dense arithmetic conditions stay readable.
+
+| Word form | Symbol |
+|---|---|
+| `is` | `=` |
+| `is not` | `!=` |
+| `is greater than` | `>` |
+| `is less than` | `<` |
+| `is at least` | `>=` |
+| `is at most` | `<=` |
+
+Additional text comparisons, which have no symbol form:
+
+```
+if name contains "test" then put "looks like a test"
+if path starts with "/usr" then put "system path"
+if filename ends with ".tmp" then delete file filename
+if answer is empty then quit with status 1
+if branch name is in allowed branches then put "allowed"
+if filename is like "*.tmp" then put "temporary"
+if line matches "^\d+$" then put "all digits"
+```
+
+The article is optional on ordinal chunks, so `first word of line` and `the
+first word of line` are the same expression. Prefer the article in scripts; it
+reads better in a sentence.
+
+### Logic
+
+`and`, `or`, `not`. Short-circuiting.
+
+---
+
+## 6a. Patterns
+
+Two forms, because the two jobs are different.
+
+### Globs — `is like`
+
+For filename-shaped matching, where regex is overkill and unreadable:
+
+```
+if filename is like "*.tmp" then delete file filename
+if name is not like "test_*" then put "not a test"
+if log is like "log-????-??.txt" then put "dated log"
+```
+
+`*` matches any run of characters, `?` matches one, `[abc]` matches a set.
+Case-sensitive.
+
+### Regular expressions — `matches`
+
+For everything else. frost does not pretend regex is readable; it makes it
+explicit instead, so a reader knows to slow down at exactly the places that
+deserve it.
+
+```
+if request matches "^(\S+) (\w+) (\d+)$" then
+    put match 1 into client address
+    put match 2 into method
+    put the last match into status code
+end if
+```
+
+A successful `matches` records its capture groups, which are then addressed
+with the same chunk grammar as everything else:
+
+| Expression | Meaning |
+|---|---|
+| `match 1`, `match 2` | Capture group by number |
+| `the first match`, `the last match` | Capture group by ordinal |
+| `the number of matches` | How many groups captured |
+| `the whole match` | The entire matched text |
+
+Groups persist until the next `matches`. A failed match clears them, so
+`the number of matches` is `0` after a miss rather than stale. A group that
+did not participate in the match reads as empty, never as missing.
+
+Patterns are searched, not anchored. Use `^` and `$` when you mean the whole
+subject. Syntax is standard regular expressions; an invalid pattern is a clear
+runtime error naming the problem.
+
+### Finding every occurrence
+
+```
+put every match of "\d+" in request into numbers
+put the number of items in numbers
+put item 1 of numbers
+```
+
+Returns a list of the matched text, not of groups.
+
+### Replacing
+
+```
+put "2026-08-09" into date text
+replace "(\d+)-(\d+)-(\d+)" with "\3/\2/\1" in date text
+-- date text is now "09/08/2026"
+```
+
+`replace` edits a variable in place and replaces every occurrence.
+Backreferences are `\1`, `\2`, and so on.
+
+### A note on escapes
+
+`\n`, `\t`, `\r`, `\0`, `\"` and `\\` are translated in string literals.
+Every other backslash is preserved, so `"\d+"` reaches the pattern engine
+intact and needs no doubling.
+
+---
+
+## 7. Statements
+
+### put
+
+```
+put EXPRESSION                          -- writes to standard output
+put EXPRESSION into NAME
+put EXPRESSION into standard error
+put EXPRESSION into standard output
+put EXPRESSION into file "path.txt"     -- overwrites
+put EXPRESSION after file "log.txt"     -- appends
+put EXPRESSION before NAME              -- prepends to a variable
+```
+
+### if
+
+```text
+if COND then
+    ...
+else if COND then
+    ...
+else
+    ...
+end if
+```
+
+A single-line form exists for guards:
+
+```
+if attempts is 0 then quit with status 1
+```
+
+### repeat
+
+Five forms, all closed by `end repeat`.
+
+```text
+repeat 3 times
+    ...
+end repeat
+
+repeat with counter from 1 to 10
+    ...
+end repeat
+
+repeat with counter from 10 to 1 by -1
+    ...
+end repeat
+
+repeat for each line in file "hosts.txt" as this host
+    ...
+end repeat
+
+repeat while queue depth is greater than 0
+    ...
+end repeat
+
+repeat until file "ready.flag" exists
+    ...
+end repeat
+
+repeat forever
+    ...
+end repeat
+```
+
+`exit repeat` leaves the loop. `next repeat` starts the next pass.
+
+### Arithmetic statements
+
+```
+add 1 to error count
+subtract 5 from budget
+multiply 2 into scale factor
+divide 3 into portion size
+```
+
+### quit
+
+```
+quit                    -- status 0
+quit with status 1
+```
+
+---
+
+## 8. Running programs
+
+```
+run "git"
+run "git" with "status", "--short"
+run "cp" with source path, destination path
+```
+
+The program name comes first. Every argument is a separate expression in the
+`with` list. **The list is passed straight to the operating system.** Nothing is
+re-parsed, so nothing needs quoting or escaping:
+
+```
+put "my report (final).pdf" into filename
+run "cp" with filename, "/backup"
+```
+
+That works. There is no shell in the middle to be confused by the spaces or the
+parentheses.
+
+Writing a whole command line as one string is a syntax error, caught at parse
+time with a suggested fix:
+
+```text
+Syntax error at build.frost:4
+     4 | run "ls -la"
+       run takes a program name, not a command line
+       hint: did you mean:  run "ls" with "-la"
+```
+
+### Timeouts
+
+Any `run` may carry a deadline:
+
+```
+run "curl" with "--silent", endpoint within 30 seconds
+run "make" with "test" within 10 minutes
+try to run "ping" with "-c", "1", host within 500 milliseconds
+```
+
+Units are required — `within 5` is a syntax error, because a bare number could
+mean seconds or milliseconds and the reader should not have to guess. Accepted
+units: `milliseconds` (or `ms`), `seconds`, `minutes`, `hours`, singular or
+plural.
+
+When the deadline passes the child is killed. A plain `run` then aborts the
+script; a `try to run` sets `the result` to **124**, the same status GNU
+`timeout` uses, and leaves any partial output in `it`.
+
+Pipes take a deadline for the whole chain, not per stage:
+
+```
+try to pipe within 1 minute
+    run "find" with "/", "-name", "*.log"
+    run "xargs" with "wc", "-l"
+end pipe
+
+if the result is 124 then
+    put "search took too long" into standard error
+end if
+```
+
+Putting `within` on an individual stage is a syntax error that says so. When a
+pipe times out, every stage is killed and reaped — no orphans.
+
+### Output
+
+`run` captures standard output into `it`, with the trailing newline removed.
+Standard error passes straight through to the terminal. The exit code lands in
+`the result`.
+
+```
+run "git" with "rev-parse", "--short", "HEAD"
+put "building revision" && it
+```
+
+To show a program's output, put it:
+
+```
+run "df" with "-h"
+put it
+```
+
+---
+
+## 9. Pipes
+
+A pipe is a block, not a connective. English has no graceful N-ary connective
+for this, so frost does not invent one — position carries the meaning.
+
+```
+pipe
+    run "cat" with "access.log"
+    run "grep" with "ERROR"
+    run "sort"
+    run "uniq" with "-c"
+end pipe
+
+put the number of lines in it into distinct errors
+```
+
+Advantages over `a | b | c | d` that matter in review: it reads top to bottom,
+it survives ten stages without becoming a wall, a diff shows exactly which stage
+changed, and you can comment one stage.
+
+Every stage must be a `run`. A pipe needs at least two stages.
+
+**Pipes fail if any stage fails**, and `the result` reports the first failure.
+This is `set -o pipefail` with no way to turn it off.
+
+```
+try to pipe
+    run "cat" with "missing.log"
+    run "wc" with "-l"
+end pipe
+
+put the result       -- 1, not 0
+```
+
+---
+
+## 10. Failure handling
+
+Plain `run` and `pipe` mean *this must succeed*. If it does not, the script
+stops and reports the line:
+
+```text
+Error at deploy.frost:18
+    18 | run "make" with "test"
+       'make' failed with status 2
+       hint: if this failure is expected, write 'try to run ...' and check 'the result'
+```
+
+`try to` means *I will handle this myself*, and is the only case where checking
+`the result` is meaningful:
+
+```
+try to run "ping" with "-c", "1", host name
+if the result is not 0 then
+    put host name && "is unreachable" into standard error
+    quit with status 1
+end if
+```
+
+The safe path is shorter to write than the risky one, and the risky one
+announces itself in the source. A reviewer looking for unchecked failures greps
+for `try to`.
+
+---
+
+## 11. Files
+
+Reading a file is an expression:
+
+```
+put file "config.txt" into settings
+put the first line of file "VERSION"
+```
+
+If the path is in a variable, parenthesise it — this is how frost tells
+`file "x"` from a variable named `file path`:
+
+```
+put item 1 of the arguments into log path
+put the number of lines in file (log path)
+```
+
+Writing and appending are `put` targets:
+
+```
+put report text into file "report.txt"
+put "another line" after file "report.txt"
+```
+
+Testing and removing:
+
+```
+if file "lock.pid" exists then
+    quit with status 1
+end if
+
+delete file "lock.pid"
+```
+
+Missing files are a clear error, never silent empty text.
+
+Relative paths resolve against the working directory. `~` expands.
+
+---
+
+## 12. Handlers
+
+A handler is a named block of statements.
+
+```
+to warn about with subject, detail
+    put "WARNING:" && subject & " — " & detail into standard error
+end warn about
+
+warn about with "disk", "92% full"
+```
+
+The handler name may be several words. `end` must repeat the name — a rule that
+costs one word and makes long scripts navigable.
+
+Handlers may return a value, which arrives in `it`:
+
+```
+to short revision
+    run "git" with "rev-parse", "--short", "HEAD"
+    return it
+end short revision
+
+short revision
+put "at revision" && it
+```
+
+Parameters are local. Handlers do not see the caller's variables, and variables
+assigned inside a handler do not leak out. Argument count is checked at the
+call.
+
+---
+
+## 13. Special values
+
+| Expression | Meaning |
+|---|---|
+| `it` | Output of the last `run`, `pipe`, or handler `return` |
+| `the result` | Exit status of the last `run` or `pipe` |
+| `the arguments` | Command-line arguments, as a list |
+| `the environment variable "NAME"` | Environment lookup; empty if unset |
+| `the current folder` | Working directory |
+| `empty` | The empty string |
+
+```
+put item 1 of the arguments into target
+put the number of items in the arguments into argument count
+put the environment variable "HOME" into home folder
+```
+
+---
+
+## 14. Grammar
+
+EBNF. `{ }` is zero or more, `[ ]` optional, `|` alternation.
+
+```ebnf
+program      = { statement NEWLINE } ;
+
+statement    = put | run | try | pipe | if | repeat | quit
+             | handler | return | arith | loopctl | delete | call ;
+
+put          = "put" expression [ ("into" | "before" | "after") target ] ;
+target       = "standard" ("output" | "error")
+             | "file" expression
+             | identifier ;
+
+run          = "run" expression [ "with" arglist ] [ timeout ] ;
+timeout      = "within" expression timeunit ;
+timeunit     = "millisecond" | "milliseconds" | "ms"
+             | "second" | "seconds" | "minute" | "minutes"
+             | "hour" | "hours" ;
+arglist      = expression { "," expression } ;
+try          = "try" "to" ( run | pipe ) ;
+
+pipe         = "pipe" [ timeout ] NEWLINE run NEWLINE run { NEWLINE run }
+               NEWLINE "end" "pipe" ;
+
+if           = "if" expression "then"
+               ( statement
+               | NEWLINE block [ "else" ( if | NEWLINE block ) ]
+                 "end" "if" ) ;
+
+repeat       = "repeat" repeatspec NEWLINE block "end" "repeat" ;
+repeatspec   = expression "times"
+             | "with" identifier "from" expression "to" expression
+               [ ("by" | "step") expression ]
+             | "for" "each" chunknoun "in" expression "as" identifier
+             | ("while" | "until") expression
+             | "forever" ;
+loopctl      = ("exit" | "next") "repeat" ;
+
+quit         = "quit" [ "with" "status" expression ] ;
+handler      = "to" identifier [ "with" identifier { "," identifier } ]
+               NEWLINE block "end" identifier ;
+return       = "return" [ expression ] ;
+arith        = "add" expression "to" identifier
+             | "subtract" expression "from" identifier
+             | ("multiply" | "divide") expression "into" identifier ;
+delete       = "delete" "file" expression ;
+replace      = "replace" expression "with" expression "in" identifier ;
+call         = identifier [ "with" arglist ] ;
+
+block        = { statement NEWLINE } ;
+
+(* expressions, loosest binding first *)
+expression   = or ;
+or           = and { "or" and } ;
+and          = notexpr { "and" notexpr } ;
+notexpr      = "not" notexpr | comparison ;
+comparison   = concat [ compop concat | "exists" ] ;
+compop       = "is" [ "not" ] [ "greater" "than" | "less" "than"
+                              | "at" "least" | "at" "most" | "in" | "empty" ]
+             | "contains" | "matches" | "is" "like"
+             | "starts" "with" | "ends" "with"
+             | "=" | "!=" | "<" | ">" | "<=" | ">=" ;
+concat       = additive { ("&" | "&&") additive } ;
+additive     = multiplicative { ("+" | "-") multiplicative } ;
+multiplicative = unary { ("*" | "/" | "^") unary } ;
+unary        = [ "-" ] primary ;
+
+primary      = NUMBER | STRING | "it" | "empty" | "true" | "false"
+             | "(" expression ")"
+             | "file" ( STRING | "(" expression ")" )
+             | "every" "match" "of" primary "in" primary
+             | thephrase
+             | chunk
+             | identifier ;
+
+thephrase    = "the" ( "result" | "arguments" | "current" "folder"
+                     | "whole" "match" | "matches"
+                     | "environment" "variable" primary
+                     | "length" "of" primary
+                     | "number" "of" chunknoun ("in" | "of") primary
+                     | ordinal chunknoun "of" primary
+                     | chunknoun index [ "to" index ] "of" primary ) ;
+
+chunk        = chunknoun index [ "to" index ] "of" primary ;
+index        = ordinal | [ "-" ] NUMBER | additive ;
+ordinal      = "first" | "second" | ... | "tenth"
+             | "last" | "middle" | "any" ;
+chunknoun    = "character" | "char" | "word" | "line" | "item" | "match"
+             | plural forms ;
+(* for chunknoun "match" the `of X` tail is implicit: the last match *)
+
+identifier   = WORD { WORD }   (* words not in the reserved set *) ;
+```
+
+### Reserved words
+
+These cannot appear inside a name:
+
+```text
+add        after      and        are        as         at
+before     by         contains   delete     divide     each
+else       empty      end        ends       every      exists
+exit       false      for        forever    from       greater
+if         in         into       is         it         least
+less       like       matches    most       multiply   next
+not        of         or         pipe       put        repeat
+replace    return     run        standard   starts     step
+subtract   than       the        then       times      to
+true       try        until      while      whole      with
+within
+```
+
+Notably absent: `line`, `word`, `item`, `character`, `match`, `file`, `status`,
+`error`, `output`, `count`, `name`, `path`, `result`. These are recognised by position,
+so they remain available for names like `line count`, `error count`, `match
+count`, `file path`, and `exit status`.
+
+---
+
+## 14a. Reading a script before you run it
+
+A frost script is parsed, not string-substituted, so everything it can do is
+visible in the tree. Two tools use that.
+
+### `--explain`
+
+A capability manifest — what the script touches, without running it.
+
+```text
+$ frost --explain cleanup.frost
+
+Runs these programs:
+  chmod  - line 13  (no timeout)
+  curl   - line 12  (1 allowed to fail, no timeout)
+  find   - line 4   (no timeout)
+  rm     - line 8   (no timeout)
+
+Writes these files:
+  /etc/cleanup.state  - line 11
+
+Can exit with:
+  status 1
+```
+
+Only literals are reported. A program name or path assembled at runtime is
+listed as built at runtime and counted in a closing note, because a manifest
+that quietly omits things is worse than no manifest.
+
+`--explain` also runs a set of built-in checks that need no policy file at
+all. They fire on every script:
+
+| Severity | Examples |
+|---|---|
+| danger | `rm -rf`, delete with a wildcard, `sudo`, `chmod 777`, `dd`, writing or deleting under `/etc` `/usr` `/System`, reading `~/.ssh` `.env` `*.pem`, a shell escape via `sh -c`, a network fetch piped into an interpreter, and **secrets read followed by a network call** (the exfiltration pattern) |
+| caution | recursive delete, a network command with no timeout, a `try to run` whose result is never examined, a program name built at runtime |
+| note | any command that reaches the network, with the host named where it is a literal |
+
+The verdict is `clean`, `caution`, `dangerous`, or `blocked`, and `--explain`
+exits non-zero on `dangerous` so it can gate a commit hook.
+
+### `--policy`
+
+Rules checked before a single process is spawned. If any rule is broken the
+script does not run, and frost exits with status 3.
+
+```policy
+forbid running "rm" with "-rf"
+forbid running "sudo"
+forbid writing to "/etc/*"
+forbid deleting "/*"
+
+warn running "curl"
+
+require timeout on "curl"
+require every command to be checked
+```
+
+```text
+$ frost --policy production.policy cleanup.frost
+
+REFUSED: running "rm" with "-rf"
+  cleanup.frost:8   run "rm" with "-rf", scratch folder
+REFUSED: writing to /etc/cleanup.state
+  cleanup.frost:11  put "cleaned" into file "/etc/cleanup.state"
+warning: running "curl"
+  cleanup.frost:12  try to run "curl" with "--silent", metrics url
+
+2 rule violation(s); the script was not run.
+```
+
+Subjects are globs, so `forbid writing to "/etc/*"` covers the whole tree.
+`forbid running "rm" with "-rf"` matches the program *and* an argument, so
+ordinary `rm` still works — the rule targets the dangerous combination rather
+than banning a useful tool.
+
+`require every command to be checked` understands the difference between an
+ignored failure and a handled one: a `try to run` whose result is examined in
+the next statement or two passes, while one whose failure is silently dropped
+does not.
+
+Sensitive-path detection works on literal *fragments*, so a path assembled at
+runtime — `file (home & "/.ssh/id_rsa")` — is still recognised even though no
+whole-string literal ever appears in the source.
+
+This is the part a traditional shell cannot offer. `rm -rf "$DIR"` is a string
+until the moment it executes, so there is nothing to inspect beforehand. In
+frost the program and its arguments are separate nodes in a tree, which is what
+makes a script checkable as a contract rather than trusted as a guess.
+
+---
+
+## 15. Deliberate omissions
+
+Things frost does not have, and why.
+
+**String interpolation.** The entire injection surface of shell comes from
+values being re-read as syntax after substitution. Use `&` and `&&`.
+
+**A shell escape / `eval`.** Same reason. If you need shell behaviour, run the
+shell explicitly: `run "sh" with "-c", script text`. That line is greppable in
+review, which is the point.
+
+**Globbing in `run` arguments.** `run "rm" with "*.tmp"` passes a literal
+asterisk. Expansion happens where you can see it — loop over the output of
+`find`, or hand the pattern to a program that expands it.
+
+**Background jobs, job control, `&`, `fg`, `bg`.** These belong to an
+interactive shell. frost is not one.
+
+**A login shell mode.** Deliberate. Terminal modes, line editing, process
+groups, and prompt expansion are most of the work in a shell and none of it is
+this idea. Keep zsh; add frost.
+
+**Terse aliases for anything.** There is no `-v` flag syntax, no punctuation
+variables, no abbreviations. If a construct is worth having, it is worth
+spelling.

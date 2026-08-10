@@ -1,0 +1,48 @@
+#!/usr/bin/env frost
+--
+-- A realistic deployment script. Compare it to the bash equivalent: this one
+-- needs no comments, because the code is the comment.
+
+put "staging" into target environment
+if the number of items in the arguments is greater than 0 then
+    put item 1 of the arguments into target environment
+end if
+
+if target environment is not "staging" and target environment is not "production" then
+    put "unknown environment:" && target environment into standard error
+    put "expected 'staging' or 'production'" into standard error
+    quit with status 2
+end if
+
+put "Deploying to" && target environment
+
+-- Refuse to ship a dirty tree.
+try to run "git" with "status", "--porcelain"
+if the result is not 0 then
+    put "not a git repository" into standard error
+    quit with status 1
+end if
+
+if it is not empty then
+    put "working tree has uncommitted changes:" into standard error
+    put it into standard error
+    quit with status 1
+end if
+
+run "git" with "rev-parse", "--short", "HEAD"
+put it into revision
+put "revision:" && revision
+
+run "git" with "rev-parse", "--abbrev-ref", "HEAD"
+put it into branch name
+
+if target environment is "production" and branch name is not "main" then
+    put "production deploys must come from main, not" && branch name into standard error
+    quit with status 1
+end if
+
+-- The release name is built as a value, never as a command line.
+put target environment & "-" & revision into release name
+put "release:" && release name
+
+put "would now upload" && release name && "to" && target environment

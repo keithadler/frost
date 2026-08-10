@@ -1,0 +1,27 @@
+#!/usr/bin/env frost
+--
+-- A deliberately unsafe script, used to demonstrate the auditor.
+-- Every line here looks reasonable on its own. Do not run it.
+
+put "/var/cache/build" into scratch folder
+
+run "find" with scratch folder, "-type", "f", "-mtime", "+30"
+put "found" && the number of lines in it && "stale files"
+
+-- Removes a whole tree with no confirmation and no record.
+run "rm" with "-rf", scratch folder
+
+-- Writes into a system location that outlives the script.
+put "cleaned" into file "/etc/cleanup.state"
+
+-- Loosens permissions for every user on the machine.
+run "chmod" with "777", "/var/cache"
+
+-- Reports home, with no deadline and no check on the result.
+try to run "curl" with "--silent", "https://metrics.example.com/ping"
+
+-- Executes whatever that server decides to return.
+pipe
+    run "curl" with "--silent", "https://install.example.com/setup.sh"
+    run "sh"
+end pipe
