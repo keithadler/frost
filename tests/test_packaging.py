@@ -61,6 +61,107 @@ def test_the_declared_python_floor_is_one_we_test():
         f"pyproject requires Python >= {floor.group(1)}, which CI never runs")
 
 
+def _f_strings_needing_312(path):
+    """Lines holding an f-string that only Python 3.12 and later accept.
+
+    Two shapes, both legal now and a SyntaxError on 3.10:
+
+      * a single-delimiter f-string whose expression runs onto the next line
+      * an expression reusing the quote character that delimits the f-string
+
+    Decided with the real tokenizer rather than a regex, because working out
+    where an f-string ends is exactly the job a regex gets wrong. On an
+    interpreter older than 3.12 there is no FSTRING_START token and nothing to
+    find, which is the right answer: that interpreter would already have
+    refused the file outright.
+    """
+    import tokenize
+
+    if not hasattr(tokenize, "FSTRING_START"):
+        return []
+
+    bad = []
+    with open(path, "rb") as fh:
+        tokens = list(tokenize.tokenize(fh.readline))
+
+    depth, opener, quote = 0, None, None
+    for tok in tokens:
+        if tok.type == tokenize.FSTRING_START:
+            depth += 1
+            if depth == 1:
+                opener = tok
+                quote = tok.string.lstrip("fFrRbB")
+        elif tok.type == tokenize.FSTRING_END:
+            depth -= 1
+            if depth == 0:
+                triple = quote.startswith('"""') or quote.startswith("'''")
+                if not triple and tok.end[0] != opener.start[0]:
+                    bad.append((opener.start[0], "runs onto the next line"))
+                opener, quote = None, None
+        elif depth and quote and tok.type == tokenize.STRING:
+            if tok.string.lstrip("fFrRbB").startswith(quote):
+                bad.append((tok.start[0],
+                            "reuses the quote that delimits it"))
+    return bad
+
+
+def test_no_module_uses_an_f_string_the_oldest_python_rejects():
+    """The floor is a promise, and this is how it gets broken.
+
+    An f-string written across two lines is legal from 3.12 and a SyntaxError
+    on 3.10. Written on a newer machine it passes every local check, imports
+    fine, and fails at *collection* on the oldest CI job, after the push,
+    which is the wrong place to learn it.
+
+    The first version of this test asked `ast.parse` for `feature_version`
+    (3, 10) and passed happily on the exact line that had just broken CI:
+    that flag governs a short list of grammar features and does not reach
+    f-string tokenising at all. A check decided by something other than the
+    thing under test is worse than none, so the one below verifies this guard
+    against the source that actually failed.
+    """
+    roots = [os.path.join(REPO, "frostlang"), os.path.join(REPO, "tools")]
+    offences, checked = [], 0
+    for root in roots:
+        for folder, _, names in os.walk(root):
+            for name in sorted(names):
+                if not name.endswith(".py"):
+                    continue
+                path = os.path.join(folder, name)
+                for line, why in _f_strings_needing_312(path):
+                    offences.append(
+                        os.path.relpath(path, REPO) + ":" + str(line)
+                        + " " + why)
+                checked += 1
+
+    assert checked > 20, "only checked %d files; the walk is wrong" % checked
+    assert not offences, (
+        "these need Python 3.12, and pyproject promises 3.10:\n  "
+        + "\n  ".join(offences))
+
+
+BROKE_CI = '\n'.join([
+    "def f(name, line):",
+    '    return (f"reading the environment {name or ' + "'(built at '",
+    "             '" + 'runtime)' + "'" + '}", line)',
+    "",
+])
+
+
+def test_that_guard_would_have_caught_it():
+    """The guard, pointed at the source that actually broke the 3.10 job."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as fh:
+        fh.write(BROKE_CI)
+        path = fh.name
+    try:
+        assert _f_strings_needing_312(path), (
+            "the guard does not catch the syntax it exists to catch")
+    finally:
+        os.unlink(path)
+
+
 def test_the_dev_extra_covers_what_the_builders_import():
     """`pip install -e .[dev]` has to be enough to run everything in tools/."""
     dev = read("pyproject.toml").split("dev = [")[1].split("]")[0]

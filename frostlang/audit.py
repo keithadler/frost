@@ -1436,10 +1436,13 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
         elif rule.kind == "getenv":
             for name, line in caps.env_reads:
                 if name is None or fnmatch.fnmatchcase(name, rule.subject):
+                    # Built outside the f-string: an implicitly concatenated
+                    # literal inside one is a 3.12 feature, and frost supports
+                    # 3.10.
+                    shown = name or "(name built at runtime)"
                     findings.append(
                         (rule.severity,
-                         f"reading the environment {name or '(name built at '
-                          'runtime)'}", line))
+                         f"reading the environment {shown}", line))
 
         elif rule.kind == "getenv_only":
             allowed = rule.detail or []
