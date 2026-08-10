@@ -24,6 +24,15 @@ classifiers = [
     "Topic :: Security",
 ]
 
+[project.optional-dependencies]
+# The interpreter itself has no dependencies. These are for the test suite
+# and the page builders.
+dev = [
+    "pytest>=7",
+    "pytest-cov>=4",
+    "markdown>=3.4",
+]
+
 [project.urls]
 Homepage = "https://github.com/keithadler/frost"
 Documentation = "https://github.com/keithadler/frost/blob/main/LANGUAGE.md"
@@ -33,3 +42,9 @@ frost = "frostlang.cli:main"
 
 [tool.setuptools]
 packages = ["frostlang"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Anything that shells out to real programs or drives the CLI as a
+# subprocess is slower than the rest; `-m "not slow"` skips them.
+markers = ["slow: shells out to real programs"]

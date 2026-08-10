@@ -1,0 +1,33 @@
+{
+  "name": "frost-language",
+  "displayName": "frost",
+  "description": "Syntax highlighting for the frost scripting language",
+  "version": "0.3.0",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "frost",
+        "aliases": [
+          "frost"
+        ],
+        "extensions": [
+          ".frost"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "frost",
+        "scopeName": "source.frost",
+        "path": "./frost.tmLanguage.json"
+      }
+    ]
+  }
+}

@@ -47,10 +47,13 @@ Anything valid in a script is valid here, including whole statements:
 
 
 class Repl:
-    def __init__(self, subject=None, out=sys.stdout):
+    def __init__(self, subject=None, out=None):
         self.interp = Interpreter()
         self.interp.it = subject if subject is not None else SAMPLE
-        self.out = out
+        # Resolved per instance, not bound once at import: a default of
+        # `sys.stdout` in the signature captures whatever stdout was when this
+        # module was first imported, which nothing can redirect afterwards.
+        self.out = out if out is not None else sys.stdout
 
     def write(self, text=""):
         self.out.write(text + "\n")
