@@ -9,7 +9,28 @@ bump may change the language.
 
 ## Unreleased
 
+### Added
+
+**PLATFORM.md**, for the team that operates the machines. It answers the
+question frost cannot answer about itself: what makes any of this mandatory.
+The honest answer is that frost cannot, and the parts that can are a
+controlled image, a controlled PATH, mandatory access control and a proxy. It
+also separates the three strengths of guarantee here, since mixing them up is
+the likeliest way to trust something that was never load-bearing.
+
+**The Action tests itself.** A new workflow runs `uses: ./` against this
+repository's own examples on every push, checks that a deliberately dangerous
+example is refused, and that a widened script fails its own approval. An
+action that only ever passes is one nobody has watched say no.
+
 ### Fixed
+
+**The Action would have failed on its first line for every user.** Its install
+step defaulted to `pip install frostlang`, and no such package is published
+(PyPI returns 404). It now installs from `$GITHUB_ACTION_PATH`, so
+`uses: keithadler/frost@v0.7.0` installs exactly the frost that shipped with
+v0.7.0 and the tool cannot disagree with the action. Found by running the
+thing, which is the entire argument for the self-test above.
 
 **A refused run produced no telemetry at all.** The event sink was created in
 the run path, below every gate, so a policy refusal, a breached ceiling, an

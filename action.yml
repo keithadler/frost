@@ -34,18 +34,27 @@ inputs:
     required: false
     default: "true"
   version:
-    description: Which frost to install. A version, or "." for this repository.
+    description: >-
+      What to install. Defaults to the copy of frost that ships with whichever
+      ref of this action you pinned, so the tool and the action can never
+      disagree. Override with a PyPI requirement once one is published.
     required: false
-    default: "frostlang"
+    default: ""
 
 runs:
   using: composite
   steps:
     - name: Install frost
       shell: bash
+      # $GITHUB_ACTION_PATH is this action's own checkout, so `uses:
+      # keithadler/frost@v0.7.0` installs exactly the frost that shipped with
+      # v0.7.0. The first draft defaulted to a PyPI name that does not exist,
+      # which would have failed on line one for every user.
       run: |
         python3 -m pip install --quiet --upgrade pip
-        python3 -m pip install --quiet "${{ inputs.version }}"
+        target="${{ inputs.version }}"
+        if [ -z "$target" ]; then target="$GITHUB_ACTION_PATH"; fi
+        python3 -m pip install --quiet "$target"
         frost --version
 
     - name: Check every script
