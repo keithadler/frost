@@ -127,9 +127,19 @@ runs:
             || true
         done
 
+    - name: Combine them into one run
+      if: inputs.sarif == 'true'
+      shell: bash
+      # Code scanning refuses more than one run per category, so a file per
+      # script is rejected outright however sensible it looks. One tool, one
+      # run, every result.
+      run: |
+        python3 -c "from frostlang.sarif import merge_files; \
+          print(merge_files('.frost-sarif', 'frost.sarif'), 'file(s) merged')"
+
     - name: Upload the findings
       if: inputs.sarif == 'true'
       uses: github/codeql-action/upload-sarif@v3
       with:
-        sarif_file: .frost-sarif
+        sarif_file: frost.sarif
         category: frost
