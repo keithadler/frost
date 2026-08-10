@@ -158,12 +158,24 @@ def test_every_usage_flag_is_a_real_flag():
 
 
 def test_the_readme_status_section_matches_the_real_test_count():
-    """A stale count in the README is the classic rotted claim."""
+    """A stale count in the README is the classic rotted claim.
+
+    Only meaningful with every optional extra installed. Without
+    `cryptography` the keystore module is not collected at all, so the count
+    is legitimately lower — and asserting the full number there made CI fail
+    on a job whose entire purpose was to prove frost works without it.
+    """
     import subprocess
     import sys
+
+    pytest.importorskip(
+        "cryptography",
+        reason="fewer tests are collected without the optional extras, so "
+               "the README's full count is not the right thing to compare")
+
     with open(os.path.join(REPO, "README.md")) as fh:
         readme = fh.read()
-    claimed = re.search(r"(\d+)\s+tests? cover", readme)
+    claimed = re.search(r"([\d,]+)\s+tests? cover", readme)
     if claimed is None:
         pytest.skip("the README no longer claims a test count")
     result = subprocess.run(
@@ -171,5 +183,5 @@ def test_the_readme_status_section_matches_the_real_test_count():
         capture_output=True, text=True, cwd=REPO)
     actual = re.search(r"(\d+) tests? collected", result.stdout)
     assert actual, result.stdout[-2000:]
-    assert int(claimed.group(1)) == int(actual.group(1)), (
+    assert int(claimed.group(1).replace(",", "")) == int(actual.group(1)), (
         f"README claims {claimed.group(1)} tests; there are {actual.group(1)}")
