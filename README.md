@@ -28,7 +28,7 @@ contract instead of trusted as a guess.
 | **`--record` / `--replay`** | Snapshot testing for shell scripts. A recording is a fixture you can commit; replay spawns no process, writes no file, and reports a divergence rather than a stack trace. Secret values are never written down. |
 | **Records and JSON** | `the "name" of the "user" of report` — API responses without a second language in the file. Shelling out to `jq` handed the auditor a string it could not see into; a record is part of the tree. |
 | **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
-| **`--approve`** | Records what a script does today; `--as-approved` refuses a regeneration that does more. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability. |
+| **`--approve`** | Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability. |
 | **`--json` / `--repair`** | Every diagnostic as structured data with the edit attached, so the model that wrote the script can repair it without a human in the loop. |
 
 ### The lifecycle
@@ -41,7 +41,7 @@ frost --explain   s.frost      what could it possibly do?
 frost --policy p  s.frost      is that allowed here?
 frost --sandbox   s.frost      hold the boundary while it runs
 frost --record r  s.frost      write down what it actually did
-frost --as-approved s.frost   refuse it if it gained a capability
+frost s.frost                 refuse it if it gained a capability
 ```
 
 The first three cost about a millisecond and all happen before a single
@@ -466,8 +466,10 @@ can emit whatever it likes and the rules still refuse it before a process
 starts. The sandbox is held by the kernel, and a module cannot widen the
 program past what its import declared.
 
-Where there is no policy yet, `--approve` records what a script does today and
-`--as-approved` refuses a version that does more:
+Where there is no policy yet, `--approve` records what a script does today,
+and from then on the approval binds by default — no flag to remember, because
+a guard you have to remember is one the attacker composing your command line
+will not:
 
 ```text
 REFUSED: it can now run curl
@@ -885,7 +887,8 @@ frost --repair [--write] s.frost apply the repairs frost is sure about
 frost --lock s.frost             record the sha256 of every module
 frost --frozen s.frost           refuse to run if a module changed
 frost --approve s.frost          record what it may do, in <script>.approved
-frost --as-approved s.frost      refuse to run if it gained a capability
+frost --as-approved s.frost      insist an approval exists, and match it
+frost --ignore-approval s.frost  run despite <script>.approved
 frost --record run.json s.frost  run it and write down everything it did
 frost --replay run.json s.frost  run it against a recording, spawning nothing
 frost --policy p --sandbox s.frost   hold the declared boundary at runtime
@@ -936,7 +939,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1553 tests — python3 -m pytest tests/ -q
+tests/                1558 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -950,7 +953,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1553 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1558 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

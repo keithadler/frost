@@ -264,7 +264,7 @@ contract instead of trusted as a guess.</p>
 </tr>
 <tr>
 <td><strong><code>--approve</code></strong></td>
-<td>Records what a script does today; <code>--as-approved</code> refuses a regeneration that does more. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability.</td>
+<td>Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability.</td>
 </tr>
 <tr>
 <td><strong><code>--json</code> / <code>--repair</code></strong></td>
@@ -279,7 +279,7 @@ frost --explain   s.frost      what could it possibly do?
 frost --policy p  s.frost      is that allowed here?
 frost --sandbox   s.frost      hold the boundary while it runs
 frost --record r  s.frost      write down what it actually did
-frost --as-approved s.frost   refuse it if it gained a capability
+frost s.frost                 refuse it if it gained a capability
 </code></pre>
 <p>The first three cost about a millisecond and all happen before a single
 process starts. The fourth is enforced by the operating system. The fifth
@@ -606,8 +606,10 @@ person, ahead of time, out of band from generation, so a fully poisoned model
 can emit whatever it likes and the rules still refuse it before a process
 starts. The sandbox is held by the kernel, and a module cannot widen the
 program past what its import declared.</p>
-<p>Where there is no policy yet, <code>--approve</code> records what a script does today and
-<code>--as-approved</code> refuses a version that does more:</p>
+<p>Where there is no policy yet, <code>--approve</code> records what a script does today,
+and from then on the approval binds by default — no flag to remember, because
+a guard you have to remember is one the attacker composing your command line
+will not:</p>
 <pre><code class="language-text">REFUSED: it can now run curl
 REFUSED: it can now read the secret ~/.aws/credentials (from the file)
 REFUSED: it can now let a secret leave the process as an argument to curl
@@ -907,7 +909,8 @@ frost --repair [--write] s.frost apply the repairs frost is sure about
 frost --lock s.frost             record the sha256 of every module
 frost --frozen s.frost           refuse to run if a module changed
 frost --approve s.frost          record what it may do, in &lt;script&gt;.approved
-frost --as-approved s.frost      refuse to run if it gained a capability
+frost --as-approved s.frost      insist an approval exists, and match it
+frost --ignore-approval s.frost  run despite &lt;script&gt;.approved
 frost --record run.json s.frost  run it and write down everything it did
 frost --replay run.json s.frost  run it against a recording, spawning nothing
 frost --policy p --sandbox s.frost   hold the declared boundary at runtime
@@ -951,7 +954,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1553 tests — python3 -m pytest tests/ -q
+tests/                1558 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -963,7 +966,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.6.0. The language runs, the examples are real, and 1553 tests cover
+<p>Version 0.6.0. The language runs, the examples are real, and 1558 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1265,7 +1268,8 @@ writes and deletes, the
 environment it touches, the secrets it reads and where they are released, and
 how many names it builds at runtime. No line numbers, so moving a comment does
 not move the baseline.</p>
-<pre><code class="language-bash">frost --as-approved deploy.frost
+<p>Once that file exists, <strong>it binds by default</strong>. No flag is needed:</p>
+<pre><code class="language-bash">frost deploy.frost
 </code></pre>
 <p>runs it only if nothing widened:</p>
 <pre><code class="language-text">REFUSED: it can now run curl
@@ -1275,6 +1279,17 @@ REFUSED: it can now let a secret leave the process as an argument to curl
 3 capability change(s) since deploy.frost.approved; it was not run.
   Read what changed, then re-approve with --approve.
 </code></pre>
+<p>Binding by default is the difference between a guard and a suggestion. While
+it was opt-in, a poisoned agent did not have to defeat it — it just left the
+flag off, and in most agent loops the agent is the thing composing the command
+line. Skipping it now takes <code>--ignore-approval</code>: still possible, but a choice
+someone made and a reviewer can see, rather than what happens when nobody
+types anything. Deleting the approval file works too, and shows up in a diff.</p>
+<p><code>--as-approved</code> keeps a stronger meaning for CI: not <em>honour an approval if
+there is one</em> but <em>there had better be one</em>, refusing with exit 2 when none
+exists. <code>--check</code>, <code>--explain</code> and <code>--format</code> are never blocked — they are how
+you review the change, and blocking them would push people straight to
+<code>--ignore-approval</code>.</p>
 <p>A capability that <em>disappears</em> is not reported and never refuses. The
 asymmetry is the point: a script that stops touching the network needs no
 ceremony, and one that starts needs a person. Re-approving prints what changed,

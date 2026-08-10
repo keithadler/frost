@@ -22,6 +22,15 @@ frost --approve deploy.frost        record what it may do today
 frost --as-approved deploy.frost    refuse if it gained a capability
 ```
 
+**The approval binds by default.** While `--as-approved` was opt-in, a
+poisoned agent never had to defeat it: it just left the flag off, and in an
+agent loop the agent is usually the thing composing the command line. A guard
+that only applies when the caller remembers is a guard the attacker controls.
+An approval file is now honoured whenever it exists. Skipping it takes
+`--ignore-approval` — still possible, but a deliberate choice a reviewer can
+see, and deleting the file shows up in a diff. `--check`, `--explain` and
+`--format` are never blocked, since they are how the change gets reviewed.
+
 The baseline records **where a script reaches**, not only what it runs.
 Recording program names alone made `curl https://api.github.com` and
 `curl https://telemetry.example` the same capability, which is precisely the

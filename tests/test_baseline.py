@@ -310,3 +310,68 @@ def test_the_manifest_names_the_hosts():
     assert "Reaches these hosts:" in describe(caps)
     assert "api.example" in describe(caps)
     assert "api.example" in summarise(caps)
+
+
+# ------------------------------------------------ the approval binds itself
+
+def test_an_approval_binds_without_being_asked_for(project):
+    """The hole that made the rest of this decorative.
+
+    `--as-approved` was opt-in, so a poisoned agent did not have to defeat the
+    check — it just left the flag off, and in most agent loops the agent is
+    the thing composing the command line. An approval that only applies when
+    the caller remembers is a guard the attacker controls.
+    """
+    project("deploy.frost", BENIGN)
+    frost("--approve", "deploy.frost", cwd=str(project.root))
+    project("deploy.frost", POISONED)
+
+    status, _, err = frost("deploy.frost", cwd=str(project.root))
+    assert status == 3, "the approval was ignored without the flag"
+    assert "it can now run curl" in err
+
+
+def test_bypassing_takes_a_deliberate_flag(project):
+    """Not impossible — deliberate. The point is that skipping the guard has
+    to be something a person chose and a reviewer can see, rather than the
+    default that happens when nobody types anything."""
+    project("deploy.frost", 'run "echo" with "a"\nput it\n')
+    frost("--approve", "deploy.frost", cwd=str(project.root))
+    project("deploy.frost",
+            'run "echo" with "a"\nput it\ntry to run "true"\n')
+
+    refused, _, _ = frost("deploy.frost", cwd=str(project.root))
+    allowed, out, err = frost("--ignore-approval", "deploy.frost",
+                              cwd=str(project.root))
+    assert refused == 3
+    assert allowed == 0, err
+
+
+def test_explain_still_works_when_the_approval_no_longer_matches(project):
+    """Refusing to describe the change would take away the tool you need to
+    review it, which would push people straight to --ignore-approval."""
+    project("deploy.frost", BENIGN)
+    frost("--approve", "deploy.frost", cwd=str(project.root))
+    project("deploy.frost", POISONED)
+    status, out, _ = frost("--explain", "deploy.frost", cwd=str(project.root))
+    assert status != 3, "the approval blocked the tool for reviewing it"
+    assert "curl" in out
+
+
+def test_no_approval_file_means_business_as_usual(project):
+    """Binding by default must not turn every script without an approval into
+    a refusal; that would make the feature something people disable."""
+    project("deploy.frost", 'run "echo" with "hello"\nput it\n')
+    status, out, err = frost("deploy.frost", cwd=str(project.root))
+    assert status == 0, err
+    assert "hello" in out
+
+
+def test_as_approved_still_insists_one_exists(project):
+    """The explicit flag keeps its stronger meaning for CI: not 'honour an
+    approval if there is one' but 'there had better be one'."""
+    project("deploy.frost", BENIGN)
+    status, _, err = frost("--as-approved", "deploy.frost",
+                           cwd=str(project.root))
+    assert status == 2
+    assert "no approval" in err
