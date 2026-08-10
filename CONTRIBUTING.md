@@ -32,6 +32,11 @@ fail even if nobody thought to write a case for it.
 so `audit`, `describe`, `summarise` and `verdict` must not throw on anything
 that parsed.
 
+**Parsing stays cheaper than spawning.** The whole argument for verbosity is
+that a shell's runtime goes on `fork`/`exec`, not on reading source. Run
+`python tools/benchmark.py` to see the numbers; a test fails if the front end
+ever costs more than one process spawn.
+
 **The browser evaluator agrees with the interpreter.** `web/chunks.js` is a
 second implementation of the expression language. `tools/verify_chunks.py`
 runs 1,820 expressions through both and the play page is not written if they
