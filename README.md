@@ -500,6 +500,14 @@ is declared but cannot be enforced here, **frost refuses to run** rather than
 warning and continuing — including when the backend is present but a live
 self-test shows it not actually confining.
 
+That self-test runs two controls, not one. A forbidden write must be refused
+*and* a permitted write must succeed. Checking only the first is the trap the
+feature is most likely to ship with: a sandbox that fails to start blocks the
+forbidden write too, so every "is it blocked?" assertion passes and the thing
+reports itself healthy while confining nothing. Both backends were caught by
+the second control — Linux dying on a network namespace it was not allowed to
+enter, macOS naming an unresolved `/tmp` path the kernel never matches.
+
 Built-in checks catch the classics with no policy at all — `curl … | sh` is
 reported as *downloaded code piped into a shell*, and a script that reads
 `~/.ssh/id_rsa` and then makes a network call is flagged as *secrets read, then
@@ -786,7 +794,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1457 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1463 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

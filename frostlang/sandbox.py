@@ -42,6 +42,13 @@ per-host rule is **refused at parse time** rather than accepted and silently
 under-enforced. A boundary that does not hold is worse than no boundary,
 because someone relies on it.
 
+**Machines that will not let a network namespace be entered.** bubblewrap
+unshares the network and then configures a loopback interface inside it, and
+where unprivileged user namespaces are restricted that second step is refused
+— bwrap exits before running anything. So `sandbox may reach the network` is
+enforceable there and its absence is not. That is probed, not assumed, and a
+boundary that needs isolation frost cannot enter is refused up front.
+
 **Platforms without a backend.** If a boundary is declared and cannot be
 enforced here, frost refuses to run. It does not warn and continue. The whole
 value is that the guarantee is unconditional, and a guarantee with a
@@ -54,6 +61,7 @@ read intent.
 # SPDX-License-Identifier: MIT
 
 import fnmatch
+import functools
 import os
 import platform
 import shutil
@@ -153,6 +161,30 @@ def require_backend():
     return backend
 
 
+@functools.lru_cache(maxsize=None)
+def network_isolation_works(backend=None):
+    """Whether a network namespace can actually be entered here.
+
+    Asked as a question rather than assumed, because the failure is invisible
+    from the outside: bwrap dies while configuring loopback, so the command
+    never runs, so nothing it was forbidden to do happens. That reads as
+    flawless confinement. It is a sandbox that confines by not working.
+    """
+    backend = backend or detect_backend()
+    if backend == BACKEND_MACOS:
+        return True             # SBPL filters syscalls; no namespace to enter
+    if backend != BACKEND_LINUX:
+        return False
+    try:
+        done = subprocess.run(
+            ["bwrap", "--ro-bind", "/", "/", "--unshare-net",
+             "--die-with-parent", "/bin/sh", "-c", ":"],
+            capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
+
+
 # ------------------------------------------------------- macOS: sandbox-exec
 
 def macos_profile(boundary, root):
@@ -193,13 +225,26 @@ def _sbpl_target(pattern, root):
     Relative patterns are anchored to the script's directory, so `build/*`
     means this project's build directory and not any other.
     """
-    absolute = pattern if os.path.isabs(pattern) else os.path.join(root,
-                                                                  pattern)
+    absolute = _anchor(pattern, root)
     if absolute.endswith("/*"):
         return f'(subpath "{absolute[:-2]}")'
     if any(ch in absolute for ch in "*?["):
         return f'(regex #"^{_glob_to_regex(absolute)}$")'
     return f'(literal "{absolute}")'
+
+
+def _anchor(pattern, root):
+    """A boundary pattern as one absolute, symlink-free path.
+
+    Resolving matters more than it looks. macOS matches sandbox rules against
+    the real path, and `/tmp` and `/var` are both symlinks there — so a
+    boundary written as `/tmp/build/*` produced a rule that could never match
+    anything, and every write the boundary *allowed* was denied. The sandbox
+    looked strict. It was broken.
+    """
+    absolute = pattern if os.path.isabs(pattern) else os.path.join(root,
+                                                                   pattern)
+    return os.path.realpath(absolute)
 
 
 def _glob_to_regex(pattern):
@@ -247,9 +292,7 @@ def bubblewrap_argv(boundary, root, folder=None):
 
 def _writable_root(pattern, root):
     """The deepest directory a glob is rooted at, since bwrap binds paths."""
-    absolute = pattern if os.path.isabs(pattern) else os.path.join(root,
-                                                                   pattern)
-    head = absolute
+    head = _anchor(pattern, root)
     while any(ch in head for ch in "*?[") and head not in ("/", ""):
         head = os.path.dirname(head)
     return head or None
@@ -262,9 +305,21 @@ class Sandbox:
 
     def __init__(self, boundary, root, backend=None):
         self.boundary = boundary
-        self.root = os.path.abspath(root)
+        self.root = os.path.realpath(root)
         self.backend = backend or require_backend()
         self._profile_path = None
+
+        if not boundary.network and not network_isolation_works(self.backend):
+            raise SandboxError(
+                "this machine will not let frost cut off network access",
+                hint="bubblewrap has to enter a new network namespace and "
+                     "bring up loopback inside it; here that is refused, and "
+                     "bwrap exits before running anything. Restricted "
+                     "unprivileged user namespaces are the usual reason. Add "
+                     "`sandbox may reach the network` if the script is "
+                     "allowed to use it, or run somewhere namespaces are "
+                     "permitted — frost will not hold part of a boundary and "
+                     "call it the boundary.")
 
     def close(self):
         if self._profile_path and os.path.exists(self._profile_path):
@@ -330,30 +385,45 @@ class Sandbox:
 def self_test(backend=None):
     """Prove the backend actually confines, right now, on this machine.
 
-    A sandbox nobody checked is a sandbox nobody has. This runs a real
-    command that tries to write outside its boundary and returns whether the
-    write was refused, so `--sandbox` can fail closed on a backend that is
-    present but not working.
+    Two controls, because one is worthless. A **negative** control — a write
+    outside the boundary must be refused — and a **positive** control — a
+    write inside it must succeed.
+
+    The negative control alone cannot tell confinement from collapse. A
+    sandbox that fails to start blocks the forbidden write too, and then
+    reports itself healthy; that is exactly how a Linux backend passed this
+    check while every command it wrapped was dying before it ran. An absence
+    is only evidence if something was there to be absent.
     """
     backend = backend or detect_backend()
     if backend == BACKEND_NONE:
         return False, "no backend"
 
-    with tempfile.TemporaryDirectory() as scratch:
+    with tempfile.TemporaryDirectory() as raw:
+        # Not the path tempfile handed back: on macOS that is under /var,
+        # which is a symlink, and the profile would name something the kernel
+        # never sees.
+        scratch = os.path.realpath(raw)
         boundary = Boundary()
         boundary.declared = True
         boundary.programs = ["sh", "/bin/sh"]
         boundary.reads = ["*"]
         boundary.writes = [os.path.join(scratch, "allowed", "*")]
+        # The namespace is a separate question with its own probe. Asking for
+        # it here would let a loopback failure masquerade as a verdict about
+        # the filesystem.
+        boundary.network = True
         os.makedirs(os.path.join(scratch, "allowed"), exist_ok=True)
         forbidden = os.path.join(scratch, "forbidden.txt")
+        permitted = os.path.join(scratch, "allowed", "ok.txt")
 
         try:
             sandbox = Sandbox(boundary, scratch, backend)
-            argv = sandbox.wrap(["/bin/sh", "-c",
-                                 f"echo x > {forbidden} 2>/dev/null"],
-                                folder=scratch)
-            subprocess.run(argv, capture_output=True, timeout=30)
+            argv = sandbox.wrap(
+                ["/bin/sh", "-c", f"echo x > {forbidden} 2>/dev/null; "
+                                  f"echo y > {permitted} 2>/dev/null"],
+                folder=scratch)
+            done = subprocess.run(argv, capture_output=True, timeout=30)
             sandbox.close()
         except (SandboxError, OSError, subprocess.SubprocessError) as e:
             return False, str(e)
@@ -361,4 +431,9 @@ def self_test(backend=None):
         if os.path.exists(forbidden):
             return False, "the backend did not block a write outside the "\
                           "boundary"
+        if not os.path.exists(permitted):
+            noise = (done.stderr or b"").decode("utf-8", "replace").strip()
+            return False, ("the backend blocked a write the boundary allows, "
+                           "so it is not confining — it is failing"
+                           + (f": {noise}" if noise else ""))
     return True, describe_backend(backend)
