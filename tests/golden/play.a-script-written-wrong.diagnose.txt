@@ -1,0 +1,6 @@
+[error] missing-then
+  expected 'then' but found end of line
+  line 2:  if error count is 0
+  hint: an 'if' condition is followed by 'then'
+  repair (high): an 'if' condition is closed by 'then'
+    replace-line line 2:  if error count is 0 then

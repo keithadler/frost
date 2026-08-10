@@ -1,0 +1,5 @@
+warning: running "curl"
+  line 14  try to run "curl" with "-fsS", build url within 30 seconds
+  why: fine, but say in review what it talks to
+
+Warnings only; the script would run.

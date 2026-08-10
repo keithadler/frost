@@ -1,0 +1,24 @@
+{
+  "deletes": [],
+  "env_reads": [],
+  "env_writes": [],
+  "folder_changes": [],
+  "programs": [
+    "chmod",
+    "curl",
+    "find",
+    "rm",
+    "sh"
+  ],
+  "reaches": [
+    "install.example.com",
+    "metrics.example.com"
+  ],
+  "reads": [],
+  "secret_releases": [],
+  "secrets": [],
+  "unknowable": 0,
+  "writes": [
+    "/etc/cleanup.state"
+  ]
+}

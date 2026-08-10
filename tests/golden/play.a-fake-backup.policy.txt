@@ -1,0 +1,14 @@
+warning: running "curl"
+  line 21  try to run "curl" with "--silent", "--data", payload, \
+  why: fine, but say in review what it talks to
+REFUSED: "curl" has no timeout
+  line 21  try to run "curl" with "--silent", "--data", payload, \
+  why: an unbounded fetch wedges the whole pipeline
+REFUSED: "curl" may fail without being checked
+  line 21  try to run "curl" with "--silent", "--data", payload, \
+  why: a failure nobody reads is a failure nobody fixes
+REFUSED: running "rm" with "-rf"
+  line 25  run "rm" with "-rf", home & "/.ssh"
+  why: delete named paths, or use a scratch folder the job owns
+
+3 rule violation(s); the script would not run.

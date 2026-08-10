@@ -1,0 +1,22 @@
+{
+  "deletes": [],
+  "env_reads": [],
+  "env_writes": [],
+  "folder_changes": [],
+  "programs": [
+    "curl"
+  ],
+  "reaches": [
+    "(destination built at runtime)",
+    "telemetry.example"
+  ],
+  "reads": [],
+  "secret_releases": [
+    "as an argument to curl"
+  ],
+  "secrets": [
+    "~/.aws/credentials (from the file)"
+  ],
+  "unknowable": 0,
+  "writes": []
+}

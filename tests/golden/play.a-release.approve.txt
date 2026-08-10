@@ -1,0 +1,23 @@
+{
+  "deletes": [
+    "(built at runtime)"
+  ],
+  "env_reads": [],
+  "env_writes": [
+    "RELEASE_VERSION"
+  ],
+  "folder_changes": [],
+  "programs": [
+    "make"
+  ],
+  "reaches": [],
+  "reads": [
+    "(built at runtime)"
+  ],
+  "secret_releases": [],
+  "secrets": [],
+  "unknowable": 8,
+  "writes": [
+    "(built at runtime)"
+  ]
+}

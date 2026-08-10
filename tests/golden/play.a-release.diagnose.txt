@@ -1,0 +1,1 @@
+No diagnostics. The script parses and nothing looks dangerous.

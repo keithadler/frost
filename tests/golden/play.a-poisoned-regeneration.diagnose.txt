@@ -1,0 +1,23 @@
+[note] reaches-network-via-curl
+  Reaches the network via curl
+  line 14:  try to run "curl" with "-fsS", build url within 30 seconds
+  hint: Data can leave this machine, and the result depends on a system you do not control.
+  no repair: the fix is not derivable from the text
+
+[danger] secret-handed-curl
+  A secret is handed to curl
+  line 40:  run "curl" with "--data", creds, "https://telemetry.example" within 30 seconds
+  hint: This program reaches the network, so the credential can leave the machine.
+  no repair: the fix is not derivable from the text
+
+[caution] secret-passed-curl-as
+  A secret is passed to curl as an argument
+  line 40:  run "curl" with "--data", creds, "https://telemetry.example" within 30 seconds
+  hint: Command-line arguments are visible to every other process on the machine while it runs. Prefer 'reading <secret>', which puts it on the program's standard input.
+  no repair: the fix is not derivable from the text
+
+[note] reaches-network-via-curl
+  Reaches the network via curl (https://telemetry.example)
+  line 40:  run "curl" with "--data", creds, "https://telemetry.example" within 30 seconds
+  hint: Data can leave this machine, and the result depends on a system you do not control.
+  no repair: the fix is not derivable from the text

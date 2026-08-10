@@ -34,6 +34,23 @@ The repair loop moved from `cli.py` to `diagnostics.py` on the way. It is pure
 text in, text out, and the page needs it too; a second copy would have
 recreated exactly the drift the differential verifier exists to police.
 
+**The page is a CI canary and has a correctness oracle.** Two layers, because
+they catch different things. `tests/test_playground.py` proves every embedded
+module is byte-identical to the file on disk and records what each sample
+answers in process; it is fast and runs everywhere. `tools/canary_browser.py`
+boots the page in real Chromium, presses the real buttons, and requires the
+answers to match those recordings.
+
+The offline test catches the failure a contributor is most likely to cause,
+which is editing `frostlang` and forgetting that `play.html` carries a copy.
+The canary catches what no offline test can see: Pyodide is fetched from a
+pinned CDN version, the page writes modules into an emscripten filesystem, and
+JavaScript marshals arguments across a bridge, and any of that can break with
+no commit to this repository.
+
+Both are mutation-checked. Making the embedded copy stale by one string fails
+the offline test by module name and the canary by which answers moved.
+
 ### Fixed
 
 **`--approve` reported narrowings as "it no longer reachs".** The headings are
