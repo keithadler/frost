@@ -11,6 +11,23 @@ bump may change the language.
 
 ### Added
 
+**Dead code is reported.** Unreachable statements after a `quit`, `return`,
+`exit repeat` or `next repeat`; handlers called nowhere in the program; names
+assigned and never read. Individually harmless, and together the clearest sign
+that a generated script contains more than anybody intended.
+
+Notes rather than dangers, except unreachable code, because a verdict that
+shouted about an unused variable is a verdict people stop reading. A policy
+can refuse them with `require at most 0 dead code`.
+
+**Rules about reading the environment.** `forbid reading the environment
+"AWS_*"` and `require reading only the environment "PATH", "HOME"`. Setting a
+variable already had a rule and reading one did not, which is the wrong way
+round: what a script takes from the environment is where the credentials are.
+A name built at runtime fails an allow-list closed.
+
+### Added
+
 **A loop that cannot end is a finding, and `--deadline` bounds the run.**
 
 `within` bounds one command and a policy can bound how many there are.

@@ -146,3 +146,75 @@ def test_a_mutually_recursive_pair_does_not_hang_the_check():
 def test_policy_comments_are_ignored():
     rules = parse_policy('-- a note\n# another\nforbid running "dd"')
     assert len(rules) == 1
+
+
+# ------------------------------------------------ reading the environment
+#
+# Setting a variable had a rule and reading one did not, which is the wrong
+# way round: what a script *takes* from the environment is where the
+# credentials are.
+
+def test_reading_an_environment_variable_can_be_forbidden():
+    caps = caps_for('put the environment variable "AWS_SECRET_ACCESS_KEY" '
+                    "into k\nput k\n")
+    findings = check(caps, parse_policy(
+        'forbid reading the environment "AWS_*"\n'))
+    assert findings
+    assert "AWS_SECRET_ACCESS_KEY" in findings[0].what
+
+
+def test_an_unrelated_variable_is_left_alone():
+    caps = caps_for('put the environment variable "PATH" into p\nput p\n')
+    assert check(caps, parse_policy(
+        'forbid reading the environment "AWS_*"\n')) == []
+
+
+def test_the_environment_can_have_an_allow_list():
+    caps = caps_for('put the environment variable "PATH" into p\n'
+                    'put the environment variable "AWS_SECRET" into k\n'
+                    "put p & k\n")
+    findings = check(caps, parse_policy(
+        'require reading only the environment "PATH", "HOME"\n'))
+    assert len(findings) == 1
+    assert "AWS_SECRET" in findings[0].what
+    assert "allow-list" in findings[0].what
+
+
+def test_a_name_built_at_runtime_fails_the_allow_list_closed():
+    """Same rule as everywhere else: cannot be shown to be allowed is not
+    allowed."""
+    caps = caps_for('put the standard input into wanted\n'
+                    "put the environment variable wanted into v\nput v\n")
+    findings = check(caps, parse_policy(
+        'require reading only the environment "PATH"\n'))
+    assert findings
+    assert "named at runtime" in findings[0].what
+
+
+def test_a_runtime_name_also_trips_a_deny_rule():
+    caps = caps_for('put the standard input into wanted\n'
+                    "put the environment variable wanted into v\nput v\n")
+    assert check(caps, parse_policy(
+        'forbid reading the environment "AWS_*"\n'))
+
+
+def test_an_environment_allow_list_needs_names():
+    with pytest.raises(PolicyError) as e:
+        parse_policy("require reading only the environment everything\n")
+    assert "name the variables in quotes" in str(e.value)
+
+
+def test_the_rule_carries_its_comment():
+    caps = caps_for('put the environment variable "AWS_KEY" into k\nput k\n')
+    findings = check(caps, parse_policy(
+        'forbid reading the environment "AWS_*"  -- use the keystore\n'))
+    assert findings[0].hint == "use the keystore"
+
+
+def test_reading_and_setting_are_separate_rules():
+    """`forbid setting "X"` never covered reads, and a policy that looked
+    like it did would be worse than one that plainly does not."""
+    caps = caps_for('put the environment variable "TOKEN" into t\nput t\n')
+    assert check(caps, parse_policy('forbid setting "TOKEN"\n')) == []
+    assert check(caps, parse_policy(
+        'forbid reading the environment "TOKEN"\n'))

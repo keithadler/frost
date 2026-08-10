@@ -64,6 +64,17 @@ class Capabilities:
     # nothing, so a script that never terminates read as "does nothing
     # observable" and a clean verdict.
     loops: List[tuple] = field(default_factory=list)
+    # (line, kind, name) for code that cannot run. Per file, because
+    # unreachability is.
+    dead: List[tuple] = field(default_factory=list)
+    # Raw sets rather than findings, because "defined here, called there" is
+    # normal across an import and only answerable once the whole program is
+    # in view. Merging findings would have reported every handler a module
+    # exports as unused, which is what it did.
+    handlers_defined: List[tuple] = field(default_factory=list)
+    handlers_called: List[str] = field(default_factory=list)
+    names_written: List[tuple] = field(default_factory=list)
+    names_read: List[str] = field(default_factory=list)
     waits: List[tuple] = field(default_factory=list)
     dynamic: int = 0              # count of runtime-built names
     # (line, [literal fragments]) for every path expression, so a sensitive
@@ -320,6 +331,92 @@ def constant_sets(stmts):
     return {name: sorted(v) for name, v in values.items() if v}
 
 
+TERMINATORS = ("Quit", "Return", "ExitRepeat", "NextRepeat")
+
+
+def dead_code(stmts):
+    """Everything in a tree that cannot run, or is never used.
+
+    Three separate questions, all decidable from the text:
+
+    **Unreachable.** Statements after a `quit`, `return`, `exit repeat` or
+    `next repeat` in the same block. The author believed something would run
+    that cannot.
+
+    **Never called.** A handler defined and called nowhere. Across a program
+    the sets are unioned, so a handler a module exports and the entry script
+    calls is used; one named by an import and never called is not, and that
+    is worth saying.
+
+    **Never read.** A name assigned and never read anywhere in the file. Any
+    read counts, wherever it is, because a conservative answer here is worth
+    more than a precise one that occasionally accuses working code.
+
+    This exists because the shape of a script written by a machine is
+    distinctive. Invented helpers, branches after a return, variables computed
+    and dropped: each is individually harmless and collectively the clearest
+    sign that the thing on the page is not what anyone intended.
+    """
+    found = []
+    defined, called = {}, set()
+    written, read = {}, set()
+
+    def note_reads(node):
+        if isinstance(node, A.Var):
+            read.add(node.name)
+        elif isinstance(node, A.GlobalRef):
+            read.add(node.name)
+        elif isinstance(node, (A.Arith, A.Replace)):
+            # `add 1 to n` and `replace ... in n` read the current value
+            # before writing it. Counting only Var nodes called every counter
+            # in the language unused, which is the shape of false positive
+            # that gets a check switched off in a week.
+            read.add(node.target.name)
+        elif isinstance(node, A.Put) and node.mode in ("before", "after") \
+                and isinstance(node.target, (A.VarTarget, A.GlobalTarget)):
+            read.add(node.target.name)        # appending reads what is there
+        elif isinstance(node, A.FieldTarget):
+            read.add(getattr(node.source, "name", ""))
+        elif isinstance(node, A.FuncCall):
+            called.add(node.name)
+        elif isinstance(node, A.Call):
+            called.add(node.name)
+        if isinstance(node, list):
+            for item in node:
+                note_reads(item)
+        elif hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    note_reads(value)
+
+    def walk(block):
+        stopped = None
+        for node in block:
+            name = type(node).__name__
+            if stopped is not None:
+                found.append((getattr(node, "line", 0), "unreachable",
+                              stopped))
+                stopped = None          # one report per block, not per line
+            if name in TERMINATORS:
+                stopped = name.lower()
+            if isinstance(node, A.HandlerDef):
+                defined[node.name] = node.line
+            if isinstance(node, A.Put) and isinstance(
+                    node.target, (A.VarTarget, A.GlobalTarget)):
+                written.setdefault(node.target.name, node.line)
+            for value in vars(node).values():
+                if isinstance(value, list) and value and all(
+                        hasattr(v, "__dataclass_fields__") for v in value):
+                    walk(value)
+
+    walk(stmts)
+    note_reads(stmts)
+    return (sorted(found), sorted(defined.items(), key=lambda kv: kv[1]),
+            sorted(called), sorted(written.items(), key=lambda kv: kv[1]),
+            sorted(read))
+
+
 def _can_escape(block):
     """Whether anything in a loop body could end it.
 
@@ -510,6 +607,9 @@ class Auditor:
 
     def scan(self, stmts):
         self.visit_block(stmts)
+        (self.caps.dead, self.caps.handlers_defined,
+         self.caps.handlers_called, self.caps.names_written,
+         self.caps.names_read) = dead_code(stmts)
         return self.caps
 
     def mentions_result(self, node, _visiting=None):
@@ -921,6 +1021,7 @@ _noun("folder_changes", "folder changes", "folder change")
 _noun("cleanups", "cleanups", "cleanup", "ensure block", "ensure blocks")
 _noun("waits", "waits", "wait")
 _noun("loops", "unbounded loops", "unbounded loop")
+_noun("dead", "dead code", "unreachable statements")
 _noun("reaches", "hosts reached", "host reached", "hosts")
 _noun("unchecked", "unchecked commands", "unchecked command")
 _noun("untimed", "commands without a timeout", "command without a timeout")
@@ -942,6 +1043,10 @@ RULE_PATTERNS = [
     (re.compile(r'^(forbid|warn)\s+reading\s+"([^"]+)"\s*$'), "read"),
     (re.compile(r'^(forbid|warn)\s+deleting\s+"([^"]+)"\s*$'), "delete"),
     (re.compile(r'^(forbid|warn)\s+setting\s+"([^"]+)"\s*$'), "setenv"),
+    (re.compile(r'^(forbid|warn)\s+reading\s+the\s+environment\s+'
+                r'"([^"]+)"\s*$'), "getenv"),
+    (re.compile(r'^require\s+reading\s+only\s+the\s+environment\s+(.+?)\s*$'),
+     "getenv_only"),
     (re.compile(r'^(forbid|warn)\s+reading\s+secret\s+"([^"]+)"\s*$'),
      "readsecret"),
     (re.compile(r'^(forbid|warn)\s+changing\s+folder\s*$'), "chfolder"),
@@ -1103,6 +1208,16 @@ def parse_policy(text):
                 rules.append(Rule(kind, "forbid", "approval", keys, n))
             elif kind == "reach":
                 rules.append(Rule(kind, g[0], g[1], None, n))
+            elif kind == "getenv":
+                rules.append(Rule(kind, g[0], g[1], None, n))
+            elif kind == "getenv_only":
+                names = re.findall(r'"([^"]+)"', g[0])
+                if not names:
+                    raise PolicyError(
+                        f"policy line {n}: name the variables in quotes.\n"
+                        f'  try: require reading only the environment '
+                        f'"PATH", "HOME"')
+                rules.append(Rule(kind, "forbid", "the environment", names, n))
             elif kind == "reach_only":
                 hosts = re.findall(r'"([^"]+)"', g[0])
                 if not hosts:
@@ -1307,6 +1422,29 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
             continue          # the driver checks these: whether a file exists
                               # and who signed it are facts about the disk
 
+        elif rule.kind == "getenv":
+            for name, line in caps.env_reads:
+                if name is None or fnmatch.fnmatchcase(name, rule.subject):
+                    findings.append(
+                        (rule.severity,
+                         f"reading the environment {name or '(name built at '
+                          'runtime)'}", line))
+
+        elif rule.kind == "getenv_only":
+            allowed = rule.detail or []
+            for name, line in caps.env_reads:
+                if name is None:
+                    findings.append(
+                        (rule.severity,
+                         "an environment variable named at runtime, so it "
+                         "cannot be shown to be one of the allowed ones",
+                         line))
+                elif not any(fnmatch.fnmatchcase(name, p) for p in allowed):
+                    findings.append(
+                        (rule.severity,
+                         f"reading the environment {name}, which is not in "
+                         f"the allow-list", line))
+
         elif rule.kind == "reach":
             for host, line in caps.reaches:
                 if host == RUNTIME_HOST and defer_unknown_hosts:
@@ -1505,6 +1643,33 @@ def has_glob(text):
 def find_dangers(caps):
     """Checks that run with no policy file, on every script."""
     out = []
+
+    for line, kind, name in caps.dead:
+        out.append(Finding(
+            "caution", "Code after the script has already stopped",
+            f"Nothing here runs: the block ends at the {name} above it. "
+            f"A statement written after one is a statement somebody expected "
+            f"to happen.", line))
+
+    # Computed from the whole program, not per file. A handler defined in a
+    # module and called from the entry script is used, and answering that
+    # per file reported every exported handler as dead.
+    called = set(caps.handlers_called)
+    for name, line in caps.handlers_defined:
+        if name not in called:
+            out.append(Finding(
+                "note", f"The handler {name!r} is never called",
+                "Defined and used nowhere in this program. Harmless on its "
+                "own, and one of the clearest signs that a script contains "
+                "more than anybody intended.", line))
+
+    read = set(caps.names_read)
+    for name, line in caps.names_written:
+        if name not in read:
+            out.append(Finding(
+                "note", f"{name!r} is set and never read",
+                "The value is computed and dropped. Either something meant "
+                "to use it does not, or it should not be there.", line))
 
     for line, kind, escapable in caps.loops:
         if escapable:
