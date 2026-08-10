@@ -204,6 +204,24 @@ language level rather than the container level, and it composes with a
 container rather than competing with it. The agent proposes; the policy
 disposes; the human reads a manifest instead of code.
 
+Rules also count, which is what an organisation's actual rules tend to do —
+not *may it use curl*, but *how many times, for how long, and does it clean up
+after itself*:
+
+```policy
+require at most 12 commands
+require at most 2 files written
+require at least 1 cleanup
+forbid more than 2 runs of "curl"
+forbid any files deleted
+require timeout on "*" between 1 and 120 seconds
+```
+
+Units are reconciled, so a policy written in seconds catches a script written
+in minutes. A limit that is exceeded points at the line that crossed it. A
+deadline computed at runtime is refused rather than assumed acceptable, on the
+same principle as the manifest: say what is unknowable, do not guess it.
+
 Built-in checks catch the classics with no policy at all — `curl … | sh` is
 reported as *downloaded code piped into a shell*, and a script that reads
 `~/.ssh/id_rsa` and then makes a network call is flagged as *secrets read, then
@@ -437,7 +455,7 @@ frostlang/
     interp.py         tree-walking evaluator
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                657 tests — python3 -m pytest tests/ -q
+tests/                744 tests — python3 -m pytest tests/ -q
 LANGUAGE.md           full reference and grammar
 docs.html             browsable docs (tools/build_docs.py)
 audit.html            visual audit report (tools/build_audit.py)
@@ -448,7 +466,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 
 ## Status
 
-Version 0.3.0. The language runs, the examples are real, and 657 tests cover
+Version 0.3.0. The language runs, the examples are real, and 744 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

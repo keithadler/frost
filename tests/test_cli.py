@@ -217,6 +217,28 @@ def test_a_passing_policy_lets_the_script_run(script, tmp_path):
     assert (status, out) == (0, "fine\n")
 
 
+def test_a_count_violation_points_at_the_offending_line(script, tmp_path):
+    rules = tmp_path / "p.policy"
+    rules.write_text("require at most 2 commands\n")
+    path = script('run "a"\nrun "b"\nrun "c"')
+    status, _, err = frost("--policy", str(rules), path)
+    assert status == 3
+    assert "3 commands, at most 2 allowed" in err
+    assert f"{path}:3" in err
+
+
+def test_a_shortfall_is_reported_against_the_file_not_line_zero(script,
+                                                                tmp_path):
+    rules = tmp_path / "p.policy"
+    rules.write_text("require at least 1 cleanup\n")
+    path = script('put "x"')
+    status, _, err = frost("--policy", str(rules), path)
+    assert status == 3
+    assert "at least 1 required" in err
+    assert f"{path}:0" not in err
+    assert path in err
+
+
 def test_a_missing_policy_file_exits_two(script):
     status, _, err = frost("--policy", "/no/such.policy", script('put "x"'))
     assert status == 2

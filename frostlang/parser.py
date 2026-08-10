@@ -56,6 +56,15 @@ ORDINALS = {
     "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
 }
 
+# Shared with the policy checker, which compares a rule's bound against a
+# timeout written in whatever unit the script happened to use.
+TIME_UNITS = {
+    "millisecond": 0.001, "milliseconds": 0.001, "ms": 0.001,
+    "second": 1, "seconds": 1,
+    "minute": 60, "minutes": 60,
+    "hour": 3600, "hours": 3600,
+}
+
 STATEMENT_STARTERS = {
     "put", "run", "try", "pipe", "if", "repeat", "quit", "to", "return",
     "add", "subtract", "multiply", "divide", "exit", "next", "delete",
@@ -71,6 +80,11 @@ class Parser:
         # to zero inside a handler body, so loop control cannot reach across a
         # call boundary and break the caller's loop.
         self.loop_depth = 0
+        # Set while reading the amount of a timeout. Time units are not
+        # reserved words — `second line` has to stay a legal name — so a name
+        # would otherwise swallow the unit and leave `within limit seconds`
+        # unparseable.
+        self.reading_timeout = False
 
     # ------------------------------------------------------------ token utils
 
@@ -268,6 +282,8 @@ class Parser:
             w = self.cur.value
             if w in HARD_WORDS:
                 break
+            if self.reading_timeout and words and w in TIME_UNITS:
+                break                      # the unit closes the amount
             if not first and not target_position:
                 # Stop before something that starts a new construct.
                 if w in CHUNK_SINGULAR or w in CHUNK_PLURAL:
@@ -346,22 +362,19 @@ class Parser:
                 continue
             return stdin, folder, timeout
 
-    TIME_UNITS = {
-        "millisecond": 0.001, "milliseconds": 0.001, "ms": 0.001,
-        "second": 1, "seconds": 1,
-        "minute": 60, "minutes": 60,
-        "hour": 3600, "hours": 3600,
-    }
-
     def parse_optional_timeout(self):
         """`within 30 seconds` — an optional tail on run and pipe."""
         if not self.at_word("within"):
             return None
         self.advance()
-        amount = self.parse_additive()
+        self.reading_timeout = True
+        try:
+            amount = self.parse_additive()
+        finally:
+            self.reading_timeout = False
         scale = 1
-        if self.cur.kind == "WORD" and self.cur.value in self.TIME_UNITS:
-            scale = self.TIME_UNITS[self.advance().value]
+        if self.cur.kind == "WORD" and self.cur.value in TIME_UNITS:
+            scale = TIME_UNITS[self.advance().value]
         else:
             raise ParseError(
                 "a timeout needs a unit", self.cur.line,
