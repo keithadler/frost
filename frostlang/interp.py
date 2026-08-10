@@ -220,7 +220,7 @@ def truthy(v):
 
 class Interpreter:
     def __init__(self, argv=None, trace=False, cwd=None, keystore=None,
-                 role=None, trace_to=None, source=None):
+                 role=None, trace_to=None, source=None, run_id=None):
         self.globals = {}
         self.scopes = [self.globals]
         self.handlers = {}
@@ -240,6 +240,12 @@ class Interpreter:
         self.source_lines = (source or "").split("\n")
         self.cwd = cwd or os.getcwd()
         self.env = dict(os.environ)
+        # One identity for this execution, inherited by every child so a log
+        # line from a program three layers down can be tied back to the run
+        # that caused it.
+        from . import runid as _runid
+        self.run_id = run_id or _runid.generate()
+        self.env[_runid.ENV_NAME] = self.run_id
         self.cleanups = []       # ensure blocks, run in reverse at exit
         self._stdin_text = None  # `the standard input`, read once and kept
         self.keystore = keystore
@@ -1053,6 +1059,17 @@ class Interpreter:
             time.sleep(seconds)
             return
         self.journal.wait(node.line, seconds, time.sleep)
+
+    def eval_RunIdRef(self, node):
+        """Recorded, so a replay reports the run it is replaying.
+
+        Serving a fresh id would make every replay of a script that stamps one
+        differ from the recording, which is the same reason the clock is
+        written down rather than re-read.
+        """
+        if self.journal is None:
+            return self.run_id
+        return self.journal.run_id(node.line, self.run_id)
 
     def eval_ErrorRef(self, node):
         return self.error_output

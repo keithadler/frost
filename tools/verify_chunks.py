@@ -232,6 +232,7 @@ NEEDS_A_HOST = {
     "GlobalRef": "a running program's globals",
     "HandlerCall": "handlers, which are statements rather than expressions",
     "ResultRef": "the last command's exit status",
+    "RunIdRef": "the identity of an execution, which a page is not having",
     "SecretRef": "the keystore",
     "SecretEnvRef": "the keystore",
     "SecretFileRef": "the keystore",

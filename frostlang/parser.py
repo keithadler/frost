@@ -1218,6 +1218,11 @@ class Parser:
             self.expect_word("of", hint='write: the "status" of report')
             return A.FieldRef(key, self.parse_chunk_source(), line)
 
+        if self.at_word("run") and self.at_word("id", offset=1):
+            self.advance()
+            self.advance()
+            return A.RunIdRef(line)
+
         if self.at_word("error") and self.at_word("output", offset=1):
             self.advance()
             self.advance()

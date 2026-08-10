@@ -155,6 +155,7 @@ every field it produces.
 
 ## Special values
 
+`the run id` (this execution's identity, also in every child's environment),
 `it` (last output), `the result` (last exit status), `the error output`
 (what the last command wrote to standard error), `the arguments`,
 `the environment variable "NAME"`, `the current folder`, `the standard input`,

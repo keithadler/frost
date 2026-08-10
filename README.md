@@ -25,6 +25,7 @@ contract instead of trusted as a guess.
 | **Sealed secrets** | A value from the role-gated keystore cannot be printed by accident. The seal survives concatenation, comparison is constant-time, and `--explain` names every place a secret is released to a program. |
 | **Modules** | An import declares a capability ceiling, so reading the entry file gives a sound upper bound on the whole program. A shared module that later grows a network call breaks the build at the import site rather than quietly widening someone's manifest. |
 | **`--sandbox`** | The kernel holds the boundary while the script runs, so a path the analyser *could not* resolve is confined anyway. Fails closed: where the boundary cannot be enforced, frost refuses to run rather than warning and continuing. |
+| **`the run id`** | One identity per execution, supplied by the pipeline or generated. It reaches the recording, the trace and every child process, so a log line three layers down joins back to the run that caused it. Also an idempotency key, and a scratch path that cannot collide. |
 | **`--record` / `--replay`** | Snapshot testing for shell scripts. A recording is a fixture you can commit; replay spawns no process, writes no file, and reports a divergence rather than a stack trace. Secret values are never written down. |
 | **Records and JSON** | `the "name" of the "user" of report` — API responses without a second language in the file. Shelling out to `jq` handed the auditor a string it could not see into; a record is part of the tree. |
 | **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
@@ -886,6 +887,7 @@ frost --check script.frost       parse only, report errors
 frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
 frost --trace-to-file F s.frost  write that trace to a file instead
+frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
 frost --explain script.frost     describe what it can do, without running it
 frost --check --json s.frost     diagnostics as JSON, with repairs
 frost --repair [--write] s.frost apply the repairs frost is sure about
@@ -933,6 +935,7 @@ frostlang/
     program_audit.py  the same, across an imported closure
     modules.py        import resolution, ceilings, lockfile
     baseline.py       what a script was approved to do
+    runid.py          one identity per execution
     browser.py        the analysis surface with no OS underneath
     sandbox.py        capability boundaries the kernel holds
     sealed.py         values that cannot be printed by accident
@@ -945,7 +948,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1684 tests — python3 -m pytest tests/ -q
+tests/                1718 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -960,7 +963,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1684 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1718 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

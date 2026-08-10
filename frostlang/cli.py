@@ -339,6 +339,9 @@ def build_parser():
                     help="parse and dump the syntax tree")
     ap.add_argument("--trace", action="store_true",
                     help="print each statement as it runs")
+    ap.add_argument("--run-id", metavar="ID", dest="run_id",
+                    help="identity for this execution; otherwise FROST_RUN_ID, "
+                         "otherwise generated")
     ap.add_argument("--trace-to-file", metavar="FILE", dest="trace_to_file",
                     help="write the trace to a file instead of standard error")
     ap.add_argument("--explain", action="store_true",
@@ -663,16 +666,26 @@ def main(argv=None):
                 f"run.\n")
             return 3
 
+    from . import runid as R
+    try:
+        run_id, run_id_from = R.resolve(opts.run_id, os.environ)
+    except R.RunIdError as e:
+        sys.stderr.write(f"frost: {e.msg}\n")
+        if e.hint:
+            sys.stderr.write(f"  hint: {e.hint}\n")
+        return 2
+
     trace_stream = None
     if opts.trace_to_file:
         try:
             trace_stream = open(opts.trace_to_file, "w")
+            trace_stream.write(f"[frost] run {run_id} ({run_id_from})\n")
         except OSError as e:
             sys.stderr.write(f"frost: cannot write the trace: {e}\n")
             return 2
 
     interp = Interpreter(argv=opts.args, trace=opts.trace, source=source,
-                         trace_to=trace_stream,
+                         trace_to=trace_stream, run_id=run_id,
                          keystore=store, role=opts.role)
     if len(program.modules) > 1:
         interp.install(program)
@@ -691,7 +704,7 @@ def main(argv=None):
         sys.stderr.write("frost: use --record or --replay, not both\n")
         return 2
     if opts.record:
-        recorder = interp.journal = J.Recorder()
+        recorder = interp.journal = J.Recorder(run_id)
     elif opts.replay:
         try:
             player = interp.journal = J.Player.load(opts.replay)
@@ -733,6 +746,16 @@ def main(argv=None):
     except KeyboardInterrupt:
         sys.stderr.write("\nfrost: interrupted\n")
         outcome = 130
+        return outcome
+    except BrokenPipeError:
+        # `frost s.frost | head` is an ordinary thing to do, and the reader
+        # closing early is not an error in the script. A traceback here says
+        # frost broke when the shell did exactly what it was asked.
+        try:
+            sys.stdout.close()
+        except BrokenPipeError:
+            pass
+        outcome = 141                      # what a shell reports for SIGPIPE
         return outcome
     except RecursionError:
         sys.stderr.write("frost: handlers nested too deeply\n")
