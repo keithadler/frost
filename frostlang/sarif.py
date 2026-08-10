@@ -128,5 +128,49 @@ def report(path, diagnostics, version="0"):
     }
 
 
+def merge(logs):
+    """Several SARIF logs as one, with a single run.
+
+    Code scanning refuses more than one run per category in an upload, so a
+    tool that reports on many files has to combine them: one tool, one run,
+    every result. Emitting a file per script and uploading the directory
+    looked reasonable and was rejected outright, which is the sort of thing
+    only running it tells you.
+    """
+    results, rules, driver = [], {}, None
+    for log in logs:
+        for run in log.get("runs", []):
+            driver = driver or dict(run["tool"]["driver"])
+            for rule in run["tool"]["driver"].get("rules", []):
+                rules.setdefault(rule["id"], rule)
+            results.extend(run.get("results", []))
+    if driver is None:
+        driver = {"name": "frost", "informationUri":
+                  "https://github.com/keithadler/frost"}
+    driver = dict(driver)
+    driver["rules"] = [rules[k] for k in sorted(rules)]
+    return {"$schema": SCHEMA, "version": VERSION,
+            "runs": [{"tool": {"driver": driver}, "results": results}]}
+
+
+def merge_files(directory, out):
+    """Combine every .sarif in a directory into one file. Used by the Action."""
+    import os
+
+    logs = []
+    for name in sorted(os.listdir(directory)):
+        if not name.endswith(".sarif"):
+            continue
+        with open(os.path.join(directory, name)) as fh:
+            try:
+                logs.append(json.load(fh))
+            except ValueError:
+                continue          # a script that produced nothing usable
+    with open(out, "w") as fh:
+        json.dump(merge(logs), fh, indent=2)
+        fh.write("\n")
+    return len(logs)
+
+
 def dump(path, diagnostics, version="0"):
     return json.dumps(report(path, diagnostics, version), indent=2) + "\n"

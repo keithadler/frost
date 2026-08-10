@@ -16,6 +16,7 @@ import sys
 import pytest
 
 from frostlang import sarif, scaffold, cli
+from frostlang.diagnostics import Diagnostic
 from frostlang.audit import audit, parse_policy, check
 from frostlang.parser import parse
 
@@ -339,3 +340,47 @@ def test_would_refuse_is_wrong_side_up_safe():
                                   caps_for('try to run "rm" with "-rf", "/x"\n'))
     assert not scaffold._would_refuse('forbid running "sudo"',
                                       caps_for('put "x"\n'))
+
+
+# ------------------------------------------------------- combining reports
+
+def test_several_reports_become_one_run():
+    """Code scanning refuses more than one run per category, so a file per
+    script is rejected outright however sensible it looks. Found by running
+    the Action, which is the only way that was ever going to surface."""
+    a = sarif.report("a.frost", [
+        Diagnostic("error", "missing-then", "expected then", 1)])
+    b = sarif.report("b.frost", [
+        Diagnostic("danger", "shell-escape", "sh -c", 2)])
+    merged = sarif.merge([a, b])
+    assert len(merged["runs"]) == 1
+    assert len(merged["runs"][0]["results"]) == 2
+    ids = {r["id"] for r in merged["runs"][0]["tool"]["driver"]["rules"]}
+    assert ids == {"missing-then", "shell-escape"}
+
+
+def test_a_repeated_rule_is_described_once():
+    d = Diagnostic("error", "missing-then", "expected then", 1)
+    merged = sarif.merge([sarif.report("a.frost", [d]),
+                          sarif.report("b.frost", [d])])
+    assert len(merged["runs"][0]["tool"]["driver"]["rules"]) == 1
+    assert len(merged["runs"][0]["results"]) == 2
+
+
+def test_merging_nothing_still_names_the_tool():
+    merged = sarif.merge([])
+    assert merged["runs"][0]["tool"]["driver"]["name"] == "frost"
+    assert merged["runs"][0]["results"] == []
+
+
+def test_merge_files_reads_a_directory(tmp_path):
+    for name, code in (("a.sarif", "missing-then"), ("b.sarif", "no-such-field")):
+        (tmp_path / name).write_text(json.dumps(sarif.report(
+            name, [Diagnostic("error", code, "m", 1)])))
+    (tmp_path / "notes.txt").write_text("ignored")
+    (tmp_path / "broken.sarif").write_text("{not json")
+    out = tmp_path / "frost.sarif"
+    assert sarif.merge_files(str(tmp_path), str(out)) == 2
+    merged = json.loads(out.read_text())
+    assert len(merged["runs"]) == 1
+    assert len(merged["runs"][0]["results"]) == 2
