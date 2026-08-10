@@ -569,3 +569,122 @@ def test_format_works_on_a_file_with_a_broken_import(run_cli, workspace):
     entry = workspace("s.frost", 'use   "lib/missing.frost"   for the a\n')
     status, out, _ = run_cli("--format", entry)
     assert (status, out.strip()) == (0, 'use "lib/missing.frost" for the a')
+
+
+# ------------------------------------------------- the newer flags, in process
+#
+# Driven through subprocesses these prove the entry point and measure nothing,
+# which is how three modules in a row arrived with the coverage gate failing.
+
+def test_exit_codes_print_a_table(run_cli):
+    status, out, _ = run_cli("--exit-codes")
+    assert status == 0
+    assert "refused" in out and "diverged" in out
+
+
+def test_exit_codes_as_json(run_cli):
+    status, out, _ = run_cli("--exit-codes", "--json")
+    assert status == 0
+    assert json.loads(out)["exit_codes"][0]["code"] == 0
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh"])
+def test_completion_is_emitted(run_cli, shell):
+    status, out, _ = run_cli("--completion", shell)
+    assert status == 0
+    assert "--sandbox" in out
+
+
+def test_a_new_approver_key_prints_its_public_half(run_cli, tmp_path):
+    pytest.importorskip("cryptography")
+    status, out, _ = run_cli("--new-approver-key", str(tmp_path / "k"))
+    assert status == 0
+    assert "public key: k" in out
+    assert "require an approval signed by" in out
+
+
+def test_policy_from_writes_a_starter(run_cli, script):
+    status, out, _ = run_cli("--policy-from",
+                             script('run "git" with "status"\n'))
+    assert status == 0
+    assert 'warn running "git"' in out
+
+
+def test_against_an_approval(run_cli, script, tmp_path):
+    path = script('run "echo" with "a"\nput it\n')
+    run_cli("--approve", path)
+    status, out, _ = run_cli("--explain", "--against", path + ".approved", path)
+    assert status == 0
+    assert "unchanged" in out
+
+
+def test_against_a_missing_file(run_cli, script):
+    status, _, err = run_cli("--explain", "--against", "/no/such", script("put 1"))
+    assert status == 2
+
+
+def test_an_automated_run_refuses_to_approve(run_cli, script):
+    status, _, err = run_cli("--automated", "--approve", script("put 1"))
+    assert status == 2
+    assert "automated run" in err
+
+
+def test_an_automated_run_refuses_to_ignore_an_approval(run_cli, script):
+    status, _, err = run_cli("--automated", "--ignore-approval",
+                             script("put 1"))
+    assert status == 2
+
+
+def test_sarif_from_a_syntax_error(run_cli, script):
+    status, out, _ = run_cli("--check", "--sarif", script("if 1 is 1\nput 1\nend if"))
+    assert status == 2
+    assert json.loads(out)["runs"][0]["results"][0]["ruleId"] == "missing-then"
+
+
+def test_sarif_from_a_manifest(run_cli, script):
+    status, out, _ = run_cli("--explain", "--sarif",
+                             script('run "curl" with "https://x.example"\n'))
+    assert status == 0
+    assert json.loads(out)["runs"][0]["tool"]["driver"]["name"] == "frost"
+
+
+def test_a_trace_goes_where_it_is_told(run_cli, script, tmp_path):
+    log = tmp_path / "t.log"
+    status, _, _ = run_cli("--trace-to-file", str(log), script('put "x"'))
+    assert status == 0
+    assert "[frost] run " in log.read_text()
+
+
+def test_an_unwritable_trace_is_refused(run_cli, script):
+    status, _, err = run_cli("--trace-to-file", "/no/such/dir/t.log",
+                             script('put "x"'))
+    assert status == 2
+    assert "cannot write the trace" in err
+
+
+def test_a_run_id_reaches_the_script(run_cli, script):
+    status, out, _ = run_cli("--run-id", "job-7", script("put the run id"))
+    assert (status, out.strip()) == (0, "job-7")
+
+
+def test_a_bad_run_id_is_refused(run_cli, script):
+    status, _, err = run_cli("--run-id", "has/slash", script("put 1"))
+    assert status == 2
+    assert "not allowed" in err
+
+
+def test_a_script_can_be_approved_and_then_bound(run_cli, script):
+    path = script('run "echo" with "a"\nput it\n')
+    assert run_cli("--approve", path)[0] == 0
+    assert run_cli(path)[0] == 0
+
+
+def test_a_widened_script_is_refused_without_any_flag(run_cli, script,
+                                                      tmp_path):
+    path = script('run "echo" with "a"\nput it\n')
+    run_cli("--approve", path)
+    (tmp_path / "s.frost").write_text(
+        'run "echo" with "a"\nput it\nrun "curl" with "https://x.example"\n')
+    status, _, err = run_cli(path)
+    assert status == 3
+    assert "it can now run curl" in err
