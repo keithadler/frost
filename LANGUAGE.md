@@ -435,6 +435,48 @@ A destination that genuinely cannot be read fails both rules. "Cannot be shown
 to be allowed" is not "is allowed", and an allow-list that quietly passed the
 one case nobody can check would be worth nothing.
 
+### Checking the destination that only exists at runtime
+
+An allow-list refuses a destination it cannot read, which is right and makes
+the rule unusable for any URL built at runtime: a script that fetches a URL
+from its input can never satisfy `require reaching only`, so people delete the
+allow-list rather than the dynamic URL.
+
+`--enforce-hosts` moves the check to where the value is concrete:
+
+```bash
+frost --enforce-hosts --policy prod.policy fetch.frost
+```
+
+The host is read out of the command's real arguments in the moment before it
+spawns, and a destination the policy does not allow is refused there. With the
+flag on, a statically unknowable destination is no longer refused up front,
+because it will be judged when it exists. A network command whose destination
+frost still cannot read at that point is refused, exactly as the static check
+does: cannot be shown to be on the list is not the same as is.
+
+**frost holds this, not the kernel.** A program that ignores its arguments and
+dials out on its own is untouched by it. It closes the gap between a policy
+that could only refuse dynamic URLs and one that can permit the right ones; it
+does not become a boundary by doing so.
+
+### Writing the rules for the thing that can enforce it
+
+```bash
+frost --egress-rules squid --policy prod.policy > frost.acl
+```
+
+The allow-list a policy states, as configuration for a forward proxy. Both
+come from one file, so the list review reads and the list that actually holds
+cannot drift, which is the failure that makes host policies decorative.
+
+A hostname allow-list is not something a packet filter can express: nftables
+and iptables match addresses, resolutions change, one address serves many
+names. Emitting an nftables ruleset from hostnames would produce a file that
+looks like enforcement and is wrong the first time a CDN rotates. A proxy sees
+the name, which is the layer where the rule can be stated exactly. `--egress-rules list`
+gives one host per line for whatever configuration already exists.
+
 **This is not the sandbox.** `sandbox may reach "api.github.com"` is still a
 parse error: macOS filters on addresses rather than names, and a Linux network
 namespace has no middle setting, so a per-host boundary is not something the
