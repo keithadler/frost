@@ -55,12 +55,42 @@ class Capabilities:
     exit_codes: List[tuple] = field(default_factory=list)
     handlers: List[str] = field(default_factory=list)
     # (seconds|None, line, repeats) — repeats when the wait is inside a loop
+    # (host, line) — where the script reaches. RUNTIME_HOST when a network
+    # command's destination is not a literal, because a destination nobody can
+    # read ahead of time is still a destination.
+    reaches: List[tuple] = field(default_factory=list)
     waits: List[tuple] = field(default_factory=list)
     dynamic: int = 0              # count of runtime-built names
     # (line, [literal fragments]) for every path expression, so a sensitive
     # tail hidden behind a variable prefix is still visible.
     read_fragments: List[tuple] = field(default_factory=list)
     write_fragments: List[tuple] = field(default_factory=list)
+
+
+RUNTIME_HOST = "(destination built at runtime)"
+
+# Sound rather than clever. A scheme, or an scp-style `user@host:path`, is
+# unambiguously a destination; a bare `example.com` is indistinguishable from
+# a filename, and guessing would put invented hosts in a manifest people are
+# meant to trust. Where nothing can be read, the destination is reported as
+# unknowable instead of omitted — omitting it would understate.
+_URL = re.compile(r"^[a-z][a-z0-9+.\-]*://(?:[^/@\s]*@)?([^/:?#\s]+)",
+                  re.IGNORECASE)
+_SCP = re.compile(r"^(?:[^@/\s]+@)([^:/\s]+):", re.IGNORECASE)
+
+
+def hosts_in(command):
+    """Every host a command's literal arguments name."""
+    found = []
+    for arg in command.args:
+        if not arg:
+            continue
+        match = _URL.match(arg) or _SCP.match(arg)
+        if match:
+            host = match.group(1).lower()
+            if host and host not in found:
+                found.append(host)
+    return found
 
 
 def literal(node, known=None):
@@ -425,6 +455,20 @@ class Auditor:
             elif hasattr(value, "__dataclass_fields__"):
                 self.visit(value)
 
+    def record_reach(self, command):
+        """Where a command goes, when that is knowable.
+
+        Recording only the program name makes `curl https://api.github.com`
+        and `curl https://telemetry.example` the same capability, which is
+        precisely the space a persuaded model has to work in: it does not need
+        a new program, only a new destination.
+        """
+        hosts = hosts_in(command)
+        for host in hosts:
+            self.caps.reaches.append((host, command.line))
+        if not hosts and command.program in NETWORK_PROGRAMS:
+            self.caps.reaches.append((RUNTIME_HOST, command.line))
+
     def on_Wait(self, node):
         """A sleeping script is a script somebody is waiting on.
 
@@ -463,6 +507,7 @@ class Auditor:
             timeout_seconds=(literal_number(node.timeout)
                              if node.timeout is not None else None),
         ))
+        self.record_reach(self.caps.commands[-1])
 
     def on_Run(self, node):
         self.record_run(node)
@@ -671,6 +716,8 @@ def describe(caps):
                "environment": f"in the environment variable {what}"}[where],
               f"— line {ln}")
              for where, what, ln in caps.secret_releases])
+    section("Reaches these hosts:",
+            [(h, f"— line {ln}") for h, ln in caps.reaches])
     section("Waits:",
             [(format_duration(sec) if sec is not None
               else "(duration built at runtime)",
@@ -720,6 +767,7 @@ _noun("env_writes", "environment writes", "environment write")
 _noun("folder_changes", "folder changes", "folder change")
 _noun("cleanups", "cleanups", "cleanup", "ensure block", "ensure blocks")
 _noun("waits", "waits", "wait")
+_noun("reaches", "hosts reached", "host reached", "hosts")
 _noun("unchecked", "unchecked commands", "unchecked command")
 _noun("untimed", "commands without a timeout", "command without a timeout")
 _noun("dynamic", "runtime names", "runtime name")
@@ -1406,7 +1454,9 @@ def summarise(caps):
     net = sorted({c.program for c in caps.commands
                   if c.program in NETWORK_PROGRAMS})
     if net:
-        parts.append(f"reaches the internet using {', '.join(net)}")
+        hosts = sorted({h for h, _ in caps.reaches if h != RUNTIME_HOST})
+        where = f" ({', '.join(hosts[:3])})" if hosts else ""
+        parts.append(f"reaches the internet using {', '.join(net)}{where}")
 
     if caps.reads:
         scopes = sorted({classify_path(p) for p, _ in caps.reads})

@@ -5,6 +5,9 @@ This script runs curl, reaches the internet using curl, and waits at least 2 sec
 Runs these programs:
   curl  — line 14
 
+Reaches these hosts:
+  (destination built at runtime)  — line 14
+
 Waits:
   2 seconds  — line 18  (each time round a loop)
 

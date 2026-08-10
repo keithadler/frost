@@ -55,6 +55,7 @@ RUNTIME = "(built at runtime)"
 # to read as a sentence: "it can now run curl".
 SETS = (
     ("programs", "run"),
+    ("reaches", "reach"),
     ("reads", "read"),
     ("writes", "write to"),
     ("deletes", "delete"),
@@ -80,6 +81,10 @@ def capability_set(caps):
 
     return {
         "programs": sorted({c.program or RUNTIME for c in caps.commands}),
+        # Where it goes, not just what it runs. Without this, swapping the URL
+        # a `curl` points at is invisible — and a persuaded model does not need
+        # a new program, only a new destination.
+        "reaches": sorted({h for h, _ in caps.reaches}),
         "reads": paths(caps.reads),
         "writes": paths(caps.writes),
         "deletes": paths(caps.deletes),

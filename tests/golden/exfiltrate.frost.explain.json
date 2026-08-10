@@ -110,7 +110,7 @@
     }
   ],
   "script": "examples/exfiltrate.frost",
-  "summary": "This script runs curl, rm, reaches the internet using curl, reads 2 files (runtime), and reads 2 environment variables.",
+  "summary": "This script runs curl, rm, reaches the internet using curl (backups-cdn.example.net), reads 2 files (runtime), and reads 2 environment variables.",
   "verdict": "dangerous",
   "writes": []
 }

