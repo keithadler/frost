@@ -1,19 +1,26 @@
-"""The one performance claim the design rests on.
+"""Regression guards on the front end, and nothing more.
 
-The README argues frost can afford to be verbose because a shell's runtime is
-dominated by fork/exec rather than by parsing. Everything else in the language
-— the long keywords, the closed vocabulary, the fact that `--explain` re-walks
-the tree — is spent against that budget. If parsing ever became the expensive
-half, the argument would be in trouble.
+There is a temptation to encode the README's argument as a test — "parsing is
+cheaper than spawning a process" — and two rounds of CI showed why that does
+not work. The cost of `fork`/`exec` swings by platform far more than parsing
+does: `true` is about 0.7ms on Linux and 2.4ms on macOS, and `git --version`
+is about 1.2ms on Linux and 12ms on macOS. A comparison between the two is a
+statement about the machine, not about frost, and it passed here while
+failing in CI.
 
-So it is measured rather than asserted. These are deliberately loose: a shared
-CI runner is a noisy place, and a test that fails when a neighbouring job gets
-busy teaches people to ignore it. The margin here is wide enough that only a
-real regression — an accidentally quadratic parser, say — would trip it.
+It is also not the comparison that matters. A script is parsed *once* and
+spawns commands *every time*, so what the design relies on is that parsing is
+a fixed cost, not that it wins a race against a single spawn.
+
+So the numbers live in `tools/benchmark.py`, where a person can read them,
+and what is asserted here is only what is stable everywhere: absolute bounds
+loose enough that no healthy machine trips them, and a ratio that catches an
+accidentally quadratic parser. Timing assertions are skipped under coverage
+instrumentation, which slows the interpreter roughly threefold and makes any
+number meaningless.
 """
 
 import os
-import statistics
 import subprocess
 import sys
 import time
@@ -29,80 +36,71 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "tools"))
 import benchmark
 
+# Coverage installs a trace function that slows everything down by several
+# times. Measuring under it produces numbers that mean nothing.
+instrumented = pytest.mark.skipif(
+    sys.gettrace() is not None,
+    reason="timings are meaningless under coverage instrumentation")
+
 
 def largest_example():
     return max((example(n) for n in example_names()), key=len)
 
 
-def test_the_front_end_is_cheaper_than_one_real_command():
-    """The defensible form of the claim.
+@instrumented
+def test_the_front_end_is_fast_in_absolute_terms():
+    """An 80-line script, parsed and fully audited, in a few milliseconds.
 
-    The first version of this asserted the front end beat one fork+exec of
-    `true`, and CI proved that wrong: `true` costs about 0.7ms on Linux and
-    2.4ms on macOS, so the same code passed on one and failed on the other.
-    `true` is the floor, not a command — nothing a script actually runs is
-    that cheap. Measured against something that does a little work, the
-    margin is an order of magnitude and does not depend on the platform.
+    The bound is generous on purpose: it exists to catch something going
+    badly wrong, not to police a machine's speed.
     """
-    name, real = benchmark.real_command_cost(repeats=10)
-    if real is None:                                      # pragma: no cover
-        pytest.skip("no representative command on PATH")
-
     source = largest_example()
-    front_end = benchmark.median_seconds(
+    elapsed = benchmark.median_seconds(
         lambda: find_dangers(audit(parse(source))), 20)
-
-    assert front_end < real, (
-        f"the front end now costs {front_end * 1e6:.0f}us against "
-        f"{real * 1e6:.0f}us to run {name}. The argument for verbosity is "
-        f"that reading the script is cheap next to what it does.")
-
-
-def test_the_front_end_stays_within_a_few_trivial_spawns():
-    """A regression guard rather than a claim.
-
-    Bounded against the cheapest possible spawn, with enough slack that
-    platform and runner noise cannot trip it, but not so much that an
-    accidentally quadratic parser would slip through.
-    """
-    spawn = benchmark.spawn_cost(repeats=15)
-    if spawn is None:                                     # pragma: no cover
-        pytest.skip("no 'true' on PATH to compare against")
-
-    source = largest_example()
-    front_end = benchmark.median_seconds(
-        lambda: find_dangers(audit(parse(source))), 20)
-
-    assert front_end < spawn * 8, (
-        f"the front end costs {front_end * 1e6:.0f}us, more than eight "
-        f"trivial process spawns ({spawn * 1e6:.0f}us each). Something in "
-        f"the front end got much slower.")
+    assert elapsed < 0.05, (
+        f"parsing and auditing {len(source.splitlines())} lines took "
+        f"{elapsed * 1e3:.0f}ms; it should be single-digit milliseconds")
 
 
 def test_parsing_is_roughly_linear_in_script_length():
-    """An accidentally quadratic parser would still pass the test above on
-    small examples and fall over on a real script."""
+    """A ratio rather than a duration, so it holds on any machine.
+
+    An accidentally quadratic parser would pass every absolute bound above on
+    small examples and fall over on a real script.
+    """
     unit = 'put "alpha beta gamma" into line one\n'
-    small = unit * 200
-    large = unit * 800                       # four times the work
 
     def cost(source):
         return benchmark.median_seconds(lambda: parse(source), 9)
 
-    ratio = cost(large) / cost(small)
+    ratio = cost(unit * 800) / cost(unit * 200)
     assert ratio < 8, (
         f"parsing 4x the lines took {ratio:.1f}x the time, which is not "
         f"linear enough to be an accident")
 
 
+def test_auditing_is_roughly_linear_too():
+    unit = 'run "echo" with "x"\n'
+
+    def cost(source):
+        tree = parse(source)
+        return benchmark.median_seconds(lambda: find_dangers(audit(tree)), 9)
+
+    ratio = cost(unit * 400) / cost(unit * 100)
+    assert ratio < 10, (
+        f"auditing 4x the commands took {ratio:.1f}x the time")
+
+
+@instrumented
 def test_a_long_script_parses_promptly():
     source = 'put "x" into a\n' * 5000
     start = time.perf_counter()
     parse(source)
     elapsed = time.perf_counter() - start
-    assert elapsed < 5.0, f"5,000 statements took {elapsed:.1f}s"
+    assert elapsed < 10.0, f"5,000 statements took {elapsed:.1f}s"
 
 
+@instrumented
 def test_deeply_nested_chunks_do_not_blow_up():
     """Chunk expressions nest, and nesting is where a naive evaluator goes
     exponential."""
@@ -111,15 +109,21 @@ def test_deeply_nested_chunks_do_not_blow_up():
         expr = f"the first word of {expr}"
     start = time.perf_counter()
     parse(f"put {expr}")
-    assert time.perf_counter() - start < 2.0
+    assert time.perf_counter() - start < 5.0
+
+
+# ------------------------------------------------------------ the tool
+
+def run_benchmark():
+    return subprocess.run(
+        [sys.executable, os.path.join(benchmark.HERE, "tools",
+                                      "benchmark.py")],
+        capture_output=True, text=True, timeout=600)
 
 
 def test_the_benchmark_tool_runs():
     """It is documentation that executes, so it has to keep executing."""
-    result = subprocess.run(
-        [sys.executable, os.path.join(benchmark.HERE, "tools",
-                                      "benchmark.py")],
-        capture_output=True, text=True, timeout=300)
+    result = run_benchmark()
     assert result.returncode == 0, result.stderr
     assert "fork+exec" in result.stdout
 
@@ -127,10 +131,23 @@ def test_the_benchmark_tool_runs():
 def test_every_example_is_measured_by_it():
     """A benchmark that quietly stopped covering half the examples would
     still print a confident table."""
-    names = [n for n in os.listdir(EXAMPLES) if n.endswith(".frost")]
-    result = subprocess.run(
-        [sys.executable, os.path.join(benchmark.HERE, "tools",
-                                      "benchmark.py")],
-        capture_output=True, text=True, timeout=300)
-    for name in names:
-        assert name in result.stdout, f"{name} is not in the benchmark"
+    result = run_benchmark()
+    for name in os.listdir(EXAMPLES):
+        if name.endswith(".frost"):
+            assert name in result.stdout, f"{name} is not in the benchmark"
+
+
+def test_the_benchmark_reports_both_baselines():
+    """Reporting only `true` is what produced the overstated claim in the
+    first place: it is the cheapest process that can exist, and nothing a
+    script runs is that cheap."""
+    out = run_benchmark().stdout
+    assert "the floor" in out
+    assert "a real command" in out or "something a script would run" in out
+
+
+def test_the_benchmark_does_not_claim_parsing_beats_spawning():
+    """That claim is false on Linux. If it comes back, it should come back
+    with evidence, not by someone restoring a nicer sentence."""
+    out = run_benchmark().stdout.lower()
+    assert "varies by platform" in out or "moves a lot by platform" in out

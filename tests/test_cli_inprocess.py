@@ -287,3 +287,121 @@ def test_try_mode_can_load_a_subject(run_cli, monkeypatch, tmp_path):
 def test_try_mode_with_an_unreadable_subject(run_cli):
     status, _, err = run_cli("--try", "/no/such/text.txt")
     assert (status, "cannot read" in err) == (2, True)
+
+
+# ---------------------------------------------------- secrets and keystore
+
+cryptography = pytest.importorskip("cryptography", reason="optional extra")
+
+from frostlang.keystore import Keystore                      # noqa: E402
+
+
+@pytest.fixture
+def keystore(tmp_path, monkeypatch):
+    """A keystore with one readable secret, unlocked from the environment."""
+    monkeypatch.setenv("FROST_PASSPHRASE", "pw")
+    path = str(tmp_path / "k.keystore")
+    ks = Keystore.create(path)
+    ks.add_role("deploy", "pw")
+    ks.add_role("other", "pw")
+    ks.set_secret("db password", "hunter2", ["deploy"])
+    ks.save()
+    return path
+
+
+def test_a_script_reads_a_secret_and_redacts_it(run_cli, script, keystore):
+    path = script('put the secret "db password" into pw\nput "using" && pw')
+    status, out, err = run_cli("--keystore", keystore, "--role", "deploy",
+                               path)
+    assert status == 0, err
+    assert out.strip() == "using «secret db password»"
+    assert "hunter2" not in out
+
+
+def test_the_wrong_role_is_refused_before_running(run_cli, script, keystore,
+                                                  tmp_path):
+    marker = tmp_path / "ran.txt"
+    path = script(f'put "x" into file "{marker}"\n'
+                  'put the secret "db password" into pw')
+    status, _, err = run_cli("--keystore", keystore, "--role", "other", path)
+    assert status == 3
+    assert "may not read it" in err and "allowed: deploy" in err
+    assert not marker.exists()
+
+
+def test_a_secret_missing_from_the_keystore_is_refused(run_cli, script,
+                                                       keystore):
+    path = script('put the secret "nope" into pw')
+    status, _, err = run_cli("--keystore", keystore, "--role", "deploy", path)
+    assert (status, "no such secret" in err) == (3, True)
+
+
+def test_no_role_is_refused(run_cli, script, keystore):
+    path = script('put the secret "db password" into pw')
+    status, _, err = run_cli("--keystore", keystore, path)
+    assert (status, "no role was given" in err) == (3, True)
+
+
+def test_no_keystore_at_all_is_refused(run_cli, script):
+    path = script('put the secret "db password" into pw')
+    status, _, err = run_cli(path)
+    assert (status, "no keystore is open" in err) == (3, True)
+
+
+def test_an_unreadable_keystore_file_is_reported(run_cli, script, monkeypatch):
+    monkeypatch.setenv("FROST_PASSPHRASE", "pw")
+    path = script('put the secret "x" into pw')
+    status, _, err = run_cli("--keystore", "/no/such.keystore",
+                             "--role", "deploy", path)
+    assert (status, "no keystore at" in err) == (2, True)
+
+
+def test_a_wrong_passphrase_is_reported(run_cli, script, keystore,
+                                        monkeypatch):
+    monkeypatch.setenv("FROST_PASSPHRASE", "not-the-passphrase")
+    path = script('put the secret "db password" into pw')
+    status, _, err = run_cli("--keystore", keystore, "--role", "deploy", path)
+    assert (status, "wrong passphrase" in err) == (2, True)
+
+
+def test_a_runtime_secret_name_cannot_be_pre_checked(run_cli, script,
+                                                     keystore):
+    """It is unknowable before the script runs, so it is allowed to start and
+    fails at the line that reads it — the same rule the manifest follows."""
+    path = script('put "db" & " password" into name\n'
+                  'put the secret name into pw\nput "got" && pw')
+    status, out, err = run_cli("--keystore", keystore, "--role", "deploy",
+                               path)
+    assert status == 0, err
+    assert "got «secret db password»" in out
+
+
+def test_check_does_not_require_the_keystore(run_cli, script):
+    """Checking a script must not need the credentials it will use, or it
+    stops being usable as a pre-commit hook."""
+    path = script('put the secret "db password" into pw')
+    status, out, _ = run_cli("--check", path)
+    assert (status, "ok" in out) == (0, True)
+
+
+def test_explain_does_not_require_the_keystore(run_cli, script):
+    path = script('put the secret "db password" into pw')
+    status, out, _ = run_cli("--explain", path)
+    assert status == 0
+    assert "db password" in out
+
+
+def test_the_keystore_subcommand_is_routed(run_cli, tmp_path, monkeypatch):
+    monkeypatch.setenv("FROST_PASSPHRASE", "pw")
+    path = str(tmp_path / "new.keystore")
+    status, out, _ = run_cli("keystore", "init", path, "--role", "deploy")
+    assert (status, "created" in out) == (0, True)
+
+
+def test_find_secret_names_reports_runtime_names(script):
+    from frostlang.parser import parse
+    tree = parse('put the secret "literal" into a\n'
+                 'put "x" into n\nput the secret n into b')
+    found = cli.find_secret_names(tree)
+    assert ("literal", 1) in found
+    assert any(name is None for name, _ in found)

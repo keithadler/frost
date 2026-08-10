@@ -39,11 +39,8 @@ frost inverts the optimisation. It is not a login shell; it is an interpreter
 you point at a file. Because nobody types it at a prompt, nothing in the design
 has to be short.
 
-The speed objection does not apply. A shell's runtime is dominated by
-`fork`/`exec`, not parsing — HyperTalk's whole grammar fit in HyperCard on a
-68000.
-
-That is measured rather than assumed; `python tools/benchmark.py` prints it:
+The speed objection does not apply, though not for the reason you might
+expect. `python tools/benchmark.py` measures it rather than asserting it:
 
 ```text
 release.frost           78 lines    parse 664us   audit 290us
@@ -51,16 +48,21 @@ one fork+exec of true                            1992us   (the floor)
 one fork+exec of git --version                  12767us   (a real command)
 ```
 
-Parsing an 80-line script and deriving its whole capability manifest costs
-about a millisecond — roughly one trivial process spawn, and about 7% of one
-command that does any actual work. It is a fixed price paid once, against a
-per-command price paid every time.
+Parsing an 80-line script and deriving its entire capability manifest costs
+about a millisecond. So does starting a process — the two are the same order
+of magnitude, and which one wins depends entirely on the machine. `fork`/
+`exec` of `true` is roughly 0.7ms on Linux and 2.4ms on macOS; `git
+--version` is 1.2ms on Linux and 12ms on macOS. Parsing varies far less.
 
-Worth being precise, because the obvious stronger claim is not true: the
-cost of `fork`/`exec` varies by platform far more than parsing does — about
-0.7ms on Linux against 2.4ms on macOS — so "parsing beats spawning" holds on
-one and fails on the other. A test guards the honest version, and it was CI
-on Linux that caught the overstatement.
+The tempting claim — *you can parse verbose syntax faster than you can spawn
+a process* — is therefore true on macOS and false on Linux. It was in this
+README until CI on Linux disproved it.
+
+What actually holds is the thing the design relies on: **parsing is paid
+once, spawning is paid per command.** A script that runs ten commands spends
+ten process spawns against one parse, so the parse is a rounding error no
+matter which platform it runs on. Verbosity costs nothing at this scale
+because the front end is a fixed cost, not because it wins a race.
 
 ## Three things it fixes
 
@@ -625,7 +627,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1207 tests — python3 -m pytest tests/ -q
+tests/                1221 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -639,7 +641,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1207 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1221 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
