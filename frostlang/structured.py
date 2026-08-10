@@ -218,6 +218,12 @@ def _emit(value, indent, depth, spans):
         spans.append(("false", None))
         return
     if isinstance(value, (int, float)):
+        # The same rule `to_text` uses, so `2.0` serialises as `2`. frost has
+        # no visible int/float split — `put 4 / 2` already prints `2` — and a
+        # JSON writer that disagreed with every other printing path would be
+        # the odd one out, not the correct one.
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
         spans.append((json.dumps(value), None))
         return
     if is_record(value):

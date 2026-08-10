@@ -340,3 +340,80 @@ def test_a_rule_without_a_hint_gets_a_useful_default():
 def test_the_shipped_policy_still_parses():
     with open(os.path.join(REPO, "examples", "production.policy")) as fh:
         assert parse_policy(fh.read())
+
+
+# ------------------------------------------------- every code is accounted for
+
+# A code with a derivable fix and no repair is a silent gap: the diagnostic
+# still reports, so nothing looks broken, and an agent that could have been
+# handed the edit gets prose instead. `wait-needs-a-unit` shipped that way
+# despite `timeout-needs-a-unit` — its exact twin — having had a repair for
+# two releases. Anything genuinely underivable belongs in the list below, with
+# the reason, so the decision is recorded rather than forgotten.
+UNDERIVABLE = {
+    # The path has to come from a person: the parser knows the import is not a
+    # literal, never which file was meant.
+    "module-path-must-be-literal",
+    # Which handlers to import is the author's intent, not a fact about text.
+    "import-needs-a-name-list",
+    # A misspelled capability could be any of the verbs; suggesting one would
+    # be a guess dressed as a fix.
+    "unknown-capability",
+}
+
+
+def parser_codes():
+    """Every `code=` the front end can emit."""
+    import re
+    codes = set()
+    for name in ("parser.py", "lexer.py", "interp.py"):
+        path = os.path.join(REPO, "frostlang", name)
+        if not os.path.exists(path):
+            continue
+        with open(path) as fh:
+            codes.update(re.findall(r'code="([a-z-]+)"', fh.read()))
+    return codes
+
+
+def test_the_scanner_finds_the_codes():
+    """Without this, a broken regex would empty the check below."""
+    found = parser_codes()
+    assert len(found) >= 6, f"only found {sorted(found)}"
+    assert "missing-then" in found
+
+
+@pytest.mark.parametrize("code", sorted(parser_codes()))
+def test_every_diagnostic_code_offers_a_repair_or_says_why_not(code):
+    import re
+    with open(os.path.join(REPO, "frostlang", "diagnostics.py")) as fh:
+        source = fh.read()
+    handled = set(re.findall(r'code == "([a-z-]+)"', source))
+    handled.update(re.findall(r'"([a-z-]+)"', 
+                              "".join(re.findall(r'code in \(([^)]*)\)',
+                                                 source))))
+    assert code in handled or code in UNDERIVABLE, (
+        f"{code!r} has no repair and is not listed as underivable. Either add "
+        f"one to repairs_for(), or add it to UNDERIVABLE with the reason.")
+
+
+def test_the_wait_repair_supplies_the_unit():
+    """The twin of the timeout repair, and derived the same way."""
+    from frostlang.diagnostics import from_error
+    try:
+        parse("wait 3\n")
+    except ParseError as e:
+        diagnostic = from_error(e, "wait 3\n")
+    assert diagnostic.code == "wait-needs-a-unit"
+    assert diagnostic.repairs, "no repair for a fix the parser already knew"
+    assert diagnostic.repairs[0].text == "wait 3 seconds"
+    assert diagnostic.repairs[0].confidence == LIKELY
+
+
+def test_the_wait_repair_keeps_the_indentation():
+    from frostlang.diagnostics import from_error
+    source = "repeat 2 times\n    wait 3\nend repeat\n"
+    try:
+        parse(source)
+    except ParseError as e:
+        diagnostic = from_error(e, source)
+    assert diagnostic.repairs[0].text == "    wait 3 seconds"

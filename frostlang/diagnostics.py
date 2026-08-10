@@ -169,6 +169,13 @@ def repairs_for(code, error, source_lines):
                               "a timeout needs a unit; seconds is the most "
                               "common, but check the intent"))
 
+    elif code == "wait-needs-a-unit":
+        if text:
+            out.append(Repair("replace-line", line, text.rstrip() + " seconds",
+                              LIKELY,
+                              "a wait needs a unit; seconds is the most "
+                              "common, but check the intent"))
+
     elif code == "global-is-reserved":
         if text:
             out.append(Repair("replace-line", line,

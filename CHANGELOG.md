@@ -9,7 +9,31 @@ bump may change the language.
 
 ## Unreleased
 
+### Added
+
+**`--repair` can fix a missing wait unit.** `wait 3` now carries the same
+mechanical repair its exact twin `within 3` has had for two releases.
+
+**The differential verifier checks its own coverage.** `tools/verify_chunks.py`
+compares frostlang against the browser evaluator across a hand-written corpus,
+which meant a new expression form was only compared if somebody remembered to
+add one — and records shipped in 0.6.0 with no browser support at all, silently,
+because nothing asked. It now enumerates every expression node the parser can
+produce and fails the build on any that the corpus never exercises. A form may
+be excused only by naming it, with the reason it needs a host the browser does
+not have.
+
+The browser evaluator gained records, JSON, field access and `the keys/values
+of`, and the new coverage check immediately earned itself: the first run found
+the two implementations disagreeing on `the json text of the json of ""`,
+where one produced `null` and the other `""`.
+
 ### Fixed
+
+**`the json text of` printed `2.0` where the rest of the language prints `2`.**
+frost has no visible int/float split — `put 4 / 2` already prints `2` — so a
+JSON writer that disagreed with every other printing path was the odd one out.
+
 
 **A capability ceiling did not compose.** `which may run "psql"` constrained
 only the file the import named, so a module could widen the program past what
