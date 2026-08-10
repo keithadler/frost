@@ -30,6 +30,67 @@ class ResultRef:
 
 
 @dataclass
+class ErrorRef:
+    """`the error output` — what the last command wrote to standard error."""
+    line: int = 0
+
+
+@dataclass
+class EmptyRecord:
+    line: int = 0
+
+
+@dataclass
+class FieldRef:
+    key: Any
+    source: Any
+    line: int = 0
+
+
+@dataclass
+class FieldTarget:
+    key: Any
+    source: Any
+
+
+@dataclass
+class JsonOf:
+    expr: Any
+    line: int = 0
+
+
+@dataclass
+class JsonTextOf:
+    expr: Any
+    line: int = 0
+
+
+@dataclass
+class KeysOf:
+    expr: Any
+    line: int = 0
+
+
+@dataclass
+class ValuesOf:
+    expr: Any
+    line: int = 0
+
+
+@dataclass
+class ClockRef:
+    """`the current date` and friends. A reading, not a constant."""
+    which: str
+    line: int = 0
+
+
+@dataclass
+class Wait:
+    seconds: Any
+    line: int = 0
+
+
+@dataclass
 class BinOp:
     op: str
     left: Any
