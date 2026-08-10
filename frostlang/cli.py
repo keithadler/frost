@@ -399,6 +399,13 @@ def main(argv=None):
     ap.add_argument("--frozen", action="store_true",
                     help="refuse to run if any module differs from the "
                          "lockfile")
+    ap.add_argument("--approve", action="store_true",
+                    help="record what the script may do, in "
+                         "<script>.approved")
+    ap.add_argument("--as-approved", action="store_true",
+                    dest="as_approved",
+                    help="refuse to run if it gained a capability since "
+                         "--approve")
     ap.add_argument("--record", metavar="FILE",
                     help="run the script and write down everything it did")
     ap.add_argument("--replay", metavar="FILE",
@@ -486,6 +493,43 @@ def main(argv=None):
                 sys.stderr.write(f"REFUSED: {item}\n")
             sys.stderr.write(f"\nthe program does not match its lockfile; "
                              f"it was not run.\n")
+            return 3
+
+    if opts.approve or opts.as_approved:
+        from . import baseline as B
+        caps = audit_program(program).merged
+        path = B.path_for(opts.script)
+
+        if opts.approve:
+            previous = None
+            try:
+                previous = B.read(path)
+            except B.BaselineError:
+                pass                       # nothing approved yet is not a fault
+            B.write(opts.script, caps, path)
+            print(f"wrote {path}")
+            if previous is not None:
+                for item in B.widenings(previous, B.capability_set(caps)):
+                    print(f"  wider:    {item}")
+                for item in B.narrowings(previous, B.capability_set(caps)):
+                    print(f"  narrower: {item}")
+            return 0
+
+        try:
+            approved = B.read(path)
+        except B.BaselineError as e:
+            sys.stderr.write(f"frost: {e.msg}\n")
+            if e.hint:
+                sys.stderr.write(f"  hint: {e.hint}\n")
+            return 2
+        gained = B.widenings(approved, B.capability_set(caps))
+        if gained:
+            for item in gained:
+                sys.stderr.write(f"REFUSED: {item}\n")
+            sys.stderr.write(
+                f"\n{len(gained)} capability change(s) since {path}; "
+                f"it was not run.\n"
+                f"  Read what changed, then re-approve with --approve.\n")
             return 3
 
     if opts.ast:
