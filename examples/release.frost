@@ -1,0 +1,78 @@
+#!/usr/bin/env frost
+--
+-- Cut a release: take a lock, build, collect the artefacts, write a manifest.
+-- Everything that was true of the old examples is still true here; what is
+-- new is that the lock is always released, and the artefact list is a list.
+
+put item 1 of the arguments into version
+if version is empty then
+    put "usage: release.frost <version> [build folder]" into standard error
+    quit with status 2
+end if
+
+put "build" into build folder
+if the number of items in the arguments is greater than 1 then
+    put item 2 of the arguments into build folder
+end if
+
+if not file (build folder) exists then
+    put "no build folder at" && build folder into standard error
+    quit with status 1
+end if
+
+-- The lock is released whether this script finishes, fails, or is
+-- interrupted. Without the ensure block, a failed build would leave it.
+put build folder & "/.release.lock" into lock path
+if file (lock path) exists then
+    put "a release is already running" into standard error
+    quit with status 1
+end if
+
+put "held" into file (lock path)
+
+ensure
+    delete file (lock path)
+end ensure
+
+-- Counting across handler calls needs an explicit global; a plain put
+-- inside a handler would make a local and the total would stay at zero.
+put 0 into failure total
+
+to check outcome with label
+    if the result is 0 then return "ok"
+    add 1 to the global failure total
+    put "FAILED:" && label into standard error
+    return "failed"
+end check outcome
+
+put "Releasing" && version && "from" && build folder
+
+-- The child gets its own environment; nothing leaks back to the caller.
+put version into the environment variable "RELEASE_VERSION"
+
+try to run "make" with "build" in folder build folder within 20 minutes
+put the check outcome of "build" into build outcome
+
+try to run "make" with "test" in folder build folder within 10 minutes
+put the check outcome of "test" into test outcome
+
+if failure total is greater than 0 then
+    put failure total && "step(s) failed; not releasing" into standard error
+    quit with status 1
+end if
+
+-- A real list: an artefact name may contain a comma without splitting in two.
+put the empty list into artefacts
+repeat for each line in it as produced
+    if produced is not empty then put the trimmed produced after artefacts
+end repeat
+
+put "built" && the number of items in artefacts && "artefact(s)"
+
+put build folder & "/MANIFEST-" & version & ".txt" into manifest path
+put "release" && version into file (manifest path)
+put "build:" && build outcome after file (manifest path)
+put "test: " && test outcome after file (manifest path)
+put artefacts joined by "\n" after file (manifest path)
+
+put "wrote" && manifest path

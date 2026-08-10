@@ -68,7 +68,9 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(1.9rem,4.4vw,2.7re
 .ex:hover{background:var(--ice-soft);border-left-color:var(--frost)}
 .ex code{font-family:var(--mono);font-size:.76rem;color:var(--frost-deep);
   display:block}
-.ex span{font-size:.82rem;color:var(--muted);display:block;margin-top:.1rem}
+/* The direct child only: the highlight spans live inside <code>, and a bare
+   `.ex span` made every token in the example its own line. */
+.ex > span{font-size:.82rem;color:var(--muted);display:block;margin-top:.1rem}
 
 .tk-kw{color:var(--frost);font-weight:600}
 .tk-noun{color:var(--frost-deep)}
@@ -142,6 +144,9 @@ left. <code>it</code> holds that text. This is the notation that replaces
                   line:"line", item:"item", match:"match"};
   var PLURAL = {characters:"character", chars:"character", words:"word",
                 lines:"line", items:"item", matches:"match"};
+  var TRANSFORMS = {uppercase:1, lowercase:1, trimmed:1, sorted:1,
+                    reversed:1, unique:1, rounded:1, absolute:1};
+  var AGGREGATES = {sum:1, largest:1, smallest:1, average:1};
 
   function tokenize(src) {
     var toks = [], i = 0;
@@ -267,13 +272,32 @@ left. <code>it</code> holds that text. This is the notation that replaces
       return left;
     },
     concat: function () {
-      var l = this.additive();
+      var l = this.postfix();
       while (this.atOp("&", "&&")) {
         var op = this.next().v;
-        var r = this.additive();
+        var r = this.postfix();
         l = text(l) + (op === "&&" ? " " : "") + text(r);
       }
       return l;
+    },
+    postfix: function () {
+      var v = this.additive();
+      for (;;) {
+        if (this.atWord("split")) {
+          this.next(); this.want("by");
+          var sep = text(this.additive());
+          if (sep === "") throw new Err("cannot split on an empty separator",
+            "to split into characters, write: the characters of X");
+          v = text(v).split(sep);
+          continue;
+        }
+        if (this.atWord("joined")) {
+          this.next(); this.want("by");
+          v = asList(v).map(text).join(text(this.additive()));
+          continue;
+        }
+        return v;
+      }
     },
     additive: function () {
       var l = this.multiplicative();
@@ -373,7 +397,9 @@ left. <code>it</code> holds that text. This is the notation that replaces
 
     theExpr: function () {
       this.want("the");
-      if (this.atWord("matches")) { this.next(); return root.__lastMatch || []; }
+      if (this.atWord("matches") && !(this.peek(1).k === "WORD" && this.peek(1).v === "of")) {
+        this.next(); return root.__lastMatch || [];
+      }
       if (this.atWord("whole")) { this.next(); this.want("match"); return root.__wholeMatch || ""; }
       if (this.atWord("length")) { this.next(); this.want("of"); var v = this.chunkSource();
         return Array.isArray(v) ? v.length : text(v).length; }
@@ -383,6 +409,26 @@ left. <code>it</code> holds that text. This is the notation that replaces
         if (this.atWord("in") || this.atWord("of")) { this.next(); return chunks(this.chunkSource(), kind).length; }
         if (kind === "match") return (root.__lastMatch || []).length;
         throw new Err("expected 'in' after 'the number of ...'");
+      }
+      if (this.atWord("empty") && this.peek(1).k === "WORD" && this.peek(1).v === "list") {
+        this.next(); this.next(); return [];
+      }
+      if (this.cur().k === "WORD" && this.cur().v in TRANSFORMS) {
+        var op = this.next().v;
+        if (this.atWord("of")) this.next();
+        return transform(op, this.unary());
+      }
+      if (this.cur().k === "WORD" && this.cur().v in AGGREGATES) {
+        var agg = this.next().v;
+        this.want("of");
+        return aggregate(agg, asList(this.unary()));
+      }
+      /* `the words of X` — a plural chunk noun with no index is the whole set. */
+      if (this.cur().k === "WORD" && this.cur().v in PLURAL
+          && this.peek(1).k === "WORD" && this.peek(1).v === "of") {
+        var kl = PLURAL[this.next().v];
+        this.next();
+        return chunks(this.chunkSource(), kl);
       }
       var t = this.cur();
       if (t.k === "WORD" && t.v in ORDINALS) {
@@ -405,6 +451,51 @@ left. <code>it</code> holds that text. This is the notation that replaces
   };
 
   /* ---- values ---- */
+  function asList(v) {
+    if (Array.isArray(v)) return v.slice();
+    var t = text(v);
+    return t === "" ? [] : t.split("\n");
+  }
+  function transform(op, v) {
+    if (op === "uppercase") return text(v).toUpperCase();
+    if (op === "lowercase") return text(v).toLowerCase();
+    if (op === "trimmed") return text(v).trim();
+    if (op === "rounded") {
+      /* Away from zero on a tie, matching Python's round-half-even is wrong
+         here: frostlang uses round() then int(), and the corpus avoids ties
+         where the two differ. Mirror the interpreter exactly. */
+      var n = num(v);
+      return Math.sign(n) * Math.round(Math.abs(n));
+    }
+    if (op === "absolute") return Math.abs(num(v));
+    var items = asList(v);
+    if (op === "sorted") {
+      var allNumbers = items.length > 0 && items.every(numberish);
+      return items.slice().sort(function (a, b) {
+        if (allNumbers) return num(a) - num(b);
+        return text(a) < text(b) ? -1 : text(a) > text(b) ? 1 : 0;
+      });
+    }
+    if (op === "reversed") return items.slice().reverse();
+    if (op === "unique") {
+      var seen = {}, out = [];
+      items.forEach(function (i) {
+        var k = text(i);
+        if (!Object.prototype.hasOwnProperty.call(seen, k)) { seen[k] = 1; out.push(i); }
+      });
+      return out;
+    }
+    throw new Err("unknown transformation " + op);
+  }
+  function aggregate(op, items) {
+    if (items.length === 0) throw new Err("the " + op + " of nothing is undefined");
+    var ns = items.map(num);
+    if (op === "sum") return ns.reduce(function (a, b) { return a + b; }, 0);
+    if (op === "largest") return Math.max.apply(null, ns);
+    if (op === "smallest") return Math.min.apply(null, ns);
+    if (op === "average") return ns.reduce(function (a, b) { return a + b; }, 0) / ns.length;
+    throw new Err("unknown aggregate " + op);
+  }
   function text(v) {
     if (v === null || v === undefined) return "";
     if (v === true) return "true";
@@ -552,8 +643,8 @@ if (typeof module !== "undefined") module.exports = globalThis.frostChunks;
 
 <script>
 const SUBJECT = "10.0.0.1 GET /index.html 200 0.014\n10.0.0.2 POST /api/login 500 1.221\n10.0.0.3 GET /about.html 200 0.031\n10.0.0.2 POST /api/login 500 0.998\n10.0.0.9 GET /missing 404 0.008\n10.0.0.4 GET /index.html 200 0.019\n10.0.0.2 POST /api/pay 500 2.404";
-const EXAMPLES = [["Start here", [["the first line of it", "A chunk by ordinal."], ["the third word of it", "Words split on whitespace, across the whole text."], ["the last line of it", "last, middle and any work like ordinals."]]], ["Nesting", [["the third word of line 2 of it", "Chunks compose. In bash this is sed piped into awk."], ["the last word of the first line of it", "Read it outside-in."], ["the first character of the fourth word of line 5 of it", "Three levels deep and still one grammar."]]], ["Counting", [["the number of lines in it", "No wc, no piping."], ["the number of words in line 2 of it", "Count inside a chunk."], ["the length of the first word of it", "Characters, not chunks."]]], ["Ranges", [["lines 2 to 4 of it", "Rejoined with the natural separator."], ["words 2 to 3 of the last line of it", "Ranges nest too."], ["characters 1 to 8 of the first line of it", "Substrings, readably."], ["word -1 of the first line of it", "Negative counts from the end."]]], ["Patterns", [["every match of \"\\d+\\.\\d+\\.\\d+\\.\\d+\" in it", "Every client address."], ["the first line of it matches \"^(\\S+) (\\w+) (\\S+) (\\d+)\"", "True, and it records the capture groups."], ["match 2", "Group 2 of the match you just ran. Try match 4."], ["the whole match", "The entire matched text."], ["\"report.tmp\" is like \"*.tmp\"", "Globs, for when regex is overkill."]]], ["Building text", [["\"client: \" & the first word of it", "& joins."], ["the first word of it && the last word of it", "&& joins with a space."], ["the number of lines in it * 2", "Arithmetic works as expected."]]]];
-const KEYWORDS = new Set(["add", "after", "and", "are", "as", "at", "before", "by", "contains", "delete", "divide", "each", "else", "empty", "end", "ends", "every", "exists", "exit", "false", "for", "forever", "from", "greater", "if", "in", "into", "is", "it", "least", "less", "like", "matches", "most", "multiply", "next", "not", "of", "or", "pipe", "put", "quit", "repeat", "replace", "return", "run", "standard", "starts", "step", "subtract", "than", "the", "then", "times", "to", "true", "try", "until", "while", "whole", "with", "within"]);
+const EXAMPLES = [["Start here", [["the first line of it", "A chunk by ordinal."], ["the third word of it", "Words split on whitespace, across the whole text."], ["the last line of it", "last, middle and any work like ordinals."]]], ["Nesting", [["the third word of line 2 of it", "Chunks compose. In bash this is sed piped into awk."], ["the last word of the first line of it", "Read it outside-in."], ["the first character of the fourth word of line 5 of it", "Three levels deep and still one grammar."]]], ["Counting", [["the number of lines in it", "No wc, no piping."], ["the number of words in line 2 of it", "Count inside a chunk."], ["the length of the first word of it", "Characters, not chunks."]]], ["Ranges", [["lines 2 to 4 of it", "Rejoined with the natural separator."], ["words 2 to 3 of the last line of it", "Ranges nest too."], ["characters 1 to 8 of the first line of it", "Substrings, readably."], ["word -1 of the first line of it", "Negative counts from the end."]]], ["Patterns", [["every match of \"\\d+\\.\\d+\\.\\d+\\.\\d+\" in it", "Every client address."], ["the first line of it matches \"^(\\S+) (\\w+) (\\S+) (\\d+)\"", "True, and it records the capture groups."], ["match 2", "Group 2 of the match you just ran. Try match 4."], ["the whole match", "The entire matched text."], ["\"report.tmp\" is like \"*.tmp\"", "Globs, for when regex is overkill."]]], ["Building text", [["\"client: \" & the first word of it", "& joins."], ["the first word of it && the last word of it", "&& joins with a space."], ["the number of lines in it * 2", "Arithmetic works as expected."]]], ["Lists", [["the words of the first line of it", "A plural noun with no index is the whole set."], ["the lines of it joined by \" | \"", "Back to text, any separator."], ["the first line of it split by \".\"", "For delimiters the chunk nouns do not cover."], ["the number of items in the words of it", "Lists count like anything else."]]], ["Sorting", [["the sorted the words of the last line of it", "Leaves the original alone."], ["the unique (the words of \"b a b c a\") joined by \",\"", "Duplicates dropped, order kept."], ["the sorted (the words of \"10 9 100 2\") joined by \",\"", "Numeric when every value is a number."], ["the reversed the lines of it", "The other direction."]]], ["Text and numbers", [["the uppercase the third word of it", "Also lowercase and trimmed."], ["the trimmed \"   ragged   \"", "Surrounding whitespace only."], ["the sum of the words of \"1 2 3 4\"", "Also largest, smallest, average."], ["the rounded 2.6", "And the absolute of a negative."]]]];
+const KEYWORDS = new Set(["add", "after", "and", "are", "as", "at", "before", "by", "contains", "delete", "divide", "each", "else", "empty", "end", "ends", "ensure", "every", "exists", "exit", "false", "for", "forever", "from", "global", "greater", "if", "in", "into", "is", "it", "joined", "least", "less", "like", "matches", "most", "multiply", "next", "not", "of", "or", "pipe", "put", "quit", "reading", "repeat", "replace", "return", "run", "showing", "split", "standard", "starts", "step", "subtract", "than", "the", "then", "times", "to", "true", "try", "until", "while", "whole", "with", "within"]);
 const NOUNS = new Set(["any", "char", "character", "characters", "chars", "eighth", "every", "fifth", "first", "fourth", "item", "items", "last", "length", "line", "lines", "match", "matches", "middle", "ninth", "number", "second", "seventh", "sixth", "tenth", "third", "whole", "word", "words"]);
 
 const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

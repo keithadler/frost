@@ -131,27 +131,41 @@ def literal_fragments(node):
 
 
 class Auditor:
-    def __init__(self):
+    def __init__(self, handlers=None):
         self.caps = Capabilities()
         self.seen = set()   # Run nodes already recorded, so pipe stages are
                             # not counted twice by the generic walk
+        self.handlers = handlers or {}
 
     def scan(self, stmts):
         self.visit_block(stmts)
         return self.caps
 
-    @staticmethod
-    def mentions_result(node):
-        """Does this subtree read `the result`?"""
+    def mentions_result(self, node, _visiting=None):
+        """Does this subtree read `the result`?
+
+        Follows a handler call into the handler, because factoring the check
+        into a helper — `check outcome with "build"` — is good practice, and
+        flagging it as an ignored failure would punish exactly that.
+        """
         if node is None:
             return False
         if isinstance(node, A.ResultRef):
             return True
         if isinstance(node, list):
-            return any(Auditor.mentions_result(n) for n in node)
+            return any(self.mentions_result(n, _visiting) for n in node)
         if not hasattr(node, "__dataclass_fields__"):
             return False
-        return any(Auditor.mentions_result(v) for v in vars(node).values())
+
+        if isinstance(node, (A.Call, A.FuncCall)):
+            visiting = _visiting or set()
+            handler = self.handlers.get(node.name)
+            if handler is not None and node.name not in visiting:
+                if self.mentions_result(handler.block, visiting | {node.name}):
+                    return True
+
+        return any(self.mentions_result(v, _visiting)
+                   for v in vars(node).values())
 
     def visit_block(self, stmts):
         """Visit a statement list, noting whether a `try to` result is read.
@@ -286,9 +300,25 @@ class Auditor:
         self.caps.handlers.append(node.name)
 
 
+def collect_handlers(node, into):
+    if isinstance(node, list):
+        for item in node:
+            collect_handlers(item, into)
+        return
+    if isinstance(node, A.HandlerDef):
+        into[node.name] = node
+    if hasattr(node, "__dataclass_fields__"):
+        for value in vars(node).values():
+            if isinstance(value, list) or hasattr(value,
+                                                  "__dataclass_fields__"):
+                collect_handlers(value, into)
+
+
 def audit(stmts):
     # Handlers are declarations; their bodies still count as capabilities.
-    return Auditor().scan(stmts)
+    handlers = {}
+    collect_handlers(stmts, handlers)
+    return Auditor(handlers).scan(stmts)
 
 
 # --------------------------------------------------------------- manifest

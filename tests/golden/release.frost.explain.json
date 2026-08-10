@@ -1,0 +1,81 @@
+{
+  "commands": [
+    {
+      "args": [
+        "build"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 53,
+      "program": "make",
+      "source": "try to run \"make\" with \"build\" in folder build folder within 20 minutes",
+      "timeout": true
+    },
+    {
+      "args": [
+        "test"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 56,
+      "program": "make",
+      "source": "try to run \"make\" with \"test\" in folder build folder within 10 minutes",
+      "timeout": true
+    }
+  ],
+  "deletes": [
+    {
+      "line": 34,
+      "path": null,
+      "source": "delete file (lock path)"
+    }
+  ],
+  "environment": [],
+  "exits": [
+    "1",
+    "2"
+  ],
+  "findings": [],
+  "reads": [
+    {
+      "line": 18,
+      "path": null,
+      "source": "if not file (build folder) exists then"
+    },
+    {
+      "line": 26,
+      "path": null,
+      "source": "if file (lock path) exists then"
+    }
+  ],
+  "script": "examples/release.frost",
+  "summary": "This script runs make, reads 2 files (runtime), writes 5 files (runtime), deletes 1 file, and sets 1 environment variable (RELEASE_VERSION). It can exit with status 1, 2.",
+  "verdict": "clean",
+  "writes": [
+    {
+      "line": 31,
+      "path": null,
+      "source": "put \"held\" into file (lock path)"
+    },
+    {
+      "line": 73,
+      "path": null,
+      "source": "put \"release\" && version into file (manifest path)"
+    },
+    {
+      "line": 74,
+      "path": null,
+      "source": "put \"build:\" && build outcome after file (manifest path)"
+    },
+    {
+      "line": 75,
+      "path": null,
+      "source": "put \"test: \" && test outcome after file (manifest path)"
+    },
+    {
+      "line": 76,
+      "path": null,
+      "source": "put artefacts joined by \"\\n\" after file (manifest path)"
+    }
+  ]
+}

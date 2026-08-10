@@ -183,7 +183,7 @@ tbody tr:last-child td{border-bottom:none}
   <p class="brand">fr<span>o</span>st</p>
   <p class="brand-sub">v0.3.0 · language docs</p>
   <button class="menu-btn" id="menu">Contents</button>
-  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
+  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
 </aside>
 
 <main>
@@ -330,6 +330,49 @@ end pipe
 if the result is 124 then put &quot;took too long&quot; into standard error
 </code></pre>
 <p>Timed-out children are killed and reaped — no orphans, no wedged script.</p>
+<h2 id="guide-cleanup-that-actually-runs">Cleanup that actually runs</h2>
+<p>Abort-on-failure is the headline default, which makes the way out matter as
+much as the way through. <code>ensure</code> registers a block when execution reaches it,
+and it runs when the script ends — normally, on error, on <code>quit</code>, or on Ctrl-C
+— most recent first:</p>
+<pre><code>put &quot;held&quot; into file (lock path)
+
+ensure
+    delete file (lock path)
+end ensure
+
+run &quot;make&quot; with &quot;deploy&quot;
+</code></pre>
+<p>The lock is released whether <code>make</code> succeeds or not. A failure inside a
+cleanup block is reported but never replaces the error that ended the script.</p>
+<h2 id="guide-lists-without-a-second-grammar">Lists, without a second grammar</h2>
+<p>A plural chunk noun with no index is the whole set, so splitting is the
+grammar from the previous section read the other way:</p>
+<pre><code>put the words of headline into terms
+put the lines of report into rows
+put item 1 of (passwd entry split by &quot;:&quot;)     -- cut -d: -f1
+put the sorted (the unique terms) joined by &quot;, &quot;
+</code></pre>
+<p>A list keeps its elements separate, which comma-delimited text cannot — an
+element may contain a comma and stay one element. <code>the sorted X</code> compares
+numerically when every element is a number, because sorting 10 before 9 is
+never what a counter meant.</p>
+<p>Text and numbers come with the article, so they cost nothing from the name
+vocabulary — <code>sorted count</code> is still a perfectly good variable:</p>
+<pre><code>if the lowercase target is &quot;production&quot; then put &quot;shipping for real&quot;
+put the trimmed reply into answer
+put the sum of the words of counts
+</code></pre>
+<p>And a handler can be used inside an expression, so composing two of them no
+longer needs three statements and a temporary:</p>
+<pre><code>to double with n
+    return n * 2
+end double
+
+put the double of 5 + the double of 10        -- 30
+</code></pre>
+<p>An unknown name there is caught when the script is checked, not when the line
+happens to run.</p>
 <h2 id="guide-why-this-matters-for-ai-agents">Why this matters for AI agents</h2>
 <p>Shell scripts are increasingly written by models and reviewed by people. That
 inverts the assumption every shell was designed under, and it breaks in three
@@ -368,6 +411,20 @@ require every command to be checked
 language level rather than the container level, and it composes with a
 container rather than competing with it. The agent proposes; the policy
 disposes; the human reads a manifest instead of code.</p>
+<p>Rules also count, which is what an organisation's actual rules tend to do —
+not <em>may it use curl</em>, but <em>how many times, for how long, and does it clean up
+after itself</em>:</p>
+<pre><code class="language-policy">require at most 12 commands
+require at most 2 files written
+require at least 1 cleanup
+forbid more than 2 runs of &quot;curl&quot;
+forbid any files deleted
+require timeout on &quot;*&quot; between 1 and 120 seconds
+</code></pre>
+<p>Units are reconciled, so a policy written in seconds catches a script written
+in minutes. A limit that is exceeded points at the line that crossed it. A
+deadline computed at runtime is refused rather than assumed acceptable, on the
+same principle as the manifest: say what is unknowable, do not guess it.</p>
 <p>Built-in checks catch the classics with no policy at all — <code>curl … | sh</code> is
 reported as <em>downloaded code piped into a shell</em>, and a script that reads
 <code>~/.ssh/id_rsa</code> and then makes a network call is flagged as <em>secrets read, then
@@ -534,45 +591,61 @@ frostlang/
     parser.py         recursive-descent parser
     ast.py            node definitions
     interp.py         tree-walking evaluator
+    audit.py          capability manifest, danger checks, policy engine
+    formatter.py      canonical layout
+    repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                165 tests — python3 -m pytest tests/ -q
+tests/                882 tests — python3 -m pytest tests/ -q
+    gen.py            generates valid frost, for the property tests
+    golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
 docs.html             browsable docs (tools/build_docs.py)
 audit.html            visual audit report (tools/build_audit.py)
 play.html             live scratchpad (tools/build_play.py)
 MODEL-SPEC.md         prompt-sized reference (tools/build_model_spec.py)
 web/chunks.js         browser evaluator, verified against frostlang/
+editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.3.0. The language runs, the examples are real, and 165 tests cover
+<p>Version 0.3.0. The language runs, the examples are real, and 882 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
-<p>Known gaps, roughly in the order they hurt:</p>
+<p>The gaps this file used to list are closed. In the order they were listed:</p>
 <ul>
-<li><strong>Handlers read globals but cannot write them.</strong> <code>put 99 into total</code> inside a
-  handler silently creates a local even when a global of that name is readable
-  two lines up. Needs either real lexical scoping or an explicit global form.</li>
-<li><strong>No way to feed text into a program's stdin.</strong> Pipes chain program to
-  program; there is no equivalent of a heredoc.</li>
-<li><strong>No cleanup on abort.</strong> Failure aborts hard, so lock files and temp
-  directories leak. Given that abort-on-failure is the headline default, this
-  is a design hole rather than a missing convenience.</li>
-<li><strong>No real lists.</strong> <code>put "b" after xs</code> concatenates text. <code>the arguments</code> and
-  <code>every match</code> are the only lists the language can produce.</li>
-<li><strong>No string functions</strong> — no uppercase, trim, or splitting on an arbitrary
-  delimiter.</li>
-<li><strong>No environment control</strong> for child processes, and no way to change the
-  working directory.</li>
-<li>Output is captured, not streamed, so long-running commands show nothing until
-  they finish and interactive programs do not work at all.</li>
-<li>Handlers cannot be called from inside an expression; results arrive in <code>it</code>.</li>
+<li>Handlers write globals with <code>put 99 into the global total</code>, and <code>global</code> is
+  reserved so the near-miss is an error rather than a local of that name.</li>
+<li><code>run "sort" reading names</code> puts text on a program's standard input.</li>
+<li><code>ensure ... end ensure</code> releases what a script took, whether it finished,
+  failed, quit, or was interrupted.</li>
+<li>Lists are real: <code>the words of X</code>, <code>split by</code>, <code>joined by</code>, <code>the sorted X</code>,
+  and <code>put "c" after names</code> appends an element rather than concatenating.</li>
+<li>String and number functions: <code>the uppercase X</code>, <code>the trimmed X</code>,
+  <code>the rounded X</code>, <code>the sum of X</code>.</li>
+<li><code>run "make" in folder build path</code>, and <code>put "clang" into the environment
+  variable "CC"</code>.</li>
+<li><code>run "make" showing output</code> hands the terminal to the child, for long builds
+  and interactive programs.</li>
+<li>Handlers are callable in expressions: <code>the double of 5</code>.</li>
 </ul>
-<p>Not yet built: a REPL for evaluating chunk expressions against sample text, a
-formatter, and a compile-to-bash mode for machines without frost installed. The
-interpreter is a tree walker; a bytecode pass would be straightforward if
-process spawn ever stopped dominating the runtime, which it will not.</p></div>
+<p>Remaining, honestly:</p>
+<ul>
+<li><strong><code>--explain</code> reasons about literals only.</strong> A program name or path built at
+  runtime is reported as unknowable rather than guessed. This is deliberate,
+  but it does mean a determined script can put itself out of reach.</li>
+<li><strong>No modules.</strong> A script is one file; there is no way to share a handler
+  between two of them.</li>
+<li><strong>No structured data.</strong> Lists are flat lists of text. Nothing reads JSON.</li>
+<li><strong><code>the standard input</code> is read whole</strong>, so frost cannot filter a stream that
+  never ends.</li>
+<li><strong>No compile-to-bash mode</strong> for machines without frost installed. The
+  interpreter is a tree walker; a bytecode pass would be straightforward if
+  process spawn ever stopped dominating the runtime, which it will not.</li>
+</ul>
+<h2 id="guide-license">License</h2>
+<p>MIT. See <a href="LICENSE">LICENSE</a>. Do what you like with it; keep the copyright
+notice.</p></div>
   <div class="doc"><p>Version 0.3.0</p>
 <p>frost is a scripting language for the jobs shell scripts do, with a grammar
 descended from HyperTalk. It exists because the economics changed: scripts are
@@ -580,7 +653,7 @@ now written quickly and read carefully, often by someone who did not write them
 and is reading at 3am while something is broken. Terseness was the right
 optimisation for a serial terminal. It is the wrong one for a code review.</p>
 <p>frost is not a login shell. It is an interpreter you point at a file:</p>
-<pre><code class="language-policy">#!/usr/bin/env frost
+<pre><code>#!/usr/bin/env frost
 </code></pre>
 <p>That choice is deliberate. Because nobody types frost at a prompt forty times a
 day, there is no pressure anywhere in the design to shorten anything.</p>
@@ -605,7 +678,7 @@ from pretending to understand English. <code>put the first line of X into Y</cod
 <h2 id="ref-2-lexical-structure">2. Lexical structure</h2>
 <p><strong>Line-oriented.</strong> One statement per line. Newlines are significant.</p>
 <p><strong>Comments</strong> run from <code>--</code> or <code>#</code> to end of line.</p>
-<pre><code class="language-policy">-- This is a comment.
+<pre><code>-- This is a comment.
 # So is this.
 </code></pre>
 <p><strong>Line continuation.</strong> A trailing backslash folds the next line in. An argument
@@ -728,6 +801,111 @@ requires knowing two tool dialects. The frost version requires knowing English.<
 matches HyperTalk and avoids a class of defensive length checks.</p>
 <pre><code>put word 99 of &quot;short phrase&quot;      -- empty, not a crash
 </code></pre>
+<hr />
+<h2 id="ref-5a-lists">5a. Lists</h2>
+<p>A plural chunk noun with no index is the whole set, as a list. Splitting is
+therefore not a new feature; it is the grammar already in section 5, read the
+other way.</p>
+<pre><code>put the words of &quot;alpha beta gamma&quot; into names
+put the lines of report into rows
+put the items of &quot;a,b,c&quot; into fields
+put the characters of &quot;abc&quot; into letters
+</code></pre>
+<p>A list keeps its elements separate, which comma-delimited text cannot: an
+element may itself contain a comma.</p>
+<pre><code>put the empty list into people
+put &quot;Smith, John&quot; after people
+put &quot;Doe, Jane&quot; after people
+put the number of items in people        -- 2
+put item 1 of people                     -- Smith, John
+</code></pre>
+<p><code>after</code> appends and <code>before</code> prepends when the target is a list; on text they
+still join, as in section 7.</p>
+<h3 id="ref-any-delimiter">Any delimiter</h3>
+<p>The chunk nouns cover whitespace, newlines and commas. For anything else:</p>
+<pre><code>put &quot;root:x:0:0:root:/root:/bin/bash&quot; into entry
+put item 1 of (entry split by &quot;:&quot;)       -- root
+</code></pre>
+<p>and back again:</p>
+<pre><code>put the words of &quot;a b c&quot; joined by &quot;, &quot;  -- a, b, c
+</code></pre>
+<p><code>split by ""</code> is an error rather than a silent character split, because
+<code>the characters of X</code> already says that and says it more clearly.</p>
+<h3 id="ref-ordering">Ordering</h3>
+<pre><code>put the sorted names into ordered
+put the reversed names into backwards
+put the unique names into distinct
+</code></pre>
+<p><code>the sorted X</code> compares numerically when every element is a number, and
+alphabetically otherwise. Sorting <code>10</code> before <code>9</code> is never what a counter
+meant. None of the three modifies the original.</p>
+<hr />
+<h2 id="ref-5b-functions">5b. Functions</h2>
+<p>Text, applied with the article:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>the uppercase X</code></td>
+<td><code>X</code> in capitals</td>
+</tr>
+<tr>
+<td><code>the lowercase X</code></td>
+<td><code>X</code> in lower case</td>
+</tr>
+<tr>
+<td><code>the trimmed X</code></td>
+<td><code>X</code> without surrounding whitespace</td>
+</tr>
+</tbody>
+</table>
+<p>Numbers:</p>
+<table>
+<thead>
+<tr>
+<th>Expression</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>the rounded X</code></td>
+<td>nearest whole number</td>
+</tr>
+<tr>
+<td><code>the absolute X</code></td>
+<td>magnitude, without the sign</td>
+</tr>
+<tr>
+<td><code>the sum of X</code></td>
+<td>total of a list of numbers</td>
+</tr>
+<tr>
+<td><code>the largest of X</code> / <code>the smallest of X</code></td>
+<td>extremes</td>
+</tr>
+<tr>
+<td><code>the average of X</code></td>
+<td>mean</td>
+</tr>
+</tbody>
+</table>
+<pre><code>if the lowercase target is &quot;production&quot; then
+    put &quot;deploying to production&quot;
+end if
+
+put the sum of the words of &quot;1 2 3 4&quot;    -- 10
+</code></pre>
+<p>An aggregate of an empty list is an error, not zero: the sum of nothing is a
+question with no answer, and returning one would hide the empty list.</p>
+<p>These are recognised only after <code>the</code>, so they cost nothing from the name
+vocabulary. <code>sorted count</code> and <code>average total</code> remain perfectly good variable
+names.</p>
 <hr />
 <h2 id="ref-6-operators">6. Operators</h2>
 <h3 id="ref-text">Text</h3>
@@ -1002,6 +1180,29 @@ put &quot;building revision&quot; &amp;&amp; it
 <pre><code>run &quot;df&quot; with &quot;-h&quot;
 put it
 </code></pre>
+<h3 id="ref-input">Input</h3>
+<p><code>reading</code> places text on a program's standard input. It is the heredoc, without
+a quoting dialect.</p>
+<pre><code>run &quot;sort&quot; reading names
+run &quot;wc&quot; with &quot;-l&quot; reading log text
+</code></pre>
+<p>The text is data all the way down, exactly as arguments are: it is written to
+the child's stdin and never re-parsed as anything.</p>
+<h3 id="ref-where-a-program-runs">Where a program runs</h3>
+<pre><code>run &quot;make&quot; with &quot;all&quot; in folder build path
+</code></pre>
+<p>The folder applies to that command only, so a reader need not track a mutable
+working directory while reading the rest of the script. To move the script
+itself, assign to <code>the current folder</code> — see section 11.</p>
+<h3 id="ref-watching-a-program-work">Watching a program work</h3>
+<p><code>run</code> captures output, which means a ten-minute build shows nothing until it
+finishes and an interactive program cannot work at all. <code>showing output</code> hands
+the terminal to the child instead:</p>
+<pre><code>run &quot;make&quot; with &quot;all&quot; showing output within 30 minutes
+</code></pre>
+<p>Nothing is captured, so <code>it</code> is empty afterwards rather than stale. <code>the
+result</code> still reports the exit status, and failure still aborts.</p>
+<p>These clauses may appear in any order, and each may appear once.</p>
 <hr />
 <h2 id="ref-9-pipes">9. Pipes</h2>
 <p>A pipe is a block, not a connective. English has no graceful N-ary connective
@@ -1049,6 +1250,29 @@ end if
 announces itself in the source. A reviewer looking for unchecked failures greps
 for <code>try to</code>.</p>
 <hr />
+<h2 id="ref-10a-cleanup">10a. Cleanup</h2>
+<p>Failure aborts the script. That is the right default, and on its own it leaks
+every lock file and temporary directory the script had taken.</p>
+<p><code>ensure</code> registers a block when execution reaches it. Registered blocks run
+when the script ends — normally, on error, on <code>quit</code>, or on interrupt — most
+recent first, so cleanup unwinds in the reverse of the order things were
+acquired.</p>
+<pre><code>put &quot;/tmp/deploy.lock&quot; into lock path
+put &quot;held&quot; into file (lock path)
+
+ensure
+    delete file (lock path)
+end ensure
+
+run &quot;make&quot; with &quot;deploy&quot;
+</code></pre>
+<p>The lock is released whether <code>make</code> succeeds or not.</p>
+<p>A block that is never reached is never registered, so a lock taken inside a
+branch is only released if it was actually taken. A failure inside a cleanup
+block is reported on standard error and does not stop the other blocks, and it
+never replaces the error that ended the script — that error is the one the
+reader needs first.</p>
+<hr />
 <h2 id="ref-11-files">11. Files</h2>
 <p>Reading a file is an expression:</p>
 <pre><code>put file &quot;config.txt&quot; into settings
@@ -1072,6 +1296,19 @@ delete file &quot;lock.pid&quot;
 </code></pre>
 <p>Missing files are a clear error, never silent empty text.</p>
 <p>Relative paths resolve against the working directory. <code>~</code> expands.</p>
+<h3 id="ref-the-working-folder-and-the-environment">The working folder and the environment</h3>
+<p><code>the current folder</code> and <code>the environment variable "NAME"</code> are readable, and
+they are writable by the same <code>put ... into</code> that writes everything else. There
+is no separate <code>set</code> keyword.</p>
+<pre><code>put &quot;/tmp/build&quot; into the current folder
+put &quot;clang&quot; into the environment variable &quot;CC&quot;
+put &quot;:/opt/bin&quot; after the environment variable &quot;PATH&quot;
+</code></pre>
+<p>The environment is the script's own copy. A frost script cannot quietly rewrite
+the environment of whatever ran it, but every program it starts inherits the
+changes. <code>--explain</code> lists both, and a policy can forbid them, because
+otherwise setting <code>PATH</code> would be a way around every rule about which programs
+may run.</p>
 <hr />
 <h2 id="ref-12-handlers">12. Handlers</h2>
 <p>A handler is a named block of statements.</p>
@@ -1095,6 +1332,48 @@ put &quot;at revision&quot; &amp;&amp; it
 <p>Parameters are local. Handlers do not see the caller's variables, and variables
 assigned inside a handler do not leak out. Argument count is checked at the
 call.</p>
+<h3 id="ref-reaching-a-global">Reaching a global</h3>
+<p>A handler can read a global directly, but a plain <code>put</code> inside one creates a
+local — even when a global of that name exists. To write through, say so:</p>
+<pre><code>put 0 into error total
+
+to record with status code
+    if status code is not &quot;200&quot; then
+        add 1 to the global error total
+    end if
+end record
+</code></pre>
+<p><code>the global NAME</code> works for <code>put</code>, <code>before</code>, <code>after</code>, the arithmetic
+statements, and <code>replace</code>. It also reads past a local of the same name. Writing
+it at the point of the write, rather than declaring it at the top of the
+handler, means a reader never has to carry the declaration in their head.</p>
+<p><code>global</code> is a reserved word, so <code>put 5 into global total</code> is an error rather
+than a local named <code>global total</code>.</p>
+<h3 id="ref-calling-a-handler-in-an-expression">Calling a handler in an expression</h3>
+<p>A handler used with <code>the ... of ...</code> returns its value into the expression:</p>
+<pre><code>to double with n
+    return n * 2
+end double
+
+put the double of 5 + the double of 10       -- 30
+</code></pre>
+<p>An argument binds tightly, exactly as a chunk source does: <code>the double of n - 1</code>
+is <code>(the double of n) - 1</code>. Parenthesise when you mean otherwise.</p>
+<p>A handler taking no arguments is called without <code>of</code>:</p>
+<pre><code>to short revision
+    run &quot;git&quot; with &quot;rev-parse&quot;, &quot;--short&quot;, &quot;HEAD&quot;
+    return it
+end short revision
+
+put &quot;at revision&quot; &amp;&amp; the short revision
+</code></pre>
+<p>The expression form does not touch <code>it</code>; the statement form still lands there.
+An expression buried inside another expression must not quietly replace the
+last command's output.</p>
+<p>A built-in property always wins: a handler named <code>length</code> does not shadow
+<code>the length of X</code>. An unknown name is reported when the script is parsed, not
+when the line runs, so <code>--check</code> catches a typo in a branch that rarely
+executes.</p>
 <hr />
 <h2 id="ref-13-special-values">13. Special values</h2>
 <table>
@@ -1123,7 +1402,19 @@ call.</p>
 </tr>
 <tr>
 <td><code>the current folder</code></td>
-<td>Working directory</td>
+<td>Working directory; writable</td>
+</tr>
+<tr>
+<td><code>the standard input</code></td>
+<td>Everything piped into the script, read once</td>
+</tr>
+<tr>
+<td><code>the global NAME</code></td>
+<td>A global, from inside a handler</td>
+</tr>
+<tr>
+<td><code>the empty list</code></td>
+<td>A list with no items</td>
 </tr>
 <tr>
 <td><code>empty</code></td>
@@ -1140,15 +1431,22 @@ put the environment variable &quot;HOME&quot; into home folder
 <p>EBNF. <code>{ }</code> is zero or more, <code>[ ]</code> optional, <code>|</code> alternation.</p>
 <pre><code class="language-ebnf">program      = { statement NEWLINE } ;
 
-statement    = put | run | try | pipe | if | repeat | quit
+statement    = put | run | try | pipe | if | repeat | quit | ensure
              | handler | return | arith | loopctl | delete | call ;
 
 put          = &quot;put&quot; expression [ (&quot;into&quot; | &quot;before&quot; | &quot;after&quot;) target ] ;
 target       = &quot;standard&quot; (&quot;output&quot; | &quot;error&quot;)
              | &quot;file&quot; expression
+             | &quot;the&quot; &quot;global&quot; identifier
+             | &quot;the&quot; &quot;environment&quot; &quot;variable&quot; primary
+             | &quot;the&quot; &quot;current&quot; &quot;folder&quot;
              | identifier ;
 
-run          = &quot;run&quot; expression [ &quot;with&quot; arglist ] [ timeout ] ;
+run          = &quot;run&quot; expression [ &quot;with&quot; arglist ] { runclause } ;
+runclause    = timeout
+             | &quot;reading&quot; expression
+             | &quot;in&quot; &quot;folder&quot; expression
+             | &quot;showing&quot; &quot;output&quot; ;
 timeout      = &quot;within&quot; expression timeunit ;
 timeunit     = &quot;millisecond&quot; | &quot;milliseconds&quot; | &quot;ms&quot;
              | &quot;second&quot; | &quot;seconds&quot; | &quot;minute&quot; | &quot;minutes&quot;
@@ -1156,8 +1454,11 @@ timeunit     = &quot;millisecond&quot; | &quot;milliseconds&quot; | &quot;ms&quo
 arglist      = expression { &quot;,&quot; expression } ;
 try          = &quot;try&quot; &quot;to&quot; ( run | pipe ) ;
 
-pipe         = &quot;pipe&quot; [ timeout ] NEWLINE run NEWLINE run { NEWLINE run }
+pipe         = &quot;pipe&quot; { pipeclause } NEWLINE run NEWLINE run { NEWLINE run }
                NEWLINE &quot;end&quot; &quot;pipe&quot; ;
+pipeclause   = timeout | &quot;reading&quot; expression | &quot;in&quot; &quot;folder&quot; expression ;
+
+ensure       = &quot;ensure&quot; NEWLINE block &quot;end&quot; &quot;ensure&quot; ;
 
 if           = &quot;if&quot; expression &quot;then&quot;
                ( statement
@@ -1177,11 +1478,12 @@ quit         = &quot;quit&quot; [ &quot;with&quot; &quot;status&quot; expression
 handler      = &quot;to&quot; identifier [ &quot;with&quot; identifier { &quot;,&quot; identifier } ]
                NEWLINE block &quot;end&quot; identifier ;
 return       = &quot;return&quot; [ expression ] ;
-arith        = &quot;add&quot; expression &quot;to&quot; identifier
-             | &quot;subtract&quot; expression &quot;from&quot; identifier
-             | (&quot;multiply&quot; | &quot;divide&quot;) expression &quot;into&quot; identifier ;
+arith        = &quot;add&quot; expression &quot;to&quot; assigntarget
+             | &quot;subtract&quot; expression &quot;from&quot; assigntarget
+             | (&quot;multiply&quot; | &quot;divide&quot;) expression &quot;into&quot; assigntarget ;
+assigntarget = [ &quot;the&quot; &quot;global&quot; ] identifier ;
 delete       = &quot;delete&quot; &quot;file&quot; expression ;
-replace      = &quot;replace&quot; expression &quot;with&quot; expression &quot;in&quot; identifier ;
+replace      = &quot;replace&quot; expression &quot;with&quot; expression &quot;in&quot; assigntarget ;
 call         = identifier [ &quot;with&quot; arglist ] ;
 
 block        = { statement NEWLINE } ;
@@ -1197,7 +1499,8 @@ compop       = &quot;is&quot; [ &quot;not&quot; ] [ &quot;greater&quot; &quot;th
              | &quot;contains&quot; | &quot;matches&quot; | &quot;is&quot; &quot;like&quot;
              | &quot;starts&quot; &quot;with&quot; | &quot;ends&quot; &quot;with&quot;
              | &quot;=&quot; | &quot;!=&quot; | &quot;&lt;&quot; | &quot;&gt;&quot; | &quot;&lt;=&quot; | &quot;&gt;=&quot; ;
-concat       = additive { (&quot;&amp;&quot; | &quot;&amp;&amp;&quot;) additive } ;
+concat       = postfix { (&quot;&amp;&quot; | &quot;&amp;&amp;&quot;) postfix } ;
+postfix      = additive { (&quot;split&quot; | &quot;joined&quot;) &quot;by&quot; additive } ;
 additive     = multiplicative { (&quot;+&quot; | &quot;-&quot;) multiplicative } ;
 multiplicative = unary { (&quot;*&quot; | &quot;/&quot; | &quot;^&quot;) unary } ;
 unary        = [ &quot;-&quot; ] primary ;
@@ -1211,12 +1514,26 @@ primary      = NUMBER | STRING | &quot;it&quot; | &quot;empty&quot; | &quot;true
              | identifier ;
 
 thephrase    = &quot;the&quot; ( &quot;result&quot; | &quot;arguments&quot; | &quot;current&quot; &quot;folder&quot;
+                     | &quot;standard&quot; &quot;input&quot; | &quot;empty&quot; &quot;list&quot;
+                     | &quot;global&quot; identifier
                      | &quot;whole&quot; &quot;match&quot; | &quot;matches&quot;
                      | &quot;environment&quot; &quot;variable&quot; primary
                      | &quot;length&quot; &quot;of&quot; primary
                      | &quot;number&quot; &quot;of&quot; chunknoun (&quot;in&quot; | &quot;of&quot;) primary
+                     | transform [ &quot;of&quot; ] unary
+                     | aggregate &quot;of&quot; unary
+                     | chunkplural &quot;of&quot; primary
                      | ordinal chunknoun &quot;of&quot; primary
-                     | chunknoun index [ &quot;to&quot; index ] &quot;of&quot; primary ) ;
+                     | chunknoun index [ &quot;to&quot; index ] &quot;of&quot; primary
+                     | identifier [ &quot;of&quot; unary { &quot;,&quot; unary } ] ) ;
+
+transform    = &quot;uppercase&quot; | &quot;lowercase&quot; | &quot;trimmed&quot; | &quot;sorted&quot;
+             | &quot;reversed&quot; | &quot;unique&quot; | &quot;rounded&quot; | &quot;absolute&quot; ;
+aggregate    = &quot;sum&quot; | &quot;largest&quot; | &quot;smallest&quot; | &quot;average&quot; ;
+
+(* The last thephrase alternative is a handler called in an expression.
+   Every form above it wins the name, so a handler cannot shadow a
+   built-in property. An unknown name is rejected after parsing. *)
 
 chunk        = chunknoun index [ &quot;to&quot; index ] &quot;of&quot; primary ;
 index        = ordinal | [ &quot;-&quot; ] NUMBER | additive ;
@@ -1232,15 +1549,16 @@ identifier   = WORD { WORD }   (* words not in the reserved set *) ;
 <p>These cannot appear inside a name:</p>
 <pre><code class="language-text">add        after      and        are        as         at
 before     by         contains   delete     divide     each
-else       empty      end        ends       every      exists
-exit       false      for        forever    from       greater
-if         in         into       is         it         least
-less       like       matches    most       multiply   next
-not        of         or         pipe       put        repeat
-replace    return     run        standard   starts     step
-subtract   than       the        then       times      to
-true       try        until      while      whole      with
-within
+else       empty      end        ends       ensure     every
+exists     exit       false      for        forever    from
+global     greater    if         in         into       is
+it         joined     least      less       like       matches
+most       multiply   next       not        of         or
+pipe       put        quit       reading    repeat     replace
+return     run        showing    split      standard   starts
+step       subtract   than       the        then       times
+to         true       try        until      while      whole
+with       within
 </code></pre>
 <p>Notably absent: <code>line</code>, <code>word</code>, <code>item</code>, <code>character</code>, <code>match</code>, <code>file</code>, <code>status</code>,
 <code>error</code>, <code>output</code>, <code>count</code>, <code>name</code>, <code>path</code>, <code>result</code>. These are recognised by position,
@@ -1327,6 +1645,102 @@ than banning a useful tool.</p>
 ignored failure and a handled one: a <code>try to run</code> whose result is examined in
 the next statement or two passes, while one whose failure is silently dropped
 does not.</p>
+<p>The capabilities added since — setting an environment variable and changing
+the working folder — have rules of their own, because otherwise they would be
+a way around the rest of the policy:</p>
+<pre><code class="language-policy">forbid setting &quot;PATH&quot;
+forbid setting &quot;LD_*&quot;
+forbid changing folder
+</code></pre>
+<h4>Counting rules</h4>
+<p>The rules above ask whether something appears at all. Business rules usually
+ask <em>how much</em>, so the same vocabulary counts:</p>
+<pre><code class="language-policy">require at most 12 commands
+require at least 1 cleanup
+require between 1 and 5 files written
+forbid more than 2 runs of &quot;curl&quot;
+forbid any files deleted
+</code></pre>
+<p><code>forbid more than N</code> and <code>require at most N</code> are the same rule said two ways,
+as are <code>forbid fewer than N</code> and <code>require at least N</code>; use whichever reads
+better for the noun. <code>forbid any X</code> is a limit of zero. <code>warn</code> may replace
+<code>forbid</code> or <code>require</code> to report without blocking.</p>
+<p>The countable nouns, singular or plural:</p>
+<table>
+<thead>
+<tr>
+<th>Noun</th>
+<th>Counts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>commands</code></td>
+<td>every program the script can run</td>
+</tr>
+<tr>
+<td><code>network commands</code></td>
+<td>those that reach the internet</td>
+</tr>
+<tr>
+<td><code>runs of "curl"</code></td>
+<td>commands whose program matches a glob</td>
+</tr>
+<tr>
+<td><code>files read</code>, <code>files written</code>, <code>files deleted</code></td>
+<td>file access by path</td>
+</tr>
+<tr>
+<td><code>environment reads</code>, <code>environment writes</code></td>
+<td>environment variables touched</td>
+</tr>
+<tr>
+<td><code>folder changes</code></td>
+<td>assignments to <code>the current folder</code></td>
+</tr>
+<tr>
+<td><code>cleanups</code></td>
+<td><code>ensure</code> blocks</td>
+</tr>
+<tr>
+<td><code>unchecked commands</code></td>
+<td><code>try to run</code> whose result is never examined</td>
+</tr>
+<tr>
+<td><code>commands without a timeout</code></td>
+<td>commands with no deadline</td>
+</tr>
+<tr>
+<td><code>runtime names</code></td>
+<td>program names or paths built at runtime</td>
+</tr>
+<tr>
+<td><code>handlers</code></td>
+<td>handler definitions</td>
+</tr>
+<tr>
+<td><code>pipes</code></td>
+<td>pipe stages</td>
+</tr>
+</tbody>
+</table>
+<p>A count that is exceeded reports the line of the occurrence that crossed the
+limit, not the whole script. A count that falls short has no line to point at,
+so it is reported against the file.</p>
+<h4>Bounded timeouts</h4>
+<p><code>require timeout on "curl"</code> asks only that a deadline exists. A deadline of
+six hours satisfies it, and so does one of a millisecond — the first hangs the
+script, the second kills healthy work. So the bound can be given:</p>
+<pre><code class="language-policy">require timeout on &quot;curl&quot; of at most 30 seconds
+require timeout on &quot;*&quot; of at least 1 second
+require timeout on &quot;*&quot; between 1 and 120 seconds
+</code></pre>
+<p>Units are reconciled between the rule and the script: a policy written in
+seconds catches a script written in minutes, because <code>within 2 minutes</code> is
+already <code>2 * 60</code> in the tree and folds to 120 before the comparison.</p>
+<p>A timeout computed at runtime cannot be checked ahead of time, and is refused
+rather than assumed acceptable — the same rule the manifest follows for a
+program name built at runtime.</p>
 <p>Sensitive-path detection works on literal <em>fragments</em>, so a path assembled at
 runtime — <code>file (home &amp; "/.ssh/id_rsa")</code> — is still recognised even though no
 whole-string literal ever appears in the source.</p>
@@ -1357,7 +1771,7 @@ spelling.</p></div>
 </div>
 
 <script>
-const KEYWORDS = new Set(["add", "after", "and", "are", "as", "at", "before", "by", "contains", "delete", "divide", "each", "else", "empty", "end", "ends", "every", "exists", "exit", "false", "for", "forever", "from", "greater", "if", "in", "into", "is", "it", "least", "less", "like", "matches", "most", "multiply", "next", "not", "of", "or", "pipe", "put", "quit", "repeat", "replace", "return", "run", "standard", "starts", "step", "subtract", "than", "the", "then", "times", "to", "true", "try", "until", "while", "whole", "with", "within"]);
+const KEYWORDS = new Set(["add", "after", "and", "are", "as", "at", "before", "by", "contains", "delete", "divide", "each", "else", "empty", "end", "ends", "ensure", "every", "exists", "exit", "false", "for", "forever", "from", "global", "greater", "if", "in", "into", "is", "it", "joined", "least", "less", "like", "matches", "most", "multiply", "next", "not", "of", "or", "pipe", "put", "quit", "reading", "repeat", "replace", "return", "run", "showing", "split", "standard", "starts", "step", "subtract", "than", "the", "then", "times", "to", "true", "try", "until", "while", "whole", "with", "within"]);
 const NOUNS = new Set(["any", "arguments", "char", "character", "characters", "chars", "current", "eighth", "environment", "error", "fifth", "first", "folder", "fourth", "hour", "hours", "item", "items", "last", "length", "line", "lines", "match", "matches", "middle", "millisecond", "milliseconds", "minute", "minutes", "ms", "ninth", "number", "output", "result", "second", "seconds", "seventh", "sixth", "status", "tenth", "third", "variable", "word", "words"]);
 
 /* ---- frost syntax highlighting ------------------------------------- */

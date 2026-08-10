@@ -153,6 +153,66 @@ if the result is 124 then put "took too long" into standard error
 
 Timed-out children are killed and reaped — no orphans, no wedged script.
 
+## Cleanup that actually runs
+
+Abort-on-failure is the headline default, which makes the way out matter as
+much as the way through. `ensure` registers a block when execution reaches it,
+and it runs when the script ends — normally, on error, on `quit`, or on Ctrl-C
+— most recent first:
+
+```
+put "held" into file (lock path)
+
+ensure
+    delete file (lock path)
+end ensure
+
+run "make" with "deploy"
+```
+
+The lock is released whether `make` succeeds or not. A failure inside a
+cleanup block is reported but never replaces the error that ended the script.
+
+## Lists, without a second grammar
+
+A plural chunk noun with no index is the whole set, so splitting is the
+grammar from the previous section read the other way:
+
+```
+put the words of headline into terms
+put the lines of report into rows
+put item 1 of (passwd entry split by ":")     -- cut -d: -f1
+put the sorted (the unique terms) joined by ", "
+```
+
+A list keeps its elements separate, which comma-delimited text cannot — an
+element may contain a comma and stay one element. `the sorted X` compares
+numerically when every element is a number, because sorting 10 before 9 is
+never what a counter meant.
+
+Text and numbers come with the article, so they cost nothing from the name
+vocabulary — `sorted count` is still a perfectly good variable:
+
+```
+if the lowercase target is "production" then put "shipping for real"
+put the trimmed reply into answer
+put the sum of the words of counts
+```
+
+And a handler can be used inside an expression, so composing two of them no
+longer needs three statements and a temporary:
+
+```
+to double with n
+    return n * 2
+end double
+
+put the double of 5 + the double of 10        -- 30
+```
+
+An unknown name there is caught when the script is checked, not when the line
+happens to run.
+
 ## Why this matters for AI agents
 
 Shell scripts are increasingly written by models and reviewed by people. That
@@ -453,47 +513,60 @@ frostlang/
     parser.py         recursive-descent parser
     ast.py            node definitions
     interp.py         tree-walking evaluator
+    audit.py          capability manifest, danger checks, policy engine
+    formatter.py      canonical layout
+    repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                853 tests — python3 -m pytest tests/ -q
+tests/                882 tests — python3 -m pytest tests/ -q
+    gen.py            generates valid frost, for the property tests
+    golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
 docs.html             browsable docs (tools/build_docs.py)
 audit.html            visual audit report (tools/build_audit.py)
 play.html             live scratchpad (tools/build_play.py)
 MODEL-SPEC.md         prompt-sized reference (tools/build_model_spec.py)
 web/chunks.js         browser evaluator, verified against frostlang/
+editors/              syntax highlighting
 ```
 
 ## Status
 
-Version 0.3.0. The language runs, the examples are real, and 853 tests cover
+Version 0.3.0. The language runs, the examples are real, and 882 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
 
-Known gaps, roughly in the order they hurt:
+The gaps this file used to list are closed. In the order they were listed:
 
-- **Handlers read globals but cannot write them.** `put 99 into total` inside a
-  handler silently creates a local even when a global of that name is readable
-  two lines up. Needs either real lexical scoping or an explicit global form.
-- **No way to feed text into a program's stdin.** Pipes chain program to
-  program; there is no equivalent of a heredoc.
-- **No cleanup on abort.** Failure aborts hard, so lock files and temp
-  directories leak. Given that abort-on-failure is the headline default, this
-  is a design hole rather than a missing convenience.
-- **No real lists.** `put "b" after xs` concatenates text. `the arguments` and
-  `every match` are the only lists the language can produce.
-- **No string functions** — no uppercase, trim, or splitting on an arbitrary
-  delimiter.
-- **No environment control** for child processes, and no way to change the
-  working directory.
-- Output is captured, not streamed, so long-running commands show nothing until
-  they finish and interactive programs do not work at all.
-- Handlers cannot be called from inside an expression; results arrive in `it`.
+- Handlers write globals with `put 99 into the global total`, and `global` is
+  reserved so the near-miss is an error rather than a local of that name.
+- `run "sort" reading names` puts text on a program's standard input.
+- `ensure ... end ensure` releases what a script took, whether it finished,
+  failed, quit, or was interrupted.
+- Lists are real: `the words of X`, `split by`, `joined by`, `the sorted X`,
+  and `put "c" after names` appends an element rather than concatenating.
+- String and number functions: `the uppercase X`, `the trimmed X`,
+  `the rounded X`, `the sum of X`.
+- `run "make" in folder build path`, and `put "clang" into the environment
+  variable "CC"`.
+- `run "make" showing output` hands the terminal to the child, for long builds
+  and interactive programs.
+- Handlers are callable in expressions: `the double of 5`.
 
-Not yet built: a compile-to-bash mode for machines without frost installed. The
-interpreter is a tree walker; a bytecode pass would be straightforward if
-process spawn ever stopped dominating the runtime, which it will not.
+Remaining, honestly:
+
+- **`--explain` reasons about literals only.** A program name or path built at
+  runtime is reported as unknowable rather than guessed. This is deliberate,
+  but it does mean a determined script can put itself out of reach.
+- **No modules.** A script is one file; there is no way to share a handler
+  between two of them.
+- **No structured data.** Lists are flat lists of text. Nothing reads JSON.
+- **`the standard input` is read whole**, so frost cannot filter a stream that
+  never ends.
+- **No compile-to-bash mode** for machines without frost installed. The
+  interpreter is a tree walker; a bytecode pass would be straightforward if
+  process spawn ever stopped dominating the runtime, which it will not.
 
 ## License
 
