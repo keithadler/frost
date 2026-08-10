@@ -75,6 +75,26 @@ def as_chunks(value, kind):
     raise FrostError(f"unknown chunk kind {kind!r}")
 
 
+def as_list(value):
+    """Any value as a list. Text becomes its lines, which is the shape a
+    command's output already has."""
+    if isinstance(value, list):
+        return list(value)
+    text = to_text(value)
+    return text.split("\n") if text else []
+
+
+def sort_key(items):
+    """Numeric order when everything is a number, alphabetical otherwise.
+
+    Sorting ["10", "9"] lexically puts 10 first, which is never what anyone
+    means when the values came out of a counter.
+    """
+    if items and all(is_numberish(i) for i in items):
+        return to_number
+    return to_text
+
+
 def join_chunks(parts, kind):
     if kind == "character":
         return "".join(parts)
@@ -172,6 +192,7 @@ class Interpreter:
         self.cwd = cwd or os.getcwd()
         self.env = dict(os.environ)
         self.cleanups = []       # ensure blocks, run in reverse at exit
+        self._stdin_text = None  # `the standard input`, read once and kept
 
     @staticmethod
     def compile_pattern(pattern, line):
@@ -350,13 +371,23 @@ class Interpreter:
 
         if node.mode == "into":
             self.write_target(target, value)
-        else:
-            current = to_text(self.read_target(target, node.line))
-            addition = to_text(value)
+            return
+
+        current = self.read_target(target, node.line)
+        if isinstance(current, list):
+            # Appending to a list adds an element. Appending to text joins it.
+            addition = value if isinstance(value, list) else [value]
             self.write_target(
                 target,
                 current + addition if node.mode == "after"
                 else addition + current)
+            return
+        addition = to_text(value)
+        current = to_text(current)
+        self.write_target(
+            target,
+            current + addition if node.mode == "after"
+            else addition + current)
 
     def eval_timeout(self, node):
         if node.timeout is None:
@@ -395,7 +426,12 @@ class Interpreter:
                 stdin_text += "\n"
 
         try:
-            proc = subprocess.run([program] + args, capture_output=True,
+            # `showing output` lets the child write straight to the terminal:
+            # the only way to see a long build as it happens, or to run
+            # anything interactive at all. Nothing is captured, so `it` is
+            # empty afterwards rather than stale.
+            proc = subprocess.run([program] + args,
+                                  capture_output=not node.streaming,
                                   text=True, cwd=self.child_folder(node),
                                   env=self.env, input=stdin_text,
                                   timeout=seconds)
@@ -424,7 +460,7 @@ class Interpreter:
             sys.stderr.write(proc.stderr)
             sys.stderr.flush()
 
-        self.it = proc.stdout.rstrip("\n")
+        self.it = "" if node.streaming else proc.stdout.rstrip("\n")
         self.result = proc.returncode
 
         if node.checked and proc.returncode != 0:
@@ -650,27 +686,34 @@ class Interpreter:
         except FileNotFoundError:
             raise FrostError(f"there is no file at {path!r}", node.line)
 
-    def exec_Call(self, node):
-        handler = self.handlers.get(node.name)
+    def call_handler(self, name, args, line):
+        """Run a handler and return what it returned.
+
+        Shared by the statement form, which lands the value in `it`, and the
+        expression form, which does not — an expression buried inside another
+        expression must not quietly replace the last command's output.
+        """
+        handler = self.handlers.get(name)
         if handler is None:
             raise FrostError(
-                f"there is no handler named {node.name!r}", node.line,
-                hint="define it with:  to " + node.name + " ... end "
-                     + node.name)
-        args = [self.eval(a) for a in node.args]
+                f"there is no handler named {name!r}", line,
+                hint="define it with:  to " + name + " ... end " + name)
         if len(args) != len(handler.params):
             raise FrostError(
-                f"{node.name!r} expects {len(handler.params)} value(s) "
-                f"but got {len(args)}", node.line)
-        frame = dict(zip(handler.params, args))
-        self.scopes.append(frame)
+                f"{name!r} expects {len(handler.params)} value(s) "
+                f"but got {len(args)}", line)
+        self.scopes.append(dict(zip(handler.params, args)))
         try:
             self.exec_block(handler.block)
-            self.it = ""
+            return ""
         except ReturnSignal as r:
-            self.it = r.value
+            return r.value
         finally:
             self.scopes.pop()
+
+    def exec_Call(self, node):
+        self.it = self.call_handler(
+            node.name, [self.eval(a) for a in node.args], node.line)
 
     # -- expressions
 
@@ -845,6 +888,95 @@ class Interpreter:
 
     def eval_CountOf(self, node):
         return len(as_chunks(self.eval(node.source), node.kind))
+
+    def eval_StdInRef(self, node):
+        if self._stdin_text is None:
+            try:
+                self._stdin_text = ("" if sys.stdin is None
+                                    else sys.stdin.read()).rstrip("\n")
+            except (OSError, ValueError):
+                self._stdin_text = ""
+        return self._stdin_text
+
+    def eval_EmptyList(self, node):
+        return []
+
+    def eval_ChunkList(self, node):
+        return as_chunks(self.eval(node.source), node.kind)
+
+    def eval_SplitBy(self, node):
+        separator = to_text(self.eval(node.separator))
+        if separator == "":
+            raise FrostError("cannot split on an empty separator", node.line,
+                             hint='to split into characters, write: '
+                                  'the characters of X')
+        return to_text(self.eval(node.source)).split(separator)
+
+    def eval_JoinedBy(self, node):
+        separator = to_text(self.eval(node.separator))
+        return separator.join(to_text(p) for p in as_list(self.eval(node.source)))
+
+    def eval_Transform(self, node):
+        value = self.eval(node.source)
+        op = node.op
+        if op == "uppercase":
+            return to_text(value).upper()
+        if op == "lowercase":
+            return to_text(value).lower()
+        if op == "trimmed":
+            return to_text(value).strip()
+        if op == "rounded":
+            return int(round(to_number(value, node.line)))
+        if op == "absolute":
+            return abs(to_number(value, node.line))
+
+        items = as_list(value)
+        if op == "sorted":
+            try:
+                return sorted(items, key=sort_key(items))
+            except (TypeError, FrostError):
+                return sorted(to_text(i) for i in items)
+        if op == "reversed":
+            return list(reversed(items))
+        if op == "unique":
+            seen, out = set(), []
+            for item in items:
+                text = to_text(item)
+                if text not in seen:
+                    seen.add(text)
+                    out.append(item)
+            return out
+        raise FrostError(f"unknown transformation {op!r}", node.line)
+
+    def eval_Aggregate(self, node):
+        items = as_list(self.eval(node.source))
+        if not items:
+            raise FrostError(
+                f"the {node.op} of nothing is undefined", node.line,
+                hint="check the list is not empty before asking for its "
+                     + node.op)
+        numbers = [to_number(i, node.line) for i in items]
+        if node.op == "sum":
+            return sum(numbers)
+        if node.op == "largest":
+            return max(numbers)
+        if node.op == "smallest":
+            return min(numbers)
+        if node.op == "average":
+            return sum(numbers) / len(numbers)
+        raise FrostError(f"unknown aggregate {node.op!r}", node.line)
+
+    def eval_FuncCall(self, node):
+        if not node.args and node.name not in self.handlers:
+            # `the frobnitz` with no handler of that name was never a call;
+            # it was a mistyped property. Say so, as the parser would.
+            raise FrostError(
+                f"'the' must be followed by a property or chunk, found "
+                f"{node.name!r}", node.line,
+                hint="try: the result / the first line of X / "
+                     "the number of words in X / the length of X")
+        return self.call_handler(node.name, [self.eval(a) for a in node.args],
+                                 node.line)
 
     def eval_Chunk(self, node):
         parts = as_chunks(self.eval(node.source), node.kind)

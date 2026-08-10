@@ -31,8 +31,16 @@ def test_repl_accepts_statements_too():
 
 
 def test_repl_prefers_the_expression_error():
-    out = repl_lines("the frobnitz of it", subject="a")
+    out = repl_lines("the frobnitz", subject="a")
     assert "must be followed by a property or chunk" in out[0]
+
+
+def test_repl_reports_an_unknown_handler_call():
+    """`the X of Y` is a handler call now, so this is a name error rather
+    than a syntax one. In the REPL it lands at evaluation, because handlers
+    defined on earlier lines are not in the line being parsed."""
+    out = repl_lines("the frobnitz of it", subject="a")
+    assert "no handler named 'frobnitz'" in out[0]
 
 
 def test_repl_commands():

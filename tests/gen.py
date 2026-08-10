@@ -25,6 +25,10 @@ PROGRAMS = ["echo", "true", "cat", "sort", "uniq", "grep", "wc", "date",
 FLAGS = ["-l", "-n", "-1", "--silent", "-c", "-r", "a.txt", "b.txt",
          "pattern", "hello", "{print $1}"]
 
+TRANSFORMS = ["uppercase", "lowercase", "trimmed", "sorted", "reversed",
+              "unique"]
+SEPARATORS = ['"|"', '":"', '", "', '" -- "']
+
 CHUNK_NOUNS = ["character", "word", "line", "item"]
 CHUNK_PLURALS = {"character": "characters", "word": "words",
                  "line": "lines", "item": "items"}
@@ -86,9 +90,12 @@ class Gen:
         """Anything legal as a chunk source: no comparisons, no concatenation."""
         options = ["literal", "var", "it"]
         if depth > 0:
-            options += ["chunk", "count", "length", "paren"]
+            options += ["chunk", "count", "length", "paren", "transform",
+                        "chunk_list", "empty_list"]
         if not self.safe:
             options += ["file", "result", "env", "args"]
+        if self.handlers and depth > 0:
+            options += ["func_call"]
         choice = self.pick(options)
 
         if choice == "literal":
@@ -109,6 +116,20 @@ class Gen:
             return "(%s)" % self.expression(depth - 1)
         if choice == "length":
             return "the length of %s" % self.primary(depth - 1)
+        if choice == "empty_list":
+            return "the empty list"
+        if choice == "transform":
+            return "the %s %s" % (self.pick(TRANSFORMS),
+                                  self.primary(depth - 1))
+        if choice == "chunk_list":
+            return "the %s of %s" % (CHUNK_PLURALS[self.pick(CHUNK_NOUNS)],
+                                     self.primary(depth - 1))
+        if choice == "func_call":
+            name, arity = self.pick(self.handlers)
+            if not arity:
+                return "the %s" % name
+            return "the %s of %s" % (
+                name, ", ".join(self.primary(depth - 1) for _ in range(arity)))
         if choice == "count":
             noun = self.pick(CHUNK_NOUNS)
             return "the number of %s in %s" % (
@@ -143,10 +164,17 @@ class Gen:
 
     def expression(self, depth=2):
         depth = max(depth, 0)
-        node = self.arithmetic(depth)
+        node = self.postfix(depth)
         for _ in range(self.rng.randint(0, 2)):
             node = "%s %s %s" % (node, self.pick(["&", "&&"]),
-                                 self.arithmetic(depth))
+                                 self.postfix(depth))
+        return node
+
+    def postfix(self, depth):
+        node = self.arithmetic(depth)
+        for _ in range(self.rng.randint(0, 1)):
+            node = "%s %s by %s" % (node, self.pick(["split", "joined"]),
+                                    self.pick(SEPARATORS))
         return node
 
     def condition(self, depth=1):
@@ -182,18 +210,18 @@ class Gen:
     def statement(self, depth, in_loop=False):
         """Return a list of source lines for one statement."""
         kinds = ["put", "put_var", "arith", "if", "repeat_times",
-                 "repeat_with", "repeat_each"]
+                 "repeat_with", "repeat_each", "put_global", "ensure"]
         if in_loop:
             kinds += ["loop_control"]
         if self.handlers:
             kinds += ["call"]
         if not self.safe:
             kinds += ["run", "try_run", "pipe", "put_stream", "put_file",
-                      "delete", "replace", "quit"]
+                      "delete", "replace", "quit", "put_env", "put_folder"]
         if depth <= 0:
             kinds = [k for k in kinds
                      if k not in ("if", "repeat_times", "repeat_with",
-                                  "repeat_each", "pipe")]
+                                  "repeat_each", "pipe", "ensure")]
 
         kind = self.pick(kinds)
         return getattr(self, "st_" + kind)(depth, in_loop)
@@ -207,6 +235,29 @@ class Gen:
             return ["put %s into %s" % (self.expression(), self.fresh_name())]
         # `before`/`after` read the target first, so it must already exist.
         return ["put %s %s %s" % (self.expression(), mode, self.known_name())]
+
+    def st_put_global(self, depth, in_loop):
+        # Globals must exist before they can be appended to, so this only
+        # ever generates the creating form.
+        return ["put %s into the global %s" % (self.expression(),
+                                               self.fresh_name())]
+
+    def st_put_env(self, depth, in_loop):
+        mode = self.pick(["into", "after", "before"])
+        return ['put %s %s the environment variable "FROST_GEN_%d"' % (
+            self.expression(), mode, self.rng.randint(1, 5))]
+
+    def st_put_folder(self, depth, in_loop):
+        return ['put "%s" into the current folder' % self.pick(
+            ["/tmp", "/var/tmp", "build"])]
+
+    def st_ensure(self, depth, in_loop):
+        # A cleanup block cannot use loop control: it runs after the loop is
+        # long gone, so in_loop is deliberately not passed down.
+        lines = ["ensure"]
+        lines += self.indent(self.block(depth - 1, in_loop=False), 1)
+        lines.append("end ensure")
+        return lines
 
     def st_put_stream(self, depth, in_loop):
         return ["put %s into standard %s" % (
@@ -233,9 +284,15 @@ class Gen:
                     else self.known_name()
                     for _ in range(self.rng.randint(1, 3))]
             line += " with " + ", ".join(args)
+        if self.maybe(0.25):
+            line += " reading %s" % self.primary(1)
+        if self.maybe(0.2):
+            line += ' in folder "%s"' % self.pick(["/tmp", "build", "src"])
         if self.maybe(0.3):
             line += " within %d %s" % (self.rng.randint(1, 60),
                                        self.pick(TIME_UNITS))
+        if self.maybe(0.15):
+            line += " showing output"
         return [line]
 
     def st_try_run(self, depth, in_loop):
@@ -243,6 +300,10 @@ class Gen:
 
     def st_pipe(self, depth, in_loop):
         head = "pipe"
+        if self.maybe(0.25):
+            head += " reading %s" % self.primary(1)
+        if self.maybe(0.2):
+            head += ' in folder "%s"' % self.pick(["/tmp", "build"])
         if self.maybe(0.3):
             head += " within %d %s" % (self.rng.randint(1, 60),
                                        self.pick(TIME_UNITS))

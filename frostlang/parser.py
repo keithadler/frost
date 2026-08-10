@@ -33,8 +33,14 @@ HARD_WORDS = {
     "matches", "like", "every", "replace", "within", "whole",
     "standard", "exists", "empty", "true", "false", "forever", "step",
     "delete", "greater", "less", "than", "least", "most",
-    "global", "ensure", "reading",
+    "global", "ensure", "reading", "split", "joined", "showing",
 }
+
+# Recognised only after `the`, so they cost nothing from the identifier
+# vocabulary: `sorted count` is still a perfectly good variable name.
+TRANSFORMS = {"uppercase", "lowercase", "trimmed", "sorted", "reversed",
+              "unique", "rounded", "absolute"}
+AGGREGATES = {"sum", "largest", "smallest", "average"}
 
 CHUNK_SINGULAR = {
     "character": "character", "char": "character",
@@ -325,20 +331,32 @@ class Parser:
                 self.advance()
                 self.skip_continuation()
                 args.append(self.parse_expression())
-        stdin, folder, timeout = self.parse_command_tail()
+        stdin, folder, timeout, streaming = self.parse_command_tail()
         self.check_command_line_mistake(program, args, line)
         self.expect_end_of_statement()
-        return A.Run(program, args, checked, timeout, stdin, folder, line)
+        return A.Run(program, args, checked, timeout, stdin, folder,
+                     streaming, line)
 
     def parse_command_tail(self):
         """The optional clauses that may follow a run or a pipe.
 
         `reading EXPR` puts text on the child's standard input, `in folder
-        EXPR` chooses its working directory, and `within N seconds` gives it a
-        deadline. Any order is accepted; each may appear once.
+        EXPR` chooses its working directory, `within N seconds` gives it a
+        deadline, and `showing output` lets it write straight to the terminal.
+        Any order is accepted; each may appear once.
         """
         stdin = folder = timeout = None
+        streaming = False
         while True:
+            if self.at_word("showing"):
+                line = self.advance().line
+                self.expect_word("output",
+                                 hint="write: run \"make\" showing output")
+                if streaming:
+                    raise ParseError("only one 'showing output' is allowed",
+                                     line)
+                streaming = True
+                continue
             if self.at_word("reading"):
                 line = self.advance().line
                 if stdin is not None:
@@ -360,7 +378,7 @@ class Parser:
                                      self.cur.line)
                 timeout = self.parse_optional_timeout()
                 continue
-            return stdin, folder, timeout
+            return stdin, folder, timeout, streaming
 
     def parse_optional_timeout(self):
         """`within 30 seconds` — an optional tail on run and pipe."""
@@ -418,7 +436,11 @@ class Parser:
 
     def parse_pipe(self, checked=True):
         line = self.expect_word("pipe").line
-        stdin, folder, timeout = self.parse_command_tail()
+        stdin, folder, timeout, streaming = self.parse_command_tail()
+        if streaming:
+            raise ParseError(
+                "a pipe cannot show its output; its last stage writes into "
+                "'it'", line)
         self.expect_end_of_statement()
         stages = []
         self.skip_newlines()
@@ -450,6 +472,10 @@ class Parser:
                 raise ParseError(
                     "put the folder on the pipe, not on a stage", st.line,
                     hint="write 'pipe in folder <path>'")
+            if st.streaming:
+                raise ParseError(
+                    "a pipe stage cannot show its output; it feeds the next "
+                    "stage", st.line)
         return A.Pipe(stages, checked, timeout, stdin, folder, line)
 
     # if -------------------------------------------------------------------
@@ -771,11 +797,31 @@ class Parser:
         return left
 
     def parse_concat(self):
-        left = self.parse_additive()
+        left = self.parse_postfix()
         while self.at_op("&", "&&"):
             op = self.advance()
-            left = A.BinOp(op.value, left, self.parse_additive(), op.line)
+            left = A.BinOp(op.value, left, self.parse_postfix(), op.line)
         return left
+
+    def parse_postfix(self):
+        """`X split by "|"` and `X joined by ", "`, which chain.
+
+        These take a delimiter the chunk grammar cannot express — the chunk
+        nouns cover whitespace, newlines and commas, and nothing else.
+        """
+        node = self.parse_additive()
+        while True:
+            if self.at_word("split"):
+                line = self.advance().line
+                self.expect_word("by", hint='write: X split by "|"')
+                node = A.SplitBy(node, self.parse_additive(), line)
+                continue
+            if self.at_word("joined"):
+                line = self.advance().line
+                self.expect_word("by", hint='write: X joined by ", "')
+                node = A.JoinedBy(node, self.parse_additive(), line)
+                continue
+            return node
 
     def parse_additive(self):
         left = self.parse_multiplicative()
@@ -917,6 +963,16 @@ class Parser:
         """The source of a chunk binds tightly: no comparisons, no concat."""
         return self.parse_primary()
 
+    def parse_tight_value(self):
+        """Like a chunk source, but a leading minus is allowed.
+
+        `the rounded -2.6` has to work, and a chunk source stops at a primary,
+        which never includes a sign. Binding is otherwise the same: `the
+        double of n - 1` is `(the double of n) - 1`, exactly as `the first
+        word of a & b` is `(the first word of a) & b`.
+        """
+        return self.parse_unary()
+
     def parse_the(self):
         line = self.expect_word("the").line
 
@@ -929,13 +985,46 @@ class Parser:
             self.expect_word("match")
             return A.WholeMatch(line)
 
-        if self.at_word("matches"):
+        # `the matches` is the capture groups; `the matches of X` is the list
+        # form handled with the other plural chunk nouns below.
+        if self.at_word("matches") and not self.at_word("of", offset=1):
             self.advance()
             return A.MatchGroups(line)
 
         if self.at_word("arguments"):
             self.advance()
             return A.ArgList(line)
+
+        if self.at_word("standard"):
+            self.advance()
+            self.expect_word("input",
+                             hint="'the standard input' is what was piped "
+                                  "into the script")
+            return A.StdInRef(line)
+
+        if self.at_word("empty") and self.at_word("list", offset=1):
+            self.advance()
+            self.advance()
+            return A.EmptyList(line)
+
+        if self.cur.kind == "WORD" and self.cur.value in TRANSFORMS:
+            op = self.advance().value
+            if self.at_word("of"):        # `the sorted of X` reads badly but
+                self.advance()            # nobody should have to remember that
+            return A.Transform(op, self.parse_tight_value(), line)
+
+        if self.cur.kind == "WORD" and self.cur.value in AGGREGATES:
+            op = self.advance().value
+            self.expect_word("of")
+            return A.Aggregate(op, self.parse_tight_value(), line)
+
+        # `the words of X` — a plural chunk noun with no index is the whole
+        # set, as a list. Splitting falls out of the grammar already here.
+        if (self.cur.kind == "WORD" and self.cur.value in CHUNK_PLURAL
+                and self.at_word("of", offset=1)):
+            kind = CHUNK_PLURAL[self.advance().value]
+            self.advance()
+            return A.ChunkList(kind, self.parse_chunk_source(), line)
 
         if self.at_word("current"):
             self.advance()
@@ -990,6 +1079,23 @@ class Parser:
                 end = self.parse_index()
             return A.Chunk(kind, start, end, self.parse_chunk_of(kind), line)
 
+        # `the double of 5` — a handler used inside an expression. Last,
+        # so every built-in form above wins the name.
+        if self.cur.kind == "WORD" and self.cur.value not in HARD_WORDS:
+            mark = self.i
+            name = self.parse_identifier()
+            if self.at_word("of"):
+                self.advance()
+                args = [self.parse_tight_value()]
+                while self.at_op(","):
+                    self.advance()
+                    args.append(self.parse_tight_value())
+                return A.FuncCall(name, args, line)
+            # No `of`: a handler that takes nothing, if such a handler
+            # exists. resolve_calls decides, and reports the original
+            # "must be followed by a property or chunk" error if not.
+            return A.FuncCall(name, [], line)
+
         raise ParseError(
             f"'the' must be followed by a property or chunk, "
             f"found {self.describe(self.cur)}", line,
@@ -997,5 +1103,58 @@ class Parser:
                  "the number of words in X / the length of X")
 
 
+def collect_handler_names(node, into):
+    if isinstance(node, list):
+        for item in node:
+            collect_handler_names(item, into)
+        return
+    if isinstance(node, A.HandlerDef):
+        into.add(node.name)
+    if hasattr(node, "__dataclass_fields__"):
+        for value in vars(node).values():
+            if isinstance(value, list) or hasattr(value,
+                                                  "__dataclass_fields__"):
+                collect_handler_names(value, into)
+
+
+def resolve_calls(stmts):
+    """Reject `the <name> of X` when no handler of that name is defined.
+
+    Without this the mistake would only surface when the line ran, which would
+    quietly weaken `--check`: a typo in a rarely-taken branch would sail past
+    it. Handlers may be defined after the call site, so this needs the whole
+    tree and cannot be done while parsing.
+    """
+    known = set()
+    collect_handler_names(stmts, known)
+
+    def walk(node):
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if isinstance(node, A.FuncCall) and node.name not in known:
+            if not node.args:
+                # `the frobnitz` was never a call; it was a mistyped property.
+                raise ParseError(
+                    f"'the' must be followed by a property or chunk, found "
+                    f"{node.name!r}", node.line,
+                    hint="try: the result / the first line of X / "
+                         "the number of words in X / the length of X")
+            raise ParseError(
+                f"there is no handler named {node.name!r}", node.line,
+                hint=f"'the {node.name} of ...' calls a handler; define one "
+                     f"with 'to {node.name} with ...', or check the spelling "
+                     f"of a built-in property")
+        if hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value)
+
+    walk(stmts)
+    return stmts
+
+
 def parse(src):
-    return Parser(src).parse_program()
+    return resolve_calls(Parser(src).parse_program())

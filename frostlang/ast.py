@@ -119,6 +119,71 @@ class ArgList:
     line: int = 0
 
 
+@dataclass
+class StdInRef:
+    """`the standard input` — everything piped into the script."""
+    line: int = 0
+
+
+@dataclass
+class ChunkList:
+    """`the words of X` — every chunk at once, as a list.
+
+    The singular form addresses one chunk; the plural with no index is the
+    whole set. That makes splitting fall out of the grammar already there.
+    """
+    kind: str                  # character | word | line | item
+    source: Any
+    line: int = 0
+
+
+@dataclass
+class EmptyList:
+    """`the empty list` — something to append to."""
+    line: int = 0
+
+
+@dataclass
+class Transform:
+    """`the uppercase X` — one value in, one value out."""
+    op: str                    # uppercase | lowercase | trimmed | sorted
+                               # | reversed | unique | rounded | absolute
+    source: Any
+    line: int = 0
+
+
+@dataclass
+class Aggregate:
+    """`the sum of X` — a list of numbers in, one number out."""
+    op: str                    # sum | largest | smallest | average
+    source: Any
+    line: int = 0
+
+
+@dataclass
+class SplitBy:
+    """`X split by "|"` — text to a list on any delimiter."""
+    source: Any
+    separator: Any
+    line: int = 0
+
+
+@dataclass
+class JoinedBy:
+    """`X joined by ", "` — a list back to text."""
+    source: Any
+    separator: Any
+    line: int = 0
+
+
+@dataclass
+class FuncCall:
+    """`the double of 5` — a handler called from inside an expression."""
+    name: str
+    args: List[Any] = field(default_factory=list)
+    line: int = 0
+
+
 # ----------------------------------------------------------------- statements
 
 @dataclass
@@ -171,6 +236,7 @@ class Run:
     timeout: Optional[Any] = None
     stdin: Optional[Any] = None     # `reading EXPR` — text on the child's stdin
     folder: Optional[Any] = None    # `in folder EXPR` — the child's cwd
+    streaming: bool = False         # `showing output` — inherit the terminal
     line: int = 0
 
 
