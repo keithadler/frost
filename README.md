@@ -41,19 +41,26 @@ has to be short.
 
 The speed objection does not apply. A shell's runtime is dominated by
 `fork`/`exec`, not parsing — HyperTalk's whole grammar fit in HyperCard on a
-68000. You can parse verbose syntax faster than you can spawn a process.
+68000.
 
-That is measured, not assumed. `python tools/benchmark.py` parses and audits
-every example against the cost of one `fork`/`exec`:
+That is measured rather than assumed; `python tools/benchmark.py` prints it:
 
 ```text
-release.frost           78 lines    parse 659us   audit 292us
-one fork+exec of true                            2002us
+release.frost           78 lines    parse 664us   audit 290us
+one fork+exec of true                            1992us   (the floor)
+one fork+exec of git --version                  12767us   (a real command)
 ```
 
-Reading the whole script and deriving its capability manifest costs about
-half what it costs to start a single program. A test fails if that ever
-stops being true, because the argument for verbosity rests on it.
+Parsing an 80-line script and deriving its whole capability manifest costs
+about a millisecond — roughly one trivial process spawn, and about 7% of one
+command that does any actual work. It is a fixed price paid once, against a
+per-command price paid every time.
+
+Worth being precise, because the obvious stronger claim is not true: the
+cost of `fork`/`exec` varies by platform far more than parsing does — about
+0.7ms on Linux against 2.4ms on macOS — so "parsing beats spawning" holds on
+one and fails on the other. A test guards the honest version, and it was CI
+on Linux that caught the overstatement.
 
 ## Three things it fixes
 
@@ -618,7 +625,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1125 tests — python3 -m pytest tests/ -q
+tests/                1207 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -632,7 +639,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1125 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1207 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
