@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from . import ast as A
+from .parser import TIME_UNITS
 
 
 @dataclass
@@ -32,6 +33,9 @@ class Command:
     result_examined: bool = False
     stdin: bool = False           # text is fed to it with `reading`
     folder: Optional[str] = None  # `in folder`; None means the script's own
+    # The deadline in seconds when it is a literal, so a policy can bound it.
+    # None means either no timeout at all, or one computed at runtime.
+    timeout_seconds: Optional[float] = None
 
 
 @dataclass
@@ -62,6 +66,42 @@ def literal(node):
         right = literal(node.right)
         if left is not None and right is not None:
             return left + ("" if node.op == "&" else " ") + right
+    return None
+
+
+def literal_number(node):
+    """The numeric value of an expression made only of literals, else None.
+
+    A timeout reaches the tree already scaled — `within 2 minutes` parses as
+    2 * 60 — so a policy bound expressed in any unit can be compared against a
+    script written in any other, without running anything.
+    """
+    if isinstance(node, A.Lit):
+        if isinstance(node.value, bool) or not isinstance(
+                node.value, (int, float)):
+            return None
+        return float(node.value)
+    if isinstance(node, A.UnaryOp) and node.op == "-":
+        inner = literal_number(node.operand)
+        return None if inner is None else -inner
+    if isinstance(node, A.BinOp):
+        left = literal_number(node.left)
+        right = literal_number(node.right)
+        if left is None or right is None:
+            return None
+        if node.op == "+":
+            return left + right
+        if node.op == "-":
+            return left - right
+        if node.op == "*":
+            return left * right
+        if node.op == "/":
+            return left / right if right else None
+        if node.op == "^":
+            try:
+                return float(left ** right)
+            except (OverflowError, ValueError):
+                return None
     return None
 
 
@@ -175,6 +215,8 @@ class Auditor:
             in_pipe=in_pipe,
             stdin=stdin is not None,
             folder=literal(folder) if folder is not None else None,
+            timeout_seconds=(literal_number(node.timeout)
+                             if node.timeout is not None else None),
         ))
 
     def on_Run(self, node):
@@ -328,6 +370,44 @@ def describe(caps):
 
 
 # ----------------------------------------------------------------- policy
+#
+# Two kinds of rule. The original ones ask whether something appears at all;
+# the counting ones ask how much of it there is, which is what a business rule
+# usually needs — "no more than three files written", "at least one cleanup
+# block", "curl gets a deadline, and no more than thirty seconds of one".
+
+# Every countable noun. The first phrase of each row is the one suggested
+# back to a policy author who mistypes, so it has to be a phrase that parses —
+# not the internal key.
+COUNT_NOUNS = {}
+COUNT_VOCABULARY = []
+
+
+def _noun(key, *phrases):
+    COUNT_VOCABULARY.append(phrases[0])
+    for phrase in phrases:
+        COUNT_NOUNS[phrase] = key
+
+
+_noun("commands", "commands", "command")
+_noun("network commands", "network commands", "network command")
+_noun("reads", "files read", "file read", "file reads")
+_noun("writes", "files written", "file written", "file writes")
+_noun("deletes", "files deleted", "file deleted", "file deletes")
+_noun("env_reads", "environment reads", "environment read")
+_noun("env_writes", "environment writes", "environment write")
+_noun("folder_changes", "folder changes", "folder change")
+_noun("cleanups", "cleanups", "cleanup", "ensure block", "ensure blocks")
+_noun("unchecked", "unchecked commands", "unchecked command")
+_noun("untimed", "commands without a timeout", "command without a timeout")
+_noun("dynamic", "runtime names", "runtime name")
+_noun("handlers", "handlers", "handler")
+_noun("pipes", "pipes", "pipe")
+
+# `runs of "curl"` is a countable noun with a subject attached.
+RUNS_OF = re.compile(r'^runs?\s+of\s+"([^"]+)"$')
+
+NUM = r"(\d+(?:\.\d+)?)"
 
 RULE_PATTERNS = [
     (re.compile(r'^(forbid|warn)\s+running\s+"([^"]+)"'
@@ -337,9 +417,33 @@ RULE_PATTERNS = [
     (re.compile(r'^(forbid|warn)\s+deleting\s+"([^"]+)"\s*$'), "delete"),
     (re.compile(r'^(forbid|warn)\s+setting\s+"([^"]+)"\s*$'), "setenv"),
     (re.compile(r'^(forbid|warn)\s+changing\s+folder\s*$'), "chfolder"),
+
+    # Bounded timeouts. These must precede the bare `require timeout on`
+    # pattern only for clarity; that one anchors at end of line and so cannot
+    # match these anyway.
+    (re.compile(r'^require\s+timeout\s+on\s+"([^"]+)"\s+between\s+' + NUM +
+                r'\s+and\s+' + NUM + r'\s+(\w+)\s*$'), "timeout_range"),
+    (re.compile(r'^require\s+timeout\s+on\s+"([^"]+)"\s+of\s+at\s+most\s+' +
+                NUM + r'\s+(\w+)\s*$'), "timeout_max"),
+    (re.compile(r'^require\s+timeout\s+on\s+"([^"]+)"\s+of\s+at\s+least\s+' +
+                NUM + r'\s+(\w+)\s*$'), "timeout_min"),
     (re.compile(r'^require\s+timeout\s+on\s+"([^"]+)"\s*$'), "timeout"),
     (re.compile(r'^require\s+every\s+command\s+to\s+be\s+checked\s*$'),
      "checked"),
+
+    # Counts. `forbid more than N X` and `require at most N X` are the same
+    # rule said two ways; both read naturally depending on the noun.
+    (re.compile(r'^(forbid|warn)\s+more\s+than\s+' + NUM + r'\s+(.+?)\s*$'),
+     "count_max"),
+    (re.compile(r'^(forbid|warn)\s+fewer\s+than\s+' + NUM + r'\s+(.+?)\s*$'),
+     "count_min"),
+    (re.compile(r'^(require|warn)\s+at\s+most\s+' + NUM + r'\s+(.+?)\s*$'),
+     "count_max"),
+    (re.compile(r'^(require|warn)\s+at\s+least\s+' + NUM + r'\s+(.+?)\s*$'),
+     "count_min"),
+    (re.compile(r'^(require|warn)\s+between\s+' + NUM + r'\s+and\s+' + NUM +
+                r'\s+(.+?)\s*$'), "count_range"),
+    (re.compile(r'^(forbid|warn)\s+any\s+(.+?)\s*$'), "count_none"),
 ]
 
 
@@ -354,6 +458,32 @@ class Rule:
     subject: str
     detail: Optional[str] = None
     source_line: int = 0
+    # Counting and bounding rules: the inclusive range that is allowed.
+    low: Optional[float] = None
+    high: Optional[float] = None
+    noun: Optional[str] = None       # as the policy author wrote it
+
+
+def _resolve_noun(phrase, policy_line):
+    """Map a countable phrase to (key, subject). Raises on an unknown noun."""
+    phrase = " ".join(phrase.split()).lower()
+    runs = RUNS_OF.match(phrase)
+    if runs:
+        return "runs", runs.group(1)
+    if phrase in COUNT_NOUNS:
+        return COUNT_NOUNS[phrase], None
+    known = ", ".join(COUNT_VOCABULARY)
+    raise PolicyError(
+        f"policy line {policy_line}: {phrase!r} is not something that can be "
+        f'counted. Countable: {known}, and runs of "program"')
+
+
+def _seconds(amount, unit, policy_line):
+    if unit not in TIME_UNITS:
+        raise PolicyError(
+            f"policy line {policy_line}: {unit!r} is not a time unit. Try "
+            f"milliseconds, seconds, minutes or hours")
+    return float(amount) * TIME_UNITS[unit]
 
 
 def parse_policy(text):
@@ -366,21 +496,104 @@ def parse_policy(text):
             m = rx.match(line)
             if not m:
                 continue
-            groups = m.groups()
+            g = m.groups()
             if kind == "checked":
                 rules.append(Rule(kind, "forbid", "*", None, n))
             elif kind == "timeout":
-                rules.append(Rule(kind, "forbid", groups[0], None, n))
+                rules.append(Rule(kind, "forbid", g[0], None, n))
             elif kind == "run":
-                rules.append(Rule(kind, groups[0], groups[1], groups[2], n))
+                rules.append(Rule(kind, g[0], g[1], g[2], n))
             elif kind == "chfolder":
-                rules.append(Rule(kind, groups[0], "*", None, n))
+                rules.append(Rule(kind, g[0], "*", None, n))
+            elif kind == "timeout_max":
+                rules.append(Rule("timeout_bound", "forbid", g[0], None, n,
+                                  high=_seconds(g[1], g[2], n)))
+            elif kind == "timeout_min":
+                rules.append(Rule("timeout_bound", "forbid", g[0], None, n,
+                                  low=_seconds(g[1], g[2], n)))
+            elif kind == "timeout_range":
+                low = _seconds(g[1], g[3], n)
+                high = _seconds(g[2], g[3], n)
+                if low > high:
+                    raise PolicyError(
+                        f"policy line {n}: {g[1]} is greater than {g[2]}")
+                rules.append(Rule("timeout_bound", "forbid", g[0], None, n,
+                                  low=low, high=high))
+            elif kind in ("count_max", "count_min", "count_none",
+                          "count_range"):
+                severity = "warn" if g[0] == "warn" else "forbid"
+                phrase = g[-1]
+                key, subject = _resolve_noun(phrase, n)
+                low = high = None
+                if kind == "count_max":
+                    high = float(g[1])
+                elif kind == "count_min":
+                    low = float(g[1])
+                elif kind == "count_none":
+                    high = 0.0
+                else:
+                    low, high = float(g[1]), float(g[2])
+                    if low > high:
+                        raise PolicyError(
+                            f"policy line {n}: {g[1]} is greater than {g[2]}")
+                rules.append(Rule("count", severity, key, subject, n,
+                                  low=low, high=high, noun=phrase.strip()))
             else:
-                rules.append(Rule(kind, groups[0], groups[1], None, n))
+                rules.append(Rule(kind, g[0], g[1], None, n))
             break
         else:
             raise PolicyError(f"policy line {n}: cannot read {line!r}")
     return rules
+
+
+def _plain(n):
+    """Whole numbers without a trailing .0, which is how people write limits."""
+    return str(int(n)) if float(n).is_integer() else str(n)
+
+
+def format_duration(seconds):
+    """A duration in the largest unit that keeps it a whole number."""
+    for scale, unit in ((3600, "hour"), (60, "minute"), (1, "second"),
+                        (0.001, "millisecond")):
+        if seconds >= scale and (seconds / scale).is_integer():
+            n = int(seconds / scale)
+            return f"{n} {unit}" + ("s" if n != 1 else "")
+    return f"{_plain(seconds)} seconds"
+
+
+def count_lines(caps, key, subject=None):
+    """Every source line contributing to a countable noun.
+
+    Returned as lines rather than a bare number so a violation can point at
+    the occurrence that crossed the limit instead of at the whole script.
+    Things with no line of their own contribute a 0.
+    """
+    if key == "commands":
+        return [c.line for c in caps.commands]
+    if key == "network commands":
+        return [c.line for c in caps.commands
+                if c.program in NETWORK_PROGRAMS]
+    if key == "runs":
+        return [c.line for c in caps.commands
+                if c.program and fnmatch.fnmatchcase(c.program, subject)]
+    if key == "unchecked":
+        return [c.line for c in caps.commands
+                if not c.checked and not c.result_examined]
+    if key == "untimed":
+        return [c.line for c in caps.commands if not c.timeout]
+    if key == "pipes":
+        return sorted({c.line for c in caps.commands if c.in_pipe})
+    if key == "dynamic":
+        return [0] * caps.dynamic
+    if key == "handlers":
+        return [0] * len(caps.handlers)
+    if key == "cleanups":
+        return list(caps.cleanups)
+    pairs = {"reads": caps.reads, "writes": caps.writes,
+             "deletes": caps.deletes, "env_reads": caps.env_reads,
+             "env_writes": caps.env_writes,
+             "folder_changes": caps.folder_changes}[key]
+    return [ln for _, ln in pairs]
 
 
 def check(caps, rules):
@@ -432,6 +645,47 @@ def check(caps, rules):
                     (rule.severity,
                      f"changing the working folder to {path or '(runtime)'}",
                      line))
+
+        elif rule.kind == "count":
+            lines = sorted(count_lines(caps, rule.subject, rule.detail))
+            n = len(lines)
+            noun = rule.noun
+            if rule.high is not None and n > rule.high:
+                limit = _plain(rule.high)
+                # Point at the occurrence that crossed the line, not the file.
+                at = lines[int(rule.high)] if int(rule.high) < n else lines[-1]
+                findings.append((
+                    rule.severity,
+                    f"{n} {noun}, at most {limit} allowed", at))
+            elif rule.low is not None and n < rule.low:
+                findings.append((
+                    rule.severity,
+                    f"{n} {noun}, at least {_plain(rule.low)} required", 0))
+
+        elif rule.kind == "timeout_bound":
+            for c in caps.commands:
+                if not (c.program
+                        and fnmatch.fnmatchcase(c.program, rule.subject)):
+                    continue
+                if c.timeout_seconds is None:
+                    what = ("has no timeout" if not c.timeout
+                            else "has a timeout computed at runtime, which "
+                                 "cannot be checked here")
+                    findings.append(
+                        ("forbid", f'"{c.program}" {what}', c.line))
+                    continue
+                seconds = c.timeout_seconds
+                if rule.high is not None and seconds > rule.high:
+                    findings.append((
+                        rule.severity,
+                        f'"{c.program}" waits up to {format_duration(seconds)}'
+                        f", the limit is {format_duration(rule.high)}", c.line))
+                elif rule.low is not None and seconds < rule.low:
+                    findings.append((
+                        rule.severity,
+                        f'"{c.program}" waits only {format_duration(seconds)}'
+                        f", at least {format_duration(rule.low)} is required",
+                        c.line))
 
         elif rule.kind == "timeout":
             for c in caps.commands:

@@ -196,10 +196,14 @@ def main(argv=None):
         blocked = [f for f in findings if f[0] == "forbid"]
         for severity, what, line in findings:
             label = "REFUSED" if severity == "forbid" else "warning"
-            text = source_lines[line - 1].strip() if 0 < line <= len(
-                source_lines) else ""
             sys.stderr.write(f"{label}: {what}\n")
-            sys.stderr.write(f"  {opts.script}:{line}  {text}\n")
+            if 0 < line <= len(source_lines):
+                sys.stderr.write(f"  {opts.script}:{line}  "
+                                 f"{source_lines[line - 1].strip()}\n")
+            else:
+                # A shortfall — "at least one cleanup" — is about the script
+                # as a whole, so there is no line to point at.
+                sys.stderr.write(f"  {opts.script}\n")
         if blocked:
             sys.stderr.write(
                 f"\n{len(blocked)} rule violation(s); the script was not "

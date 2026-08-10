@@ -878,6 +878,75 @@ ignored failure and a handled one: a `try to run` whose result is examined in
 the next statement or two passes, while one whose failure is silently dropped
 does not.
 
+The capabilities added since — setting an environment variable and changing
+the working folder — have rules of their own, because otherwise they would be
+a way around the rest of the policy:
+
+```policy
+forbid setting "PATH"
+forbid setting "LD_*"
+forbid changing folder
+```
+
+#### Counting rules
+
+The rules above ask whether something appears at all. Business rules usually
+ask *how much*, so the same vocabulary counts:
+
+```policy
+require at most 12 commands
+require at least 1 cleanup
+require between 1 and 5 files written
+forbid more than 2 runs of "curl"
+forbid any files deleted
+```
+
+`forbid more than N` and `require at most N` are the same rule said two ways,
+as are `forbid fewer than N` and `require at least N`; use whichever reads
+better for the noun. `forbid any X` is a limit of zero. `warn` may replace
+`forbid` or `require` to report without blocking.
+
+The countable nouns, singular or plural:
+
+| Noun | Counts |
+|---|---|
+| `commands` | every program the script can run |
+| `network commands` | those that reach the internet |
+| `runs of "curl"` | commands whose program matches a glob |
+| `files read`, `files written`, `files deleted` | file access by path |
+| `environment reads`, `environment writes` | environment variables touched |
+| `folder changes` | assignments to `the current folder` |
+| `cleanups` | `ensure` blocks |
+| `unchecked commands` | `try to run` whose result is never examined |
+| `commands without a timeout` | commands with no deadline |
+| `runtime names` | program names or paths built at runtime |
+| `handlers` | handler definitions |
+| `pipes` | pipe stages |
+
+A count that is exceeded reports the line of the occurrence that crossed the
+limit, not the whole script. A count that falls short has no line to point at,
+so it is reported against the file.
+
+#### Bounded timeouts
+
+`require timeout on "curl"` asks only that a deadline exists. A deadline of
+six hours satisfies it, and so does one of a millisecond — the first hangs the
+script, the second kills healthy work. So the bound can be given:
+
+```policy
+require timeout on "curl" of at most 30 seconds
+require timeout on "*" of at least 1 second
+require timeout on "*" between 1 and 120 seconds
+```
+
+Units are reconciled between the rule and the script: a policy written in
+seconds catches a script written in minutes, because `within 2 minutes` is
+already `2 * 60` in the tree and folds to 120 before the comparison.
+
+A timeout computed at runtime cannot be checked ahead of time, and is refused
+rather than assumed acceptable — the same rule the manifest follows for a
+program name built at runtime.
+
 Sensitive-path detection works on literal *fragments*, so a path assembled at
 runtime — `file (home & "/.ssh/id_rsa")` — is still recognised even though no
 whole-string literal ever appears in the source.
