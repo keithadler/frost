@@ -11,6 +11,25 @@ bump may change the language.
 
 ### Added
 
+**`--trace-to-file FILE`**, and a trace worth writing anywhere. It printed
+`[frost] line 5: Run`, which names the interpreter's internals rather than
+anything the author wrote; it now prints the line itself, flushed as it goes,
+because the run worth tracing is often the one that never finishes.
+
+### Fixed
+
+**`--record` threw away the run most worth recording.** The recording was
+saved only on the success path, so a script that failed, was interrupted, or
+hit a recursion limit left nothing behind. It is now written however the run
+ends, carrying the real exit status, and a failure to write it can no longer
+hide the failure it was about.
+
+**`--trace-to-file out.log s.frost` treated `out.log` as the script.** The set
+of flags that consume the token after them was kept in a list beside the
+argument parser instead of read off it, and went stale the moment a flag was
+added. It is derived now, and deriving it is the default rather than the
+opt-in: an empty default does not fail loudly, it misparses quietly.
+
 **`play.html` runs the real frost.** The scratchpad was `web/chunks.js`, a
 second implementation of a slice of the language in JavaScript. It could
 evaluate expressions and nothing else, so the demo showed the least

@@ -220,7 +220,7 @@ def truthy(v):
 
 class Interpreter:
     def __init__(self, argv=None, trace=False, cwd=None, keystore=None,
-                 role=None):
+                 role=None, trace_to=None, source=None):
         self.globals = {}
         self.scopes = [self.globals]
         self.handlers = {}
@@ -230,7 +230,14 @@ class Interpreter:
         self.match_groups = []
         self.whole_match = ""
         self.argv = argv or []
-        self.trace = trace
+        self.trace = trace or trace_to is not None
+        # Where the trace goes. stderr by default; a file when the run is long
+        # enough, or wedged enough, that nobody is watching a terminal.
+        self.trace_to = trace_to
+        # The script's own lines, so a trace says what ran rather than which
+        # class implemented it. `[frost] line 5: Run` names the interpreter's
+        # internals; the line somebody wrote is what they are looking for.
+        self.source_lines = (source or "").split("\n")
         self.cwd = cwd or os.getcwd()
         self.env = dict(os.environ)
         self.cleanups = []       # ensure blocks, run in reverse at exit
@@ -383,10 +390,22 @@ class Interpreter:
                 f"cannot execute {type(node).__name__}",
                 getattr(node, "line", None))
         if self.trace:
-            sys.stderr.write(
-                f"[frost] line {getattr(node, 'line', '?')}: "
-                f"{type(node).__name__}\n")
+            self.write_trace(node)
         return method(node)
+
+    def write_trace(self, node):
+        """One line per statement, flushed as it goes.
+
+        Flushed because the run worth tracing is often the one that never
+        finishes, and a buffered trace of a wedged script is an empty file.
+        """
+        line = getattr(node, "line", None)
+        text = ""
+        if line and 0 < line <= len(self.source_lines):
+            text = "  " + self.source_lines[line - 1].strip()
+        stream = self.trace_to or sys.stderr
+        stream.write(f"[frost] {line if line else '?':>4}{text}\n")
+        stream.flush()
 
     def check_declared_fields(self, node, value):
         """`with fields "a", "b"` is checked the moment the value arrives.

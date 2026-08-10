@@ -349,6 +349,39 @@ A script that waits says so in `--explain`, under `Waits:`. It is not a
 capability, since it touches nothing, but a reviewer approving a CI job wants
 to know it sleeps for ten minutes.
 
+### Watching a run, and auditing one
+
+Two different questions, and it is worth reaching for the right one.
+
+**What did it do?** `--record run.json` writes down every effect: each command
+with its arguments, standard input, output and exit status, every file read or
+written, every environment variable, every clock reading. Secrets are never
+recorded. That is the auditable artefact, and it is a replayable fixture as
+well.
+
+The recording is written **however the run ends**. A run that failed, was
+interrupted or wedged is exactly the one somebody needs to read afterwards,
+and for a while frost was throwing precisely those away.
+
+**What did it execute?** `--trace` prints each statement as it runs, and
+`--trace-to-file FILE` puts that somewhere you can read later:
+
+```text
+[frost]    1  put 0 into error count
+[frost]    2  repeat for each line in the standard input as row
+[frost]    3      if row contains "ERROR" then add 1 to error count
+```
+
+A recording cannot answer this. It holds effects, so a script that took the
+wrong branch and therefore did nothing produces an empty recording and no
+explanation. The trace shows the condition being evaluated and the branch not
+taken.
+
+The trace is flushed line by line, because the run worth tracing is often the
+one that never finishes and a buffered trace of a wedged script is an empty
+file. It prints source text and never runtime values, so a credential cannot
+reach it.
+
 ### Approving what a script may do
 
 `--frozen` asks whether a script is byte-identical to the one that was

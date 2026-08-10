@@ -144,10 +144,13 @@ def test_ast_dumps_nodes(run_cli, script):
     assert (status, "Put(" in out) == (0, True)
 
 
-def test_trace_names_each_statement(run_cli, script):
+def test_trace_shows_each_statement_as_written(run_cli, script):
+    """The trace used to print the AST class name, which names frost's
+    internals rather than anything the author wrote."""
     status, out, err = run_cli("--trace", script('put "a"\nput "b"'))
     assert (status, out) == (0, "a\nb\n")
-    assert err.count("[frost] line") == 2
+    assert err.count("[frost]") == 2
+    assert 'put "a"' in err and 'put "b"' in err
 
 
 def test_explain_prints_a_manifest(run_cli, script):

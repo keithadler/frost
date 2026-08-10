@@ -568,3 +568,143 @@ def test_describing_every_event_kind():
             ({"kind": "env-read", "name": "HOME"}, "env-read HOME"),
             ({"kind": "stdin"}, "stdin")):
         assert J._describe(event) == expected
+
+
+# ------------------------------------------- the run worth recording failed
+
+def frost_cli(*args, cwd=None, timeout=60):
+    import subprocess
+    import sys as _sys
+    env = {**os.environ, "PYTHONPATH": REPO}
+    p = subprocess.run([_sys.executable, os.path.join(REPO, "frost"), *args],
+                       capture_output=True, text=True, env=env, cwd=cwd,
+                       timeout=timeout)
+    return p.returncode, p.stdout, p.stderr
+
+
+def write_script(tmp_path, text):
+    path = tmp_path / "s.frost"
+    path.write_text(text.lstrip("\n"))
+    return str(path)
+
+
+def test_a_failing_run_is_still_recorded(tmp_path):
+    """The recording only survived success, which threw away the case it is
+    most wanted for. A run that failed is exactly the one somebody needs to
+    read afterwards."""
+    script = write_script(tmp_path, 'run "echo" with "one"\nrun "false"\n')
+    rec = tmp_path / "run.json"
+    status, _, err = frost_cli("--record", str(rec), script, cwd=str(tmp_path))
+    assert status == 1
+    assert rec.exists(), "the failing run left no recording"
+
+    payload = json.loads(rec.read_text())
+    assert payload["exit"] == 1
+    kinds = [e["kind"] for e in payload["events"]]
+    assert kinds == ["command", "command"]
+    assert payload["events"][-1]["status"] == 1
+
+
+def test_a_successful_run_is_still_recorded(tmp_path):
+    script = write_script(tmp_path, 'run "echo" with "one"\n')
+    rec = tmp_path / "run.json"
+    status, _, _ = frost_cli("--record", str(rec), script, cwd=str(tmp_path))
+    assert status == 0
+    assert json.loads(rec.read_text())["exit"] == 0
+
+
+def test_the_recorded_status_is_the_one_the_script_exited_with(tmp_path):
+    script = write_script(tmp_path, 'quit with status 3\n')
+    rec = tmp_path / "run.json"
+    frost_cli("--record", str(rec), script, cwd=str(tmp_path))
+    assert json.loads(rec.read_text())["exit"] == 3
+
+
+# ------------------------------------------------------------- the trace
+
+def test_the_trace_goes_to_a_file(tmp_path):
+    script = write_script(tmp_path, 'put "one"\nput "two"\n')
+    log = tmp_path / "t.log"
+    status, _, _ = frost_cli("--trace-to-file", str(log), script,
+                             cwd=str(tmp_path))
+    assert status == 0
+    assert log.exists()
+    assert len(log.read_text().strip().split("\n")) == 2
+
+
+def test_the_trace_shows_the_line_somebody_wrote(tmp_path):
+    """`[frost] line 5: Run` names the interpreter's internals. The line the
+    author wrote is what they are looking for."""
+    script = write_script(tmp_path, 'run "echo" with "hello"\n')
+    log = tmp_path / "t.log"
+    frost_cli("--trace-to-file", str(log), script, cwd=str(tmp_path))
+    text = log.read_text()
+    assert 'run "echo" with "hello"' in text
+    assert "Run\n" not in text, "the trace still names AST classes"
+
+
+def test_the_trace_survives_a_run_that_fails(tmp_path):
+    """Flushed as it goes, because the run worth tracing is often the one that
+    never finishes, and a buffered trace of a wedged script is an empty file."""
+    script = write_script(tmp_path, 'put "before"\nrun "false"\nput "after"\n')
+    log = tmp_path / "t.log"
+    status, _, _ = frost_cli("--trace-to-file", str(log), script,
+                             cwd=str(tmp_path))
+    assert status == 1
+    assert 'put "before"' in log.read_text()
+
+
+def test_tracing_to_a_file_needs_no_second_flag(tmp_path):
+    script = write_script(tmp_path, 'put "x"\n')
+    log = tmp_path / "t.log"
+    frost_cli("--trace-to-file", str(log), script, cwd=str(tmp_path))
+    assert log.read_text().strip()
+
+
+def test_an_unwritable_trace_is_refused_before_the_script_runs(tmp_path):
+    script = write_script(tmp_path, 'put "x"\n')
+    status, out, err = frost_cli("--trace-to-file",
+                                 str(tmp_path / "nope" / "t.log"), script,
+                                 cwd=str(tmp_path))
+    assert status == 2
+    assert "cannot write the trace" in err
+    assert out == "", "the script ran despite the trace being unusable"
+
+
+def test_the_trace_does_not_reveal_a_secret(tmp_path):
+    """It prints source text, never runtime values, so a credential cannot
+    reach it. Worth pinning: a trace is a file people paste into tickets."""
+    creds = tmp_path / "c.txt"
+    creds.write_text("hunter2")
+    script = write_script(
+        tmp_path,
+        f'put the secret file "{creds}" into pw\nput "using" && pw\n')
+    log = tmp_path / "t.log"
+    frost_cli("--trace-to-file", str(log), script, cwd=str(tmp_path))
+    assert "hunter2" not in log.read_text()
+
+
+# ------------------------------------------------- flags that take a value
+
+def test_every_value_taking_flag_is_known_to_the_splitter():
+    """The list of value-taking options used to sit beside the parser instead
+    of being read off it, and went stale the moment a flag was added:
+    `--trace-to-file out.log s.frost` silently treated out.log as the script.
+    """
+    import argparse
+    from frostlang import cli
+
+    parser = argparse.ArgumentParser()
+    for flag in ("--policy", "--record", "--trace-to-file"):
+        parser.add_argument(flag, metavar="FILE")
+    derived = cli.value_options(parser)
+    assert {"--policy", "--record", "--trace-to-file"} <= derived
+
+
+def test_a_value_flag_before_the_script_does_not_eat_it(tmp_path):
+    script = write_script(tmp_path, 'put item 1 of the arguments\n')
+    log = tmp_path / "t.log"
+    status, out, err = frost_cli("--trace-to-file", str(log), script,
+                                 "an-argument", cwd=str(tmp_path))
+    assert status == 0, err
+    assert out.strip() == "an-argument"
