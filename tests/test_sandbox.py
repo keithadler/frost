@@ -130,10 +130,16 @@ try to run "sh" with "-c", "echo escaped > {outside}"
 put "finished"
 '''
 
+# Every policy in this section says `may reach the network`, and deliberately.
+# These tests are about files and programs. Network isolation is a namespace
+# with its own probe and its own tests, and on a machine that will not let one
+# be entered a boundary requiring it is refused outright — which would turn
+# every filesystem assertion below into a test of the refusal instead.
 POLICY = '''
 sandbox may run "sh"
 sandbox may read "*"
 sandbox may write "build/*"
+sandbox may reach the network
 '''
 
 
@@ -178,7 +184,8 @@ def test_a_write_inside_the_boundary_still_succeeds(project, tmp_path):
 
 @needs_sandbox
 def test_a_program_the_boundary_does_not_name_is_refused(project, tmp_path):
-    project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n')
+    project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n'
+                            'sandbox may reach the network\n')
     project("s.frost", 'run "curl" with "https://example.com"\n')
     status, _, err = frost("--policy", "rules.policy", "--sandbox", "s.frost",
                            cwd=str(tmp_path))
@@ -190,7 +197,8 @@ def test_a_program_the_boundary_does_not_name_is_refused(project, tmp_path):
 @needs_sandbox
 def test_a_pipe_stage_is_confined_too(project, tmp_path):
     """Every child, not just the ones spawned by `run`."""
-    project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n')
+    project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n'
+                            'sandbox may reach the network\n')
     project("s.frost", "pipe\n    run \"echo\" with \"x\"\n"
                        "    run \"curl\"\nend pipe\n")
     status, _, err = frost("--policy", "rules.policy", "--sandbox", "s.frost",
@@ -207,7 +215,8 @@ def test_frosts_own_write_is_checked(project, tmp_path):
     sees it. Enforced by the interpreter, which is a weaker claim than the
     one covering commands and is documented as one."""
     project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n'
-                            'sandbox may write "build/*"\n')
+                            'sandbox may write "build/*"\n'
+                            'sandbox may reach the network\n')
     project("s.frost", f'put "data" into file "{tmp_path / "escaped.txt"}"\n')
     status, _, err = frost("--policy", "rules.policy", "--sandbox", "s.frost",
                            cwd=str(tmp_path))
@@ -219,7 +228,8 @@ def test_frosts_own_write_is_checked(project, tmp_path):
 @needs_sandbox
 def test_frosts_own_write_inside_the_boundary_succeeds(project, tmp_path):
     project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n'
-                            f'sandbox may write "{tmp_path}/build/*"\n')
+                            f'sandbox may write "{tmp_path}/build/*"\n'
+                            'sandbox may reach the network\n')
     project("s.frost", f'put "data" into file "{tmp_path}/build/out.txt"\n')
     status, _, err = frost("--policy", "rules.policy", "--sandbox", "s.frost",
                            cwd=str(tmp_path))
@@ -231,7 +241,8 @@ def test_frosts_own_write_inside_the_boundary_succeeds(project, tmp_path):
 def test_frosts_own_delete_is_checked(project, tmp_path):
     victim = tmp_path / "victim.txt"
     victim.write_text("still here\n")
-    project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n')
+    project("rules.policy", 'sandbox may run "echo"\nsandbox may read "*"\n'
+                            'sandbox may reach the network\n')
     project("s.frost", f'delete file "{victim}"\n')
     status, _, err = frost("--policy", "rules.policy", "--sandbox", "s.frost",
                            cwd=str(tmp_path))
@@ -244,7 +255,8 @@ def test_frosts_own_read_is_checked(project, tmp_path):
     secret = tmp_path / "private.txt"
     secret.write_text("contents\n")
     project("rules.policy", 'sandbox may run "echo"\n'
-                            'sandbox may read "build/*"\n')
+                            'sandbox may read "build/*"\n'
+                            'sandbox may reach the network\n')
     project("s.frost", f'put file "{secret}"\n')
     status, out, err = frost("--policy", "rules.policy", "--sandbox",
                              "s.frost", cwd=str(tmp_path))
@@ -283,6 +295,68 @@ def test_a_missing_backend_refuses_rather_than_warning(monkeypatch):
     assert "--sandbox" in (e.value.hint or "")
 
 
+@needs_sandbox
+def test_a_sandbox_that_runs_nothing_is_not_reported_as_working(monkeypatch):
+    """The bug this pair of controls exists for.
+
+    A backend that dies before executing anything blocks the forbidden write,
+    because it blocks everything. Checking only for the forbidden write's
+    absence therefore calls a completely broken sandbox healthy — which is
+    what happened, in CI, on Linux, for four runs. Here the wrapper is
+    replaced by a command that does nothing at all, and the self-test has to
+    notice.
+    """
+    monkeypatch.setattr(Sandbox, "wrap",
+                        lambda self, argv, folder=None: ["/bin/sh", "-c", ":"])
+    working, detail = self_test()
+    assert not working, "a sandbox that ran nothing was reported as confining"
+    assert "not confining" in detail
+
+
+@needs_sandbox
+def test_the_self_test_passes_for_the_right_reason(tmp_path):
+    """And the positive control is not merely always true: it fails when the
+    boundary genuinely forbids the write."""
+    working, detail = self_test()
+    assert working, detail
+
+
+def test_network_isolation_is_probed_rather_than_assumed(monkeypatch):
+    """Whether a namespace can be entered is a fact about the machine."""
+    S.network_isolation_works.cache_clear()
+    calls = []
+    monkeypatch.setattr(S.subprocess, "run",
+                        lambda argv, **kw: calls.append(argv) or
+                        type("R", (), {"returncode": 1})())
+    monkeypatch.setattr(S, "detect_backend", lambda: S.BACKEND_LINUX)
+    assert S.network_isolation_works() is False
+    assert "--unshare-net" in calls[0]
+    S.network_isolation_works.cache_clear()
+
+
+def test_a_boundary_needing_isolation_is_refused_when_it_cannot_be_entered(
+        monkeypatch, tmp_path):
+    """Fail closed, not warn and continue. The alternative is a script that
+    believes it has no network and does."""
+    monkeypatch.setattr(S, "network_isolation_works", lambda backend=None: False)
+    boundary = Boundary()
+    boundary.declared = True
+    boundary.network = False
+    with pytest.raises(SandboxError) as e:
+        Sandbox(boundary, str(tmp_path), S.BACKEND_LINUX)
+    assert "cut off network access" in e.value.msg
+    assert "may reach the network" in (e.value.hint or "")
+
+
+def test_a_boundary_that_permits_the_network_needs_no_namespace(monkeypatch,
+                                                                tmp_path):
+    monkeypatch.setattr(S, "network_isolation_works", lambda backend=None: False)
+    boundary = Boundary()
+    boundary.declared = True
+    boundary.network = True
+    Sandbox(boundary, str(tmp_path), S.BACKEND_LINUX).close()      # no raise
+
+
 def test_a_backend_that_does_not_confine_is_refused(monkeypatch, project,
                                                     tmp_path):
     """Present is not the same as working."""
@@ -315,6 +389,7 @@ def test_wrapping_refuses_a_program_outside_the_boundary(tmp_path):
     boundary = Boundary()
     boundary.declared = True
     boundary.programs = ["echo"]
+    boundary.network = True          # see the note above POLICY
     if BACKEND == S.BACKEND_NONE:
         pytest.skip("no backend")
     guard = Sandbox(boundary, str(tmp_path))
@@ -383,6 +458,19 @@ def test_the_bubblewrap_argv_unshares_the_network_by_default(tmp_path):
     boundary = Boundary()
     boundary.network = True
     assert "--unshare-net" not in S.bubblewrap_argv(boundary, str(tmp_path))
+
+
+def test_a_boundary_pattern_is_resolved_through_symlinks(tmp_path):
+    """macOS matches sandbox rules on the real path, and /tmp and /var are
+    both symlinks there. An unresolved pattern names something the kernel
+    never sees, so every write the boundary allows is denied — strict-looking
+    and broken."""
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    assert S._anchor("out/*", str(link)) == str(real / "out" / "*")
+    assert S._anchor(str(link / "out"), "/") == str(real / "out")
 
 
 def test_a_relative_pattern_is_anchored_to_the_script(tmp_path):
