@@ -951,7 +951,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1546 tests — python3 -m pytest tests/ -q
+tests/                1553 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -963,7 +963,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.6.0. The language runs, the examples are real, and 1546 tests cover
+<p>Version 0.6.0. The language runs, the examples are real, and 1553 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1260,7 +1260,8 @@ powerful</em>?</p>
 <pre><code class="language-bash">frost --approve deploy.frost
 </code></pre>
 <p>That writes <code>deploy.frost.approved</code>, a record of every capability the script
-has today: the programs it runs, the files it reads, writes and deletes, the
+has today: the programs it runs, <strong>the hosts it reaches</strong>, the files it reads,
+writes and deletes, the
 environment it touches, the secrets it reads and where they are released, and
 how many names it builds at runtime. No line numbers, so moving a comment does
 not move the baseline.</p>
@@ -1289,6 +1290,13 @@ to use authority it legitimately holds. A policy file answers that properly,
 by being written by a person ahead of time — but a policy has to be written,
 and a baseline needs no rules at all. It compares against the reviewer's own
 past judgement instead of a security model they had to author.</p>
+<p>Destinations are recorded, not just program names. Without that,
+<code>curl https://api.github.com</code> and <code>curl https://telemetry.example</code> are the same
+capability — and a persuaded model does not need a new program, only a new
+destination. The host is taken from literal arguments only: a scheme, or an
+scp-style <code>user@host:path</code>. A bare <code>example.com</code> is indistinguishable from a
+filename and is not guessed at, and a network command whose destination is not
+a literal is recorded as unknowable rather than omitted.</p>
 <p><strong>What it is not.</strong> A capability bound is not an intent check. A script
 allowed to run <code>git</code> can still push to the wrong remote, and a baseline that
 already includes <code>curl</code> and a readable config file will not object to one

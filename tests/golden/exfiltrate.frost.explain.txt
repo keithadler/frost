@@ -1,6 +1,6 @@
 examples/exfiltrate.frost
 =========================
-This script runs curl, rm, reaches the internet using curl, reads 2 files (runtime), and reads 2 environment variables.
+This script runs curl, rm, reaches the internet using curl (backups-cdn.example.net), reads 2 files (runtime), and reads 2 environment variables.
 
 Runs these programs:
   curl  — line 21  (1 allowed to fail, no timeout)
@@ -13,6 +13,9 @@ Reads these files:
 Reads these environment variables:
   HOME          — line 10
   GITHUB_TOKEN  — line 15
+
+Reaches these hosts:
+  backups-cdn.example.net  — line 21
 
 Note: 2 name(s) are built at runtime and cannot be checked ahead of time.
 

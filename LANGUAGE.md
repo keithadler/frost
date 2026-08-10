@@ -331,7 +331,8 @@ frost --approve deploy.frost
 ```
 
 That writes `deploy.frost.approved`, a record of every capability the script
-has today: the programs it runs, the files it reads, writes and deletes, the
+has today: the programs it runs, **the hosts it reaches**, the files it reads,
+writes and deletes, the
 environment it touches, the secrets it reads and where they are released, and
 how many names it builds at runtime. No line numbers, so moving a comment does
 not move the baseline.
@@ -368,6 +369,14 @@ to use authority it legitimately holds. A policy file answers that properly,
 by being written by a person ahead of time — but a policy has to be written,
 and a baseline needs no rules at all. It compares against the reviewer's own
 past judgement instead of a security model they had to author.
+
+Destinations are recorded, not just program names. Without that,
+`curl https://api.github.com` and `curl https://telemetry.example` are the same
+capability — and a persuaded model does not need a new program, only a new
+destination. The host is taken from literal arguments only: a scheme, or an
+scp-style `user@host:path`. A bare `example.com` is indistinguishable from a
+filename and is not guessed at, and a network command whose destination is not
+a literal is recorded as unknowable rather than omitted.
 
 **What it is not.** A capability bound is not an intent check. A script
 allowed to run `git` can still push to the wrong remote, and a baseline that

@@ -1,6 +1,6 @@
 examples/danger.frost
 =====================
-This script runs chmod, curl, find, rm and 1 more, reaches the internet using curl, and writes 1 file (system).
+This script runs chmod, curl, find, rm and 1 more, reaches the internet using curl (install.example.com, metrics.example.com), and writes 1 file (system).
 
 Runs these programs:
   chmod  — line 18  (no timeout)
@@ -11,6 +11,10 @@ Runs these programs:
 
 Writes these files:
   /etc/cleanup.state  — line 15
+
+Reaches these hosts:
+  metrics.example.com  — line 21
+  install.example.com  — line 25
 
 Findings:
   [DANGER ] line 12  Recursive forced delete

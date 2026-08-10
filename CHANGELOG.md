@@ -22,6 +22,16 @@ frost --approve deploy.frost        record what it may do today
 frost --as-approved deploy.frost    refuse if it gained a capability
 ```
 
+The baseline records **where a script reaches**, not only what it runs.
+Recording program names alone made `curl https://api.github.com` and
+`curl https://telemetry.example` the same capability, which is precisely the
+room a persuaded model needs: not a new program, a new destination. Hosts come
+from literal arguments only — a scheme, or `user@host:path` — because a bare
+`example.com` is indistinguishable from a filename and inventing hosts in a
+manifest people trust is worse than reporting none. A network command with no
+literal destination is recorded as unknowable rather than omitted. `--explain`
+gained a "Reaches these hosts:" section, and a policy can now count them.
+
 The baseline records the capability set with no line numbers, so moving a
 comment does not move it. A capability that disappears is never refused; one
 that appears refuses with exit 3 and says what it was:

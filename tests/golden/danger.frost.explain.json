@@ -143,7 +143,7 @@
   ],
   "reads": [],
   "script": "examples/danger.frost",
-  "summary": "This script runs chmod, curl, find, rm and 1 more, reaches the internet using curl, and writes 1 file (system).",
+  "summary": "This script runs chmod, curl, find, rm and 1 more, reaches the internet using curl (install.example.com, metrics.example.com), and writes 1 file (system).",
   "verdict": "dangerous",
   "writes": [
     {
