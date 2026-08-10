@@ -315,6 +315,66 @@ A script that waits says so in `--explain`, under `Waits:`. It is not a
 capability, since it touches nothing, but a reviewer approving a CI job wants
 to know it sleeps for ten minutes.
 
+### Approving what a script may do
+
+`--frozen` asks whether a script is byte-identical to the one that was
+reviewed. That is the right question for a vendored module and the wrong one
+for a script a model regenerates: every regeneration trips it, so you re-lock
+every time, and re-locking every time means the check has stopped telling you
+anything.
+
+`--approve` asks the question that survives regeneration — did it get *more
+powerful*?
+
+```bash
+frost --approve deploy.frost
+```
+
+That writes `deploy.frost.approved`, a record of every capability the script
+has today: the programs it runs, the files it reads, writes and deletes, the
+environment it touches, the secrets it reads and where they are released, and
+how many names it builds at runtime. No line numbers, so moving a comment does
+not move the baseline.
+
+```bash
+frost --as-approved deploy.frost
+```
+
+runs it only if nothing widened:
+
+```text
+REFUSED: it can now run curl
+REFUSED: it can now read the secret ~/.aws/credentials (from the file)
+REFUSED: it can now let a secret leave the process as an argument to curl
+
+3 capability change(s) since deploy.frost.approved; it was not run.
+  Read what changed, then re-approve with --approve.
+```
+
+A capability that *disappears* is not reported and never refuses. The
+asymmetry is the point: a script that stops touching the network needs no
+ceremony, and one that starts needs a person. Re-approving prints what changed,
+so the moment of approval has something in it to read.
+
+The baseline covers imported modules too — a capability that arrives through
+an import is still a capability, and measuring only the entry file would make
+"add an import" the way around this.
+
+**What it is for.** Not injection: frost already stops a value becoming
+syntax. This is for the case where an agent reads something hostile and writes
+perfectly valid frost obeying it. The script parses, formats canonically and
+passes `--check`; the model was never confused about syntax, it was persuaded
+to use authority it legitimately holds. A policy file answers that properly,
+by being written by a person ahead of time — but a policy has to be written,
+and a baseline needs no rules at all. It compares against the reviewer's own
+past judgement instead of a security model they had to author.
+
+**What it is not.** A capability bound is not an intent check. A script
+allowed to run `git` can still push to the wrong remote, and a baseline that
+already includes `curl` and a readable config file will not object to one
+being sent to the other. This bounds what a script can reach, never whether
+reaching it was wise.
+
 ### Streaming input
 
 `repeat for each line in the standard input` consumes lines as they arrive

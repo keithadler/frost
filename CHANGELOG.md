@@ -11,6 +11,39 @@ bump may change the language.
 
 ### Added
 
+**`--approve` and `--as-approved`: a capability baseline.** `--frozen` asks
+whether a script is byte-identical to the reviewed one. That is right for a
+vendored module and wrong for a script a model regenerates — every
+regeneration trips it, you re-lock every time, and re-locking every time means
+the check has stopped saying anything.
+
+```
+frost --approve deploy.frost        record what it may do today
+frost --as-approved deploy.frost    refuse if it gained a capability
+```
+
+The baseline records the capability set with no line numbers, so moving a
+comment does not move it. A capability that disappears is never refused; one
+that appears refuses with exit 3 and says what it was:
+
+```
+REFUSED: it can now run curl
+REFUSED: it can now read the secret ~/.aws/credentials (from the file)
+REFUSED: it can now let a secret leave the process as an argument to curl
+```
+
+This closes the gap between two claims frost was making. Injection immunity is
+a data-flow property: a value cannot become syntax. It says nothing about an
+agent that *reads* something hostile and writes perfectly valid frost obeying
+it — a confused deputy, not an injection, and no grammar reaches it. A policy
+file answers that properly by being authored out of band from generation, but
+a policy has to be written; a baseline needs no rules and compares against the
+reviewer's own past judgement.
+
+It bounds what a script can reach, never whether reaching it was wise. A
+script allowed to run `git` can still push to the wrong remote.
+
+
 **`--repair` can fix a missing wait unit.** `wait 3` now carries the same
 mechanical repair its exact twin `within 3` has had for two releases.
 
@@ -27,6 +60,13 @@ The browser evaluator gained records, JSON, field access and `the keys/values
 of`, and the new coverage check immediately earned itself: the first run found
 the two implementations disagreeing on `the json text of the json of ""`,
 where one produced `null` and the other `""`.
+
+### Changed
+
+**The README no longer implies the grammar answers prompt injection.** The
+paragraph headed "Prompt injection becomes shell injection" described the
+poisoned-input setup and then answered only the data-flow case. The two
+attacks are now separated, with the limits of each stated.
 
 ### Fixed
 
