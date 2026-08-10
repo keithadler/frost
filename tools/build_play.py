@@ -31,15 +31,25 @@ PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"
 # from the examples the test suite already runs, formats and audits.
 SAMPLES = [
     ("A health check", "healthcheck.frost",
-     "Clean. Reads a config, calls a few services, reports. Passes the policy."),
+     "Clean. Reads a config, calls a few services, reports.",
+     "Press --explain. Every program, file and host it can touch, derived "
+     "from the text. Then --policy: it passes."),
     ("An API check", "apicheck.frost",
-     "Records and JSON, a bounded retry, and a real error message."),
+     "Records and JSON, a bounded retry, and a real error message.",
+     "Press --explain and read the Waits line. The sleep is inside a loop, so "
+     "it says at least, not exactly."),
     ("A fake backup", "exfiltrate.frost",
-     "Looks like a dotfile backup. Reads your keys and posts them somewhere."),
+     "Looks like a dotfile backup. Reads your keys and posts them somewhere.",
+     "Read the script first and try to spot it. Then press --explain and see "
+     "how long that took by comparison."),
     ("Routine cleanup", "danger.frost",
-     "Four dangerous things behind an ordinary name."),
+     "Four dangerous things behind an ordinary name.",
+     "Press --policy. Each refusal quotes the rule's own comment, so it says "
+     "what to do instead rather than only no."),
     ("A release", "release.frost",
-     "Secrets, a keystore role, and a deploy that has to be checkable."),
+     "Secrets, a keystore role, and a deploy that has to be checkable.",
+     "Press --explain and find Lets a secret leave the process. That section "
+     "is the one worth arguing about in review."),
 ]
 
 # Written wrong on purpose. Every mistake here is one the parser already knows
@@ -70,20 +80,27 @@ def python_sources():
 
 def samples():
     out = []
-    for title, filename, blurb in SAMPLES:
+    for title, filename, blurb, advice in SAMPLES:
         with open(os.path.join(HERE, "examples", filename)) as fh:
             source = fh.read()
         out.append({"title": title, "file": filename, "blurb": blurb,
-                    "source": source})
-    out.append({"title": "A script written wrong", "file": "(hand written)",
-                "blurb": "Four mistakes, each one the parser knows the fix "
-                         "for. Try --check --json, then --repair.",
+                    "try": advice, "source": source})
+    out.append({"title": "A script written wrong", "file": "broken.frost",
+                "blurb": "Mistakes the parser already knows the fix for.",
+                "try": "Press --check --json: every diagnostic carries a "
+                       "repair and a confidence. Then --repair, which applies "
+                       "the high-confidence ones and rewrites the box. It "
+                       "leaves the missing timeout unit alone on purpose, "
+                       "because seconds is only a likely guess and a wrong "
+                       "repair costs more than no repair.",
                 "source": BROKEN})
     with open(os.path.join(HERE, "examples", "apicheck.frost")) as fh:
         approved = fh.read()
     out.append({"title": "A poisoned regeneration", "file": "apicheck.frost",
-                "blurb": "Valid frost that passes --check. Compare it against "
-                         "the version that was approved.",
+                "blurb": "Valid frost. It parses, it formats, --check passes.",
+                "try": "Press --check: it is a perfectly good script. Then "
+                       "--as-approved, which compares it against the version "
+                       "approved earlier. No grammar could have caught this.",
                 "source": approved.rstrip() + "\n" + POISON_TAIL,
                 "approved": approved})
     return out
@@ -294,6 +311,9 @@ footer code{font-family:var(--mono);font-size:.85em}
   overflow-x:auto;font-family:var(--mono);font-size:.86rem;line-height:1.55;
   white-space:pre-wrap;min-height:6rem;margin-top:.8rem}
 #approvedwrap{margin-top:.8rem}
+#real .advice{font-size:.92rem;background:#f4f7fb;border-left:3px solid #1d3557;
+  padding:.6rem .8rem;border-radius:0 6px 6px 0;margin:.4rem 0 .8rem}
+#asif{font-family:var(--mono);font-size:.82rem;color:var(--muted);margin:.6rem 0 0}
 @media (max-width:820px){.cols{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -457,6 +477,7 @@ should not be doing.</p>
 <div id="realui" hidden>
   <p class="note">Sample:&nbsp;<span id="samples"></span></p>
   <p id="blurb" class="note"></p>
+  <p id="advice" class="advice"></p>
 
   <div class="cols">
     <div>
@@ -483,6 +504,7 @@ should not be doing.</p>
     <button data-act="diagnose">--check --json</button>
     <button data-act="repair" id="dorepair">--repair</button>
   </p>
+  <p id="asif" class="note"></p>
   <pre id="rout">Pick a sample and press a button.</pre>
 </div>
 </section>
@@ -505,7 +527,8 @@ should not be doing.</p>
   function load(i) {
     current = SAMPLES[i];
     $('rsrc').value = current.source;
-    $('blurb').textContent = current.file + ' — ' + current.blurb;
+    $('blurb').textContent = current.file + ': ' + current.blurb;
+    $('advice').textContent = current['try'] || '';
     $('approvedwrap').hidden = !current.approved;
     if (current.approved) $('rapp').value = current.approved;
     Array.prototype.forEach.call(picker.children, function (b, n) {
@@ -551,6 +574,17 @@ should not be doing.</p>
           'the poisoned regeneration sample.';
         return;
       }
+      var cmd = {
+        check: 'frost --check FILE',
+        explain: 'frost --explain FILE',
+        policy: 'frost --policy production.policy FILE',
+        approve: 'frost --approve FILE',
+        compare: 'frost FILE          (with FILE.approved beside it)',
+        diagnose: 'frost --check --json FILE',
+        repair: 'frost --repair --write FILE'
+      }[act];
+      $('asif').textContent = 'the same as running:  ' +
+        cmd.replace('FILE', current.file);
       var f = py.globals.get('run');
       var answer;
       try { answer = f(act, $('rsrc').value, extra); }

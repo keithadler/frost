@@ -1,0 +1,22 @@
+This script runs curl, reaches the internet using curl, and reads 1 file (runtime). It can exit with status 1, 2.
+
+Runs these programs:
+  curl  — line 29
+
+Reads these files:
+  (path built at runtime)  — line 16
+
+Reaches these hosts:
+  (destination built at runtime)  — line 29
+
+Can exit with:
+  status 1
+  status 2
+
+Note: 1 name(s) are built at runtime and cannot be checked ahead of time.
+
+Findings:
+  [caution] line 29  Reaches the network via curl
+             Data can leave this machine, and the result depends on a system you do not control.
+
+Verdict: clean

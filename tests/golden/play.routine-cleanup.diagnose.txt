@@ -1,0 +1,53 @@
+[danger] recursive-forced-delete
+  Recursive forced delete
+  line 12:  run "rm" with "-rf", scratch folder
+  hint: rm -rf removes a whole tree without confirming and without reporting what it removed.
+  no repair: the fix is not derivable from the text
+
+[danger] writes-system-location-etc
+  Writes to a system location (/etc/cleanup.state)
+  line 15:  put "cleaned" into file "/etc/cleanup.state"
+  hint: Changes here affect every user and survive the script.
+  no repair: the fix is not derivable from the text
+
+[danger] permissive-recursive-permission-change
+  Permissive or recursive permission change
+  line 18:  run "chmod" with "777", "/var/cache"
+  hint: Making files world-writable lets any local user modify them.
+  no repair: the fix is not derivable from the text
+
+[caution] timeout-on-curl
+  No timeout on curl
+  line 21:  try to run "curl" with "--silent", "https://metrics.example.com/ping"
+  hint: A network command with no deadline can hang the script indefinitely.
+  no repair: the fix is not derivable from the text
+
+[caution] failure-ignored-curl
+  Failure ignored (curl)
+  line 21:  try to run "curl" with "--silent", "https://metrics.example.com/ping"
+  hint: This was written as 'try to run' but the result is never examined, so a failure passes silently.
+  no repair: the fix is not derivable from the text
+
+[note] reaches-network-via-curl
+  Reaches the network via curl (https://metrics.example.com/ping)
+  line 21:  try to run "curl" with "--silent", "https://metrics.example.com/ping"
+  hint: Data can leave this machine, and the result depends on a system you do not control.
+  no repair: the fix is not derivable from the text
+
+[caution] timeout-on-curl
+  No timeout on curl
+  line 25:  run "curl" with "--silent", "https://install.example.com/setup.sh"
+  hint: A network command with no deadline can hang the script indefinitely.
+  no repair: the fix is not derivable from the text
+
+[note] reaches-network-via-curl
+  Reaches the network via curl (https://install.example.com/setup.sh)
+  line 25:  run "curl" with "--silent", "https://install.example.com/setup.sh"
+  hint: Data can leave this machine, and the result depends on a system you do not control.
+  no repair: the fix is not derivable from the text
+
+[danger] downloaded-code-piped-into
+  Downloaded code piped into a shell
+  line 26:  run "sh"
+  hint: Whatever the server returns is executed. The script's behaviour is decided by a remote host.
+  no repair: the fix is not derivable from the text

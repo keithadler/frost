@@ -1,0 +1,2 @@
+Syntax error on line 2: expected 'then' but found end of line
+  hint: an 'if' condition is followed by 'then'

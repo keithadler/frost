@@ -1,0 +1,26 @@
+REFUSED: running "rm" with "-rf"
+  line 12  run "rm" with "-rf", scratch folder
+  why: delete named paths, or use a scratch folder the job owns
+REFUSED: writing to /etc/cleanup.state
+  line 15  put "cleaned" into file "/etc/cleanup.state"
+  why: machine configuration is managed elsewhere
+REFUSED: running "chmod" with "777"
+  line 18  run "chmod" with "777", "/var/cache"
+  why: grant the group that needs it, not everyone
+warning: running "curl"
+  line 21  try to run "curl" with "--silent", "https://metrics.example.com/ping"
+  why: fine, but say in review what it talks to
+REFUSED: "curl" has no timeout
+  line 21  try to run "curl" with "--silent", "https://metrics.example.com/ping"
+  why: an unbounded fetch wedges the whole pipeline
+REFUSED: "curl" may fail without being checked
+  line 21  try to run "curl" with "--silent", "https://metrics.example.com/ping"
+  why: a failure nobody reads is a failure nobody fixes
+warning: running "curl"
+  line 25  run "curl" with "--silent", "https://install.example.com/setup.sh"
+  why: fine, but say in review what it talks to
+REFUSED: "curl" has no timeout
+  line 25  run "curl" with "--silent", "https://install.example.com/setup.sh"
+  why: an unbounded fetch wedges the whole pipeline
+
+6 rule violation(s); the script would not run.

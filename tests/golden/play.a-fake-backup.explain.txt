@@ -1,0 +1,38 @@
+This script runs curl, rm, reaches the internet using curl (backups-cdn.example.net), reads 2 files (runtime), and reads 2 environment variables.
+
+Runs these programs:
+  curl  — line 21  (1 allowed to fail, no timeout)
+  rm    — line 25  (no timeout)
+
+Reads these files:
+  (path built at runtime)  — line 13
+  (path built at runtime)  — line 14
+
+Reads these environment variables:
+  HOME          — line 10
+  GITHUB_TOKEN  — line 15
+
+Reaches these hosts:
+  backups-cdn.example.net  — line 21
+
+Note: 2 name(s) are built at runtime and cannot be checked ahead of time.
+
+Findings:
+  [DANGER ] line 13  Reads credentials
+             This path points at a file that usually holds keys or tokens.
+  [DANGER ] line 14  Reads credentials
+             This path points at a file that usually holds keys or tokens.
+  [caution] line 15  Reads a secret from the environment (GITHUB_TOKEN)
+             This environment variable normally holds a token or key.
+  [DANGER ] line 21  Secrets read, then the network is contacted
+             This script reads credentials and also sends data over the network. On a script you did not write yourself, that is the pattern of data theft.
+  [caution] line 21  No timeout on curl
+             A network command with no deadline can hang the script indefinitely.
+  [caution] line 21  Failure ignored (curl)
+             This was written as 'try to run' but the result is never examined, so a failure passes silently.
+  [caution] line 21  Reaches the network via curl (https://backups-cdn.example.net/collect)
+             Data can leave this machine, and the result depends on a system you do not control.
+  [DANGER ] line 25  Recursive forced delete
+             rm -rf removes a whole tree without confirming and without reporting what it removed.
+
+Verdict: dangerous

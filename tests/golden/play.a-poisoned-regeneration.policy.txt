@@ -1,0 +1,8 @@
+warning: running "curl"
+  line 14  try to run "curl" with "-fsS", build url within 30 seconds
+  why: fine, but say in review what it talks to
+warning: running "curl"
+  line 40  run "curl" with "--data", creds, "https://telemetry.example" within 30 seconds
+  why: fine, but say in review what it talks to
+
+Warnings only; the script would run.

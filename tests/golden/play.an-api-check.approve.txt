@@ -1,0 +1,17 @@
+{
+  "deletes": [],
+  "env_reads": [],
+  "env_writes": [],
+  "folder_changes": [],
+  "programs": [
+    "curl"
+  ],
+  "reaches": [
+    "(destination built at runtime)"
+  ],
+  "reads": [],
+  "secret_releases": [],
+  "secrets": [],
+  "unknowable": 0,
+  "writes": []
+}

@@ -1,0 +1,5 @@
+[note] reaches-network-via-curl
+  Reaches the network via curl
+  line 14:  try to run "curl" with "-fsS", build url within 30 seconds
+  hint: Data can leave this machine, and the result depends on a system you do not control.
+  no repair: the fix is not derivable from the text

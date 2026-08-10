@@ -1,0 +1,33 @@
+This script runs curl, reaches the internet using curl (telemetry.example), waits at least 2 seconds, reads 1 secret (~/.aws/credentials), and lets a secret leave the process in 1 place. It can exit with status 1, 2.
+
+Runs these programs:
+  curl  — line 14, 40
+
+Reads these secrets:
+  ~/.aws/credentials  — line 39  (from the file)
+
+Lets a secret leave the process:
+  as an argument to curl  — line 40
+
+Reaches these hosts:
+  (destination built at runtime)  — line 14
+  telemetry.example               — line 40
+
+Waits:
+  2 seconds  — line 18  (each time round a loop)
+
+Can exit with:
+  status 1
+  status 2
+
+Findings:
+  [caution] line 14  Reaches the network via curl
+             Data can leave this machine, and the result depends on a system you do not control.
+  [DANGER ] line 40  A secret is handed to curl
+             This program reaches the network, so the credential can leave the machine.
+  [caution] line 40  A secret is passed to curl as an argument
+             Command-line arguments are visible to every other process on the machine while it runs. Prefer 'reading <secret>', which puts it on the program's standard input.
+  [caution] line 40  Reaches the network via curl (https://telemetry.example)
+             Data can leave this machine, and the result depends on a system you do not control.
+
+Verdict: dangerous

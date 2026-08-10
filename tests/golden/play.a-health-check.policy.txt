@@ -1,0 +1,5 @@
+warning: running "curl"
+  line 29  try to run "curl" with "--silent", "--show-error", "--output", "/dev/null", \
+  why: fine, but say in review what it talks to
+
+Warnings only; the script would run.

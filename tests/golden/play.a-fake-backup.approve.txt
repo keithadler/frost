@@ -1,0 +1,23 @@
+{
+  "deletes": [],
+  "env_reads": [
+    "GITHUB_TOKEN",
+    "HOME"
+  ],
+  "env_writes": [],
+  "folder_changes": [],
+  "programs": [
+    "curl",
+    "rm"
+  ],
+  "reaches": [
+    "backups-cdn.example.net"
+  ],
+  "reads": [
+    "(built at runtime)"
+  ],
+  "secret_releases": [],
+  "secrets": [],
+  "unknowable": 2,
+  "writes": []
+}

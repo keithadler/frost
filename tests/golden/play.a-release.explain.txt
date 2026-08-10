@@ -1,0 +1,32 @@
+This script runs make, reads 2 files (runtime), writes 5 files (runtime), deletes 1 file, and sets 1 environment variable (RELEASE_VERSION). It can exit with status 1, 2.
+
+Runs these programs:
+  make  — line 53, 56
+
+Reads these files:
+  (path built at runtime)  — line 18
+  (path built at runtime)  — line 26
+
+Writes these files:
+  (path built at runtime)  — line 31
+  (path built at runtime)  — line 73
+  (path built at runtime)  — line 74
+  (path built at runtime)  — line 75
+  (path built at runtime)  — line 76
+
+Deletes these files:
+  (path built at runtime)  — line 34
+
+Sets these environment variables:
+  RELEASE_VERSION  — line 51
+
+Cleans up on exit:
+  ensure block  — line 33
+
+Can exit with:
+  status 1
+  status 2
+
+Note: 8 name(s) are built at runtime and cannot be checked ahead of time.
+
+Verdict: clean
