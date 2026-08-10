@@ -337,8 +337,10 @@ environment it touches, the secrets it reads and where they are released, and
 how many names it builds at runtime. No line numbers, so moving a comment does
 not move the baseline.
 
+Once that file exists, **it binds by default**. No flag is needed:
+
 ```bash
-frost --as-approved deploy.frost
+frost deploy.frost
 ```
 
 runs it only if nothing widened:
@@ -351,6 +353,19 @@ REFUSED: it can now let a secret leave the process as an argument to curl
 3 capability change(s) since deploy.frost.approved; it was not run.
   Read what changed, then re-approve with --approve.
 ```
+
+Binding by default is the difference between a guard and a suggestion. While
+it was opt-in, a poisoned agent did not have to defeat it — it just left the
+flag off, and in most agent loops the agent is the thing composing the command
+line. Skipping it now takes `--ignore-approval`: still possible, but a choice
+someone made and a reviewer can see, rather than what happens when nobody
+types anything. Deleting the approval file works too, and shows up in a diff.
+
+`--as-approved` keeps a stronger meaning for CI: not *honour an approval if
+there is one* but *there had better be one*, refusing with exit 2 when none
+exists. `--check`, `--explain` and `--format` are never blocked — they are how
+you review the change, and blocking them would push people straight to
+`--ignore-approval`.
 
 A capability that *disappears* is not reported and never refuses. The
 asymmetry is the point: a script that stops touching the network needs no

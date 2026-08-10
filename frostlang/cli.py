@@ -404,8 +404,11 @@ def main(argv=None):
                          "<script>.approved")
     ap.add_argument("--as-approved", action="store_true",
                     dest="as_approved",
-                    help="refuse to run if it gained a capability since "
-                         "--approve")
+                    help="insist on an approval: refuse if there is none, or "
+                         "if the script gained a capability since it")
+    ap.add_argument("--ignore-approval", action="store_true",
+                    dest="ignore_approval",
+                    help="run even though <script>.approved says otherwise")
     ap.add_argument("--record", metavar="FILE",
                     help="run the script and write down everything it did")
     ap.add_argument("--replay", metavar="FILE",
@@ -495,12 +498,12 @@ def main(argv=None):
                              f"it was not run.\n")
             return 3
 
-    if opts.approve or opts.as_approved:
+    if opts.approve:
         from . import baseline as B
         caps = audit_program(program).merged
         path = B.path_for(opts.script)
 
-        if opts.approve:
+        if True:
             previous = None
             try:
                 previous = B.read(path)
@@ -515,22 +518,6 @@ def main(argv=None):
                     print(f"  narrower: {item}")
             return 0
 
-        try:
-            approved = B.read(path)
-        except B.BaselineError as e:
-            sys.stderr.write(f"frost: {e.msg}\n")
-            if e.hint:
-                sys.stderr.write(f"  hint: {e.hint}\n")
-            return 2
-        gained = B.widenings(approved, B.capability_set(caps))
-        if gained:
-            for item in gained:
-                sys.stderr.write(f"REFUSED: {item}\n")
-            sys.stderr.write(
-                f"\n{len(gained)} capability change(s) since {path}; "
-                f"it was not run.\n"
-                f"  Read what changed, then re-approve with --approve.\n")
-            return 3
 
     if opts.ast:
         import pprint
@@ -642,6 +629,30 @@ def main(argv=None):
             return 0
         print(f"{opts.script}: ok ({len(tree)} top-level statements)")
         return 0
+
+    if not opts.ignore_approval:
+        from . import baseline as B
+        path = B.path_for(opts.script)
+        exists = os.path.exists(path)
+        if exists or opts.as_approved:
+            try:
+                approved = B.read(path)
+            except B.BaselineError as e:
+                sys.stderr.write(f"frost: {e.msg}\n")
+                if e.hint:
+                    sys.stderr.write(f"  hint: {e.hint}\n")
+                return 2
+            gained = B.widenings(approved,
+                                 B.capability_set(audit_program(program).merged))
+            if gained:
+                for item in gained:
+                    sys.stderr.write(f"REFUSED: {item}\n")
+                sys.stderr.write(
+                    f"\n{len(gained)} capability change(s) since {path}; "
+                    f"it was not run.\n"
+                    f"  See them in context with --explain, then re-approve "
+                    f"with --approve.\n")
+                return 3
 
     # Secrets are a capability like any other, so the refusal happens here —
     # before anything runs — rather than at the line that reads one, by which
