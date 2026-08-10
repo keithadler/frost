@@ -524,6 +524,30 @@ not. Secrets are redacted before an event is written, including in a command's
 arguments, because telemetry leaves the building more often than a recording
 does.
 
+**Traces, where a dashboard wants them.**
+
+```bash
+frost --events run.json --events-format otel deploy.frost
+```
+
+OTLP/JSON, which New Relic and Datadog read natively: a root span for the run
+and a child span per command, so a slow job renders as a flame graph rather
+than a table. The instrumentation already existed, because a command has a
+start, an end and a status, which is a span with the labels changed.
+
+NDJSON stays the default and the trade-off is worth knowing rather than
+discovering. OTLP is a batch format, so the document is written when the run
+ends: a run killed hard leaves nothing, where NDJSON would have left every
+line up to the moment it died.
+
+Trace ids are derived from the run id, so a replay of a recording produces the
+trace id of the run it replays. Same reason the clock is recorded: a fixture
+whose identity moves is not one.
+
+A refusal is an attribute on the root span rather than an error status by
+itself, because a monitoring system that cannot tell a refused run from a
+broken one will page for the wrong one.
+
 **A refusal is an event.** The one a security team most wants, and the one
 that is easiest to lose: a policy refusal, a breached import ceiling, an
 approval that no longer covers the script, an unusable signature, a secret the

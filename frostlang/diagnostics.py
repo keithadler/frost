@@ -204,6 +204,14 @@ def repairs_for(code, error, source_lines):
                 else "",
                 GUESS, f"the shape declares a field named {candidate!r}"))
 
+    elif code == "unknown-capability":
+        wanted = getattr(error, "subject", None)
+        for candidate in nearest(wanted, getattr(error, "candidates", ())):
+            out.append(Repair(
+                "replace-line", line,
+                text.replace(wanted, candidate, 1) if text else "",
+                GUESS, f"a module may {candidate}"))
+
     elif code == "no-variable-named":
         wanted = getattr(error, "subject", None)
         for candidate in nearest(wanted, getattr(error, "candidates", ())):

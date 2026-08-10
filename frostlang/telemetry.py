@@ -38,7 +38,9 @@ useful and the 4kb is not.
 # SPDX-License-Identifier: MIT
 
 import datetime
+import hashlib
 import json
+import os
 import time
 
 SCHEMA = 1
@@ -103,6 +105,143 @@ class Sink:
                 pass
 
 
+class OtelSink(Sink):
+    """The same events, as OTLP/JSON traces.
+
+    NDJSON is the right default and stays it: every collector reads it, and a
+    line-oriented file survives a run that is killed halfway. OTLP is what New
+    Relic and Datadog would rather have, because a run with a span per command
+    renders as a flame graph instead of a table, and the instrumentation for
+    that already existed — a command has a start, an end and a status, which
+    is a span with the labels changed.
+
+    The trade-off is inherent and worth stating rather than discovering: OTLP
+    is a batch format, so the document is written when the run ends. A run
+    killed hard leaves nothing here, where NDJSON would have left every line
+    up to the moment it died.
+
+    Trace and span ids are derived from the run id by hashing, so a replay of
+    a recording produces the same trace id as the run it replays. That is the
+    same reason the clock is recorded: a fixture whose identity moves is not
+    one.
+    """
+
+    def __init__(self, stream, run_id="", script="", scrub=None, version="0"):
+        super().__init__(stream, run_id, script, scrub)
+        self.version = version
+        self.spans = []
+        self.pending = []      # the argv of the command now running
+        self.root = None
+        self.refusal = None
+
+    def _id(self, salt, size):
+        digest = hashlib.sha256(f"{self.run_id}/{salt}".encode()).hexdigest()
+        return digest[:size]
+
+    @property
+    def trace_id(self):
+        return self._id("trace", 32)
+
+    def emit(self, event, **fields):
+        fields = self._clean(fields)
+        if event == "run.start":
+            self.root = {"start": time.time_ns(), "declares": fields}
+        elif event == "command.start":
+            self.pending = fields.get("argv", [])
+        elif event == "command.finish":
+            self.spans.append({
+                "name": f"run {fields.get('program') or 'a command'}",
+                "spanId": self._id(f"cmd/{len(self.spans)}", 16),
+                "start": fields.get("started_unix_nano") or time.time_ns(),
+                "end": fields.get("ended_unix_nano") or time.time_ns(),
+                "status": fields.get("status", 0),
+                "attributes": {
+                    "process.command_args": self.pending,
+                    "process.exit.code": fields.get("status", 0),
+                    "frost.line": fields.get("line"),
+                    "server.address": ", ".join(fields.get("hosts", [])),
+                    "frost.replayed": fields.get("replayed", False),
+                },
+            })
+        elif event == "run.finish":
+            self.refusal = fields.get("refused")
+            self.root = dict(self.root or {"start": time.time_ns()})
+            self.root["end"] = time.time_ns()
+            self.root["finish"] = fields
+
+    def _attributes(self, mapping):
+        out = []
+        for key, value in mapping.items():
+            if value is None or value == "":
+                continue
+            if isinstance(value, bool):
+                item = {"boolValue": value}
+            elif isinstance(value, int):
+                item = {"intValue": str(value)}
+            elif isinstance(value, list):
+                item = {"arrayValue": {"values": [
+                    {"stringValue": str(v)} for v in value]}}
+            else:
+                item = {"stringValue": str(value)}
+            out.append({"key": key, "value": item})
+        return out
+
+    def document(self):
+        root = self.root or {"start": time.time_ns(), "end": time.time_ns()}
+        finish = root.get("finish", {})
+        spans = [{
+            "traceId": self.trace_id,
+            "spanId": self._id("root", 16),
+            "name": f"frost {os.path.basename(self.script)}",
+            "kind": 1,
+            "startTimeUnixNano": str(root.get("start", 0)),
+            "endTimeUnixNano": str(root.get("end", 0)),
+            "attributes": self._attributes({
+                "frost.run_id": self.run_id,
+                "frost.script": self.script,
+                "frost.exit_code": finish.get("status"),
+                "frost.refused": self.refusal,
+                "frost.commands": finish.get("commands"),
+                "frost.waited_seconds": finish.get("waited_seconds"),
+                "frost.programs_unused": finish.get("programs_unused"),
+                "frost.hosts_unused": finish.get("hosts_unused"),
+            }),
+            # 2 is ERROR in OTLP. A refusal is not a crash, and a monitoring
+            # system that cannot tell them apart will page for the wrong one,
+            # so the reason is an attribute and only a non-zero exit is an
+            # error status.
+            "status": {"code": 2 if finish.get("status") else 1},
+        }]
+        for span in self.spans:
+            spans.append({
+                "traceId": self.trace_id,
+                "spanId": span["spanId"],
+                "parentSpanId": self._id("root", 16),
+                "name": span["name"],
+                "kind": 3,                      # CLIENT: frost called out
+                "startTimeUnixNano": str(span["start"]),
+                "endTimeUnixNano": str(span["end"]),
+                "attributes": self._attributes(span["attributes"]),
+                "status": {"code": 2 if span["status"] else 1},
+            })
+        return {"resourceSpans": [{
+            "resource": {"attributes": self._attributes({
+                "service.name": "frost",
+                "service.version": self.version,
+            })},
+            "scopeSpans": [{
+                "scope": {"name": "frostlang", "version": self.version},
+                "spans": spans,
+            }],
+        }]}
+
+    def close(self):
+        self.stream.write(json.dumps(self.document(), ensure_ascii=False,
+                                     indent=2) + "\n")
+        self.stream.flush()
+        super().close()
+
+
 class Observer:
     """A journal that watches, forwards, and times.
 
@@ -142,6 +281,7 @@ class Observer:
                        argv=list(argv), folder=folder,
                        stdin=bool(stdin))
         started = time.monotonic()
+        started_ns = time.time_ns()
         try:
             if self.inner is not None:
                 out, err, status = self.inner.command(line, argv, stdin,
@@ -163,6 +303,8 @@ class Observer:
         # Sizes, not contents. "wrote 4kb" is useful and the 4kb is not.
         self.sink.emit("command.finish", line=line, program=program,
                        status=status, seconds=seconds,
+                       started_unix_nano=started_ns,
+                       ended_unix_nano=time.time_ns(),
                        stdout_bytes=len(out or ""), stderr_bytes=len(err or ""),
                        hosts=reached, replayed=self.replaying)
         return out, err, status
