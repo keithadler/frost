@@ -218,14 +218,20 @@ def _glob_to_regex(pattern):
 
 # ------------------------------------------------------ Linux: bubblewrap
 
-def bubblewrap_argv(boundary, root):
+def bubblewrap_argv(boundary, root, folder=None):
     """The bwrap wrapper for one command.
 
     The filesystem is mounted read-only and the paths the boundary names are
     re-bound writable on top. Network is a namespace: present or absent.
+
+    `--chdir` is not optional. bwrap starts the child in `/` regardless of
+    the parent's working directory, so without it a command writing to a
+    relative path writes somewhere else entirely — the boundary looked
+    airtight while the allowed write silently failed.
     """
     argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev",
             "--proc", "/proc", "--tmpfs", "/tmp"]
+    argv += ["--chdir", folder or root]
     for pattern in boundary.writes + boundary.deletes:
         base = _writable_root(pattern, root)
         if base and os.path.exists(base):
@@ -264,8 +270,12 @@ class Sandbox:
 
     # -- children
 
-    def wrap(self, argv):
-        """The command line that runs `argv` inside the boundary."""
+    def wrap(self, argv, folder=None):
+        """The command line that runs `argv` inside the boundary.
+
+        `folder` is where the command should start, which some backends have
+        to be told explicitly.
+        """
         program = argv[0] if argv else ""
         if not self.boundary.allows_program(os.path.basename(program)) \
                 and not self.boundary.allows_program(program):
@@ -282,7 +292,8 @@ class Sandbox:
             return ["sandbox-exec", "-f", self._profile_path] + list(argv)
 
         if self.backend == BACKEND_LINUX:
-            return bubblewrap_argv(self.boundary, self.root) + list(argv)
+            return bubblewrap_argv(self.boundary, self.root,
+                                   folder) + list(argv)
 
         raise SandboxError("no sandbox backend")     # pragma: no cover
 
@@ -337,7 +348,8 @@ def self_test(backend=None):
         try:
             sandbox = Sandbox(boundary, scratch, backend)
             argv = sandbox.wrap(["/bin/sh", "-c",
-                                 f"echo x > {forbidden} 2>/dev/null"])
+                                 f"echo x > {forbidden} 2>/dev/null"],
+                                folder=scratch)
             subprocess.run(argv, capture_output=True, timeout=30)
             sandbox.close()
         except (SandboxError, OSError, subprocess.SubprocessError) as e:
