@@ -482,6 +482,24 @@ not. Secrets are redacted before an event is written, including in a command's
 arguments, because telemetry leaves the building more often than a recording
 does.
 
+**A refusal is an event.** The one a security team most wants, and the one
+that is easiest to lose: a policy refusal, a breached import ceiling, an
+approval that no longer covers the script, an unusable signature, a secret the
+role may not read. Each closes the run out with what fired and which policy it
+came from, so a dashboard counting starts against finishes does not drift every
+time a policy does its job.
+
+```json
+{"event": "run.finish", "status": 3, "refused": "policy",
+ "rules": [{"what": "running \"curl\"", "line": 1,
+            "hint": "egress goes through the proxy"}],
+ "policies": [{"path": "/etc/frost/policy.d/00-egress.policy",
+               "sha256": "05cd8a0c7c8f...", "origin": "site"}]}
+```
+
+Analysis produces no run events. `--explain` runs nothing, so there is no run
+to report on and a dashboard should not see one.
+
 It composes with the other modes. `--events` alongside `--record` gives both,
 and a replayed run is marked `"replayed": true` so a dashboard does not count
 a fixture as production traffic.

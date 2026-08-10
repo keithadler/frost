@@ -7,6 +7,25 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
+## Unreleased
+
+### Fixed
+
+**A refused run produced no telemetry at all.** The event sink was created in
+the run path, below every gate, so a policy refusal, a breached ceiling, an
+approval that no longer covered the script, an unusable signature and a denied
+secret all returned before it existed. That is exactly backwards: the refusal
+is the event a security team most wants, and a monitoring system hearing only
+about runs which got as far as starting is missing the ones somebody needs to
+look at.
+
+The sink now opens before anything can refuse, every refusal path closes the
+run out with what fired and the digest of the policy it came from, and the run
+id is resolved at the top where everything reporting on a run can reach it.
+
+Analysis modes emit nothing, because `--explain` runs nothing and a dashboard
+should not see a run that never happened.
+
 ## 0.7.0 — 2026-08-10
 
 Everything since 0.6.0: modules that cannot widen a program, an identity per
