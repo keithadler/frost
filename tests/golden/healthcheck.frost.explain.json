@@ -1,0 +1,47 @@
+{
+  "commands": [
+    {
+      "args": [
+        "--silent",
+        "--show-error",
+        "--output",
+        "/dev/null",
+        "--write-out",
+        "%{http_code} %{time_total}",
+        null
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 29,
+      "program": "curl",
+      "source": "try to run \"curl\" with \"--silent\", \"--show-error\", \"--output\", \"/dev/null\", \\",
+      "timeout": true
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [
+    "1",
+    "2"
+  ],
+  "findings": [
+    {
+      "detail": "Data can leave this machine, and the result depends on a system you do not control.",
+      "line": 29,
+      "severity": "note",
+      "source": "try to run \"curl\" with \"--silent\", \"--show-error\", \"--output\", \"/dev/null\", \\",
+      "title": "Reaches the network via curl"
+    }
+  ],
+  "reads": [
+    {
+      "line": 16,
+      "path": null,
+      "source": "repeat for each line in file (endpoint list) as endpoint"
+    }
+  ],
+  "script": "examples/healthcheck.frost",
+  "summary": "This script runs curl, reaches the internet using curl, and reads 1 file (runtime). It can exit with status 1, 2.",
+  "verdict": "clean",
+  "writes": []
+}

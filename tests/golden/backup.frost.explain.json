@@ -1,0 +1,76 @@
+{
+  "commands": [
+    {
+      "args": [
+        "+%Y%m%d-%H%M%S"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 13,
+      "program": "date",
+      "source": "run \"date\" with \"+%Y%m%d-%H%M%S\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "-czf",
+        null,
+        "-C",
+        null,
+        "."
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 20,
+      "program": "tar",
+      "source": "run \"tar\" with \"-czf\", archive path, \"-C\", source folder, \".\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "-tzf",
+        null
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 27,
+      "program": "tar",
+      "source": "run \"tar\" with \"-tzf\", archive path",
+      "timeout": false
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [
+    "1",
+    "2"
+  ],
+  "findings": [],
+  "reads": [
+    {
+      "line": 22,
+      "path": null,
+      "source": "if not file (archive path) exists then"
+    }
+  ],
+  "script": "examples/backup.frost",
+  "summary": "This script runs date, tar, reads 1 file (runtime), and writes 3 files (runtime). It can exit with status 1, 2.",
+  "verdict": "clean",
+  "writes": [
+    {
+      "line": 32,
+      "path": null,
+      "source": "put \"backup of\" && source folder into file (manifest path)"
+    },
+    {
+      "line": 33,
+      "path": null,
+      "source": "put \"created\" && stamp after file (manifest path)"
+    },
+    {
+      "line": 34,
+      "path": null,
+      "source": "put \"entries\" && entry count after file (manifest path)"
+    }
+  ]
+}

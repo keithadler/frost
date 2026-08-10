@@ -1,0 +1,75 @@
+{
+  "commands": [
+    {
+      "args": [
+        "{print $1}",
+        null
+      ],
+      "checked": true,
+      "in_pipe": true,
+      "line": 43,
+      "program": "awk",
+      "source": "run \"awk\" with \"{print $1}\", log path",
+      "timeout": false
+    },
+    {
+      "args": [],
+      "checked": true,
+      "in_pipe": true,
+      "line": 44,
+      "program": "sort",
+      "source": "run \"sort\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "-c"
+      ],
+      "checked": true,
+      "in_pipe": true,
+      "line": 45,
+      "program": "uniq",
+      "source": "run \"uniq\" with \"-c\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "-rn"
+      ],
+      "checked": true,
+      "in_pipe": true,
+      "line": 46,
+      "program": "sort",
+      "source": "run \"sort\" with \"-rn\"",
+      "timeout": false
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [
+    "1",
+    "2"
+  ],
+  "findings": [],
+  "reads": [
+    {
+      "line": 13,
+      "path": null,
+      "source": "if not file (log path) exists then"
+    },
+    {
+      "line": 21,
+      "path": null,
+      "source": "put the number of lines in file (log path) into request count"
+    },
+    {
+      "line": 28,
+      "path": null,
+      "source": "repeat for each line in file (log path) as this request"
+    }
+  ],
+  "script": "examples/logreport.frost",
+  "summary": "This script runs awk, sort, uniq, and reads 3 files (runtime). It can exit with status 1, 2.",
+  "verdict": "clean",
+  "writes": []
+}

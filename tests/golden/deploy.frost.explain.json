@@ -1,0 +1,54 @@
+{
+  "commands": [
+    {
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 20,
+      "program": "git",
+      "source": "try to run \"git\" with \"status\", \"--porcelain\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "rev-parse",
+        "--short",
+        "HEAD"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 32,
+      "program": "git",
+      "source": "run \"git\" with \"rev-parse\", \"--short\", \"HEAD\"",
+      "timeout": false
+    },
+    {
+      "args": [
+        "rev-parse",
+        "--abbrev-ref",
+        "HEAD"
+      ],
+      "checked": true,
+      "in_pipe": false,
+      "line": 36,
+      "program": "git",
+      "source": "run \"git\" with \"rev-parse\", \"--abbrev-ref\", \"HEAD\"",
+      "timeout": false
+    }
+  ],
+  "deletes": [],
+  "environment": [],
+  "exits": [
+    "1",
+    "2"
+  ],
+  "findings": [],
+  "reads": [],
+  "script": "examples/deploy.frost",
+  "summary": "This script runs git. It can exit with status 1, 2.",
+  "verdict": "clean",
+  "writes": []
+}

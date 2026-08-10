@@ -225,21 +225,33 @@ def audit(stmts):
 # --------------------------------------------------------------- manifest
 
 def describe(caps):
-    """A plain reading of what a script can do."""
+    """A plain reading of what a script can do.
+
+    Columns are aligned within a section. This is a manifest someone approves
+    under time pressure, and a ragged left column makes it read as prose when
+    the point is that it should read as a table.
+    """
     out = []
 
-    def section(title, lines):
-        if lines:
-            out.append(title)
-            out.extend("  " + ln for ln in lines)
-            out.append("")
+    def section(title, rows):
+        """`rows` is a list of (subject, trailer) pairs."""
+        if not rows:
+            return
+        width = max(len(subject) for subject, _ in rows)
+        out.append(title)
+        out.extend(f"  {subject.ljust(width)}  {trailer}".rstrip()
+                   for subject, trailer in rows)
+        out.append("")
+
+    def where(path, line):
+        return (path or "(path built at runtime)", f"— line {line}")
 
     programs = {}
     for c in caps.commands:
         key = c.program or "(built at runtime)"
         programs.setdefault(key, []).append(c)
 
-    lines = []
+    rows = []
     for name in sorted(programs):
         uses = programs[name]
         detail = []
@@ -252,22 +264,20 @@ def describe(caps):
             detail.append("no timeout")
         note = f"  ({', '.join(detail)})" if detail else ""
         at = ", ".join(str(u.line) for u in uses)
-        lines.append(f"{name}  — line {at}{note}")
-    section("Runs these programs:", lines)
+        rows.append((name, f"— line {at}{note}"))
+    section("Runs these programs:", rows)
 
     section("Reads these files:",
-            [f"{p or '(path built at runtime)'}  — line {ln}"
-             for p, ln in caps.reads])
+            [where(p, ln) for p, ln in caps.reads])
     section("Writes these files:",
-            [f"{p or '(path built at runtime)'}  — line {ln}"
-             for p, ln in caps.writes])
+            [where(p, ln) for p, ln in caps.writes])
     section("Deletes these files:",
-            [f"{p or '(path built at runtime)'}  — line {ln}"
-             for p, ln in caps.deletes])
+            [where(p, ln) for p, ln in caps.deletes])
     section("Reads these environment variables:",
-            [f"{n}  — line {ln}" for n, ln in caps.env_reads])
+            [(n, f"— line {ln}") for n, ln in caps.env_reads])
     section("Can exit with:",
-            sorted({f"status {c}" for c, _ in caps.exit_codes}))
+            [(f"status {c}", "") for c in sorted({c for c, _ in
+                                                  caps.exit_codes})])
 
     if caps.dynamic:
         out.append(f"Note: {caps.dynamic} name(s) are built at runtime and "

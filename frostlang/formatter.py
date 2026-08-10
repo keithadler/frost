@@ -115,9 +115,10 @@ def normalise_spacing(code):
         if t.kind == "STR":
             pieces.append(quote(t.value))
         elif t.kind == "NUM":
-            v = t.value
-            pieces.append(str(int(v)) if isinstance(v, float) and
-                          v.is_integer() else str(v))
+            # str() round-trips through the lexer to the same value, which is
+            # the point: rewriting 5.0 as 5 would swap a float literal for an
+            # int one and break the identical-tree guarantee above.
+            pieces.append(str(t.value))
         else:
             pieces.append(str(t.value))
 

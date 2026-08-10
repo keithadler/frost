@@ -10,7 +10,7 @@ optimisation for a serial terminal. It is the wrong one for a code review.
 
 frost is not a login shell. It is an interpreter you point at a file:
 
-```policy
+```
 #!/usr/bin/env frost
 ```
 
@@ -68,7 +68,7 @@ from pretending to understand English. `put the first line of X into Y` works;
 
 **Comments** run from `--` or `#` to end of line.
 
-```policy
+```
 -- This is a comment.
 # So is this.
 ```

@@ -43,6 +43,23 @@ def test_formatter_keeps_comments():
     assert "-- keep me" in format_source(MESSY)
 
 
+def test_formatter_leaves_a_decimal_literal_alone():
+    """Found by the fuzzer: 5.0 was being rewritten as 5.
+
+    The values behave identically, but the rewrite swapped a float literal for
+    an int one, which breaks the identical-tree guarantee this file claims.
+    """
+    assert format_source("put 5.0\n") == "put 5.0\n"
+    assert tree_shape("put 5.0") == tree_shape(format_source("put 5.0"))
+
+
+@pytest.mark.parametrize("literal", ["0", "5", "5.0", "2.5", "1.25", "100",
+                                     "0.5", "300.75"])
+def test_number_literals_survive_a_format_round_trip(literal):
+    src = f"put {literal}\n"
+    assert tree_shape(format_source(src)) == tree_shape(src)
+
+
 def test_formatter_normalises_argument_spacing():
     assert 'run "echo" with "a", "b", "c"' in format_source(MESSY)
 
