@@ -197,6 +197,22 @@ Everything else is available for names, including `line`, `word`, `item`,
 `match`, `file`, `status`, `error`, `count`, `name`, `path`, and `result`,
 so `line count` and `error count` are valid variables.
 
+## Modules
+
+```text
+use "lib/db.frost" for the connect, the migrate which may run "psql"
+```
+
+A module contains handler definitions and imports, nothing else — a top-level
+statement in one is an error. The path is a literal, relative to the importing
+file, and cannot go above the entry script's directory. Name only the handlers
+you use.
+
+`which may ...` declares the ceiling. A module defaults to no capabilities at
+all, and is refused if it exceeds what the import allows. Vocabulary: `run`,
+`read`, `write`, `delete`, `set`, `read secret`, `change folder`, each taking
+globs, joined with `and`. Declare the narrowest thing that works.
+
 ## When frost refuses
 
 Ask for JSON and act on it rather than reading the prose:

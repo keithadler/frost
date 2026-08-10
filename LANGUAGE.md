@@ -36,6 +36,7 @@ day, there is no pressure anywhere in the design to shorten anything.
 10a. [Cleanup](#10a-cleanup)
 11. [Files](#11-files)
 12. [Handlers](#12-handlers)
+12a. [Modules](#12a-modules)
 13. [Special values](#13-special-values)
 13a. [Secrets](#13a-secrets)
 13b. [Talking to the thing that wrote the script](#13b-talking-to-the-thing-that-wrote-the-script)
@@ -903,6 +904,170 @@ executes.
 
 ---
 
+## 12a. Modules
+
+Everything frost is worth using for rests on one invariant: **the tree you
+audit is the program you run, and the audit sees all of it.** A module system
+is the feature most likely to break that. If a module could contribute a
+`run` that `--explain` does not print, frost would be worse than bash — bash
+never claimed to have audited anything.
+
+So the design goal is not *safe modules*. It is **modules that cannot put
+capability outside the manifest**, and every rule below is chosen for that.
+
+```
+use "lib/db.frost" for the connect, the migrate which may run "psql"
+use "lib/text.frost" for the shout
+```
+
+### A module is declarations only
+
+A module file may contain handler definitions and `use`, and nothing else. A
+top-level statement in one is refused:
+
+```text
+Module error at deploy.frost
+       a module may only define handlers, and lib/bad.frost has a statement
+       that would run when it is imported
+       hint: move it into a handler.
+```
+
+Import-time side effects are the most abused feature of every module system
+ever shipped — Python's `__init__.py`, npm's `postinstall` — and they turn
+`use` into *run this file*. Refusing them means `use` can never do anything,
+which is what makes it safe to read the whole graph before deciding anything.
+
+### The path is written out in full
+
+`use (module name)` is a syntax error, not a runtime one. A computed import
+is `eval` wearing a hat: it would put the import graph out of reach of the
+static analysis that every other guarantee in this document depends on.
+
+### Resolution is relative, and bounded
+
+A path resolves relative to the file that imports it. There is no search
+path, no environment variable, no absolute paths, nothing above the entry
+script's own directory, no network and no registry. One path string resolves
+to one file, the same way on every machine.
+
+The boundary is the entry script's directory, not the repository root, so a
+script in `tools/` cannot reach a sibling `lib/`. That is restrictive on
+purpose: the directory a reviewer opens is the directory the program lives
+in. Vendoring is the feature — if a module has to live with the script, then
+the review that covered the repository covered the module.
+
+### Imports are explicit, and the graph is a DAG
+
+`for the connect, the migrate` names exactly what arrives. Only those names
+are in scope; the module's other handlers are not. Two imports bringing in
+the same name is an error, as is an import shadowing a local handler — with
+a single flat table one would silently replace the other, which is a hijack
+rather than a hygiene problem.
+
+Cycles are refused rather than resolved, and the whole closure is read
+exactly once: resolve, read, hash, parse, audit and run all come from the
+same bytes.
+
+### Names resolve in the file that defines the code
+
+A handler defined in a module calls its own file's handlers, whether or not
+the entry script imported them:
+
+```
+-- lib/a.frost
+to inner
+    return "the module's own"
+end inner
+
+to outer
+    return the inner
+end outer
+```
+
+```
+use "lib/a.frost" for the outer
+to inner
+    return "the entry script's"
+end inner
+
+put the outer          -- the module's own
+put the inner          -- the entry script's
+```
+
+### The manifest covers the closure
+
+`--explain` audits every file, attributes each capability to the file it came
+from, and names the import it arrived through:
+
+```text
+lib/db.frost   (imported by deploy.frost:1)
+  Runs these programs:
+    psql  — line 2  (no timeout)
+```
+
+A module's handlers are audited whether or not anything calls them, which is
+the sound direction. An unresolvable module fails closed — exit 2 and no
+manifest at all, because a manifest with a hole in it is the one output that
+would actively mislead a reviewer.
+
+### The ceiling at the import site
+
+This is the part that makes single-file review survive multi-file code. A
+module defaults to **no capabilities** — pure computation, chunk expressions
+and the string and number functions. Widen it explicitly:
+
+```
+use "lib/db.frost" for the connect which may run "psql", "pg_dump"
+use "lib/net.frost" for the fetch which may run "curl" and write "/tmp/*"
+```
+
+If the module does more than its import allows, the program is refused before
+anything runs:
+
+```text
+REFUSED: lib/sneaky.frost may not run curl
+  The module runs it, but the import does not allow it. The import at
+  deploy.frost:2 allows: nothing but compute.
+```
+
+Two things fall out. A reviewer who reads only the entry file has a sound
+upper bound on what the entire program can do. And a shared module that later
+grows a network call breaks the build at the import site instead of quietly
+widening somebody's manifest — which is the supply-chain shape you become
+exposed to the moment modules can be shared at all.
+
+The vocabulary is the policy language's, pointed inward: `run`, `read`,
+`write`, `delete`, `set`, `read secret` and `change folder`, each taking
+globs. A capability built at runtime always exceeds a ceiling, because a
+limit that cannot be checked is not a limit.
+
+### Pinning what you run
+
+Modules open a window between the audit and the run that a single file never
+had. The closure being read once closes most of it; a lockfile closes the
+rest:
+
+```bash
+frost --lock deploy.frost      # records the sha256 of every file
+frost --frozen deploy.frost    # refuses to run if any of them changed
+```
+
+```text
+REFUSED: lib/text.frost has changed since the lockfile was written
+
+the program does not match its lockfile; it was not run.
+```
+
+### Deliberately absent
+
+No conditional imports, no re-export, no module-level state, no version
+solving, no namespacing beyond the file path. Every one of those exists to
+make a large dependency tree tractable, and a large dependency tree is the
+thing this review model cannot survive. Modules here are for sharing five
+handlers across four scripts in one repository.
+
+---
+
 ## 13. Special values
 
 | Expression | Meaning |
@@ -1279,12 +1444,12 @@ else       empty      end        ends       ensure     every
 exists     exit       false      for        forever    from
 global     greater    if         in         into       is
 it         joined     least      less       like       matches
-most       multiply   next       not        of         or
-pipe       put        quit       reading    repeat     replace
-return     run        showing    split      standard   starts
-step       subtract   than       the        then       times
-to         true       try        until      while      whole
-with       within
+may        most       multiply   next       not        of
+or         pipe       put        quit       reading    repeat
+replace    return     run        showing    split      standard
+starts     step       subtract   than       the        then
+times      to         true       try        until      use
+which      while      whole      with       within
 ```
 
 Notably absent: `line`, `word`, `item`, `character`, `match`, `file`, `status`,

@@ -73,8 +73,13 @@ def test_the_extractor_found_the_documentation():
 
 @pytest.mark.parametrize("source", FROST_BLOCKS)
 def test_every_documented_frost_snippet_parses(source):
+    # A snippet that imports cannot have its handler names resolved on its
+    # own — the names it may call are its own plus what it imported, and the
+    # imported file is not here. That is the same reason the module loader
+    # parses without resolution and checks names once the closure is known.
+    resolve = not re.search(r"^\s*use\s+\"", source, re.M)
     try:
-        parse(source)
+        parse(source, resolve=resolve)
     except (ParseError, LexError) as e:
         raise AssertionError(
             f"documented snippet does not parse: {e.msg} (line {e.line})"

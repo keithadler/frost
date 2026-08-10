@@ -472,11 +472,20 @@ def collect_handlers(node, into):
                 collect_handlers(value, into)
 
 
-def audit(stmts):
-    # Handlers are declarations; their bodies still count as capabilities.
-    handlers = {}
-    collect_handlers(stmts, handlers)
-    return Auditor(handlers, tainted_names(stmts)).scan(stmts)
+def audit(stmts, handlers=None, tainted=None):
+    """Capabilities of one file.
+
+    `handlers` and `tainted` are supplied when this file is part of a larger
+    program: name resolution and taint are both per-file, and computing
+    either from a concatenated tree would let an unrelated `token` in one
+    file join the taint node of a secret in another.
+    """
+    if handlers is None:
+        handlers = {}
+        collect_handlers(stmts, handlers)
+    if tainted is None:
+        tainted = tainted_names(stmts)
+    return Auditor(handlers, tainted).scan(stmts)
 
 
 # --------------------------------------------------------------- manifest

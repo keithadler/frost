@@ -67,10 +67,12 @@ def real_command_cost(repeats=15):
 
 
 def measure(source):
-    tree = parse(source)
+    # Without resolution: a file that imports cannot have its handler names
+    # resolved on its own, and layout and timing do not need them.
+    tree = parse(source, resolve=False)
     return {
         "lines": len(source.splitlines()),
-        "parse": median_seconds(lambda: parse(source), 100),
+        "parse": median_seconds(lambda: parse(source, resolve=False), 100),
         "audit": median_seconds(lambda: find_dangers(audit(tree)), 100),
         "format": median_seconds(lambda: format_source(source), 100),
     }

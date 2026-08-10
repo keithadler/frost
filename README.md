@@ -375,6 +375,47 @@ REFUSED: running "sudo"
 
 No new syntax; policy authors already write that comment.
 
+### Modules that cannot hide anything
+
+Sharing handlers across scripts is the feature most likely to break the one
+invariant frost depends on — that the tree you audit is the program you run,
+and the audit sees all of it. So the goal is not *safe modules*; it is
+**modules that cannot put capability outside the manifest**.
+
+```
+use "lib/db.frost" for the connect, the migrate which may run "psql"
+```
+
+A module is declarations only: handler definitions and imports, nothing that
+runs when it is imported. The path is a literal the parser insists on, and it
+resolves relative to the importing file with no search path, nothing above
+the entry script's directory, and no registry. Imports name exactly what they
+bring in, so a collision is an error rather than one module silently
+replacing another's handler.
+
+`--explain` audits the whole closure and says where each capability came
+from:
+
+```text
+lib/db.frost   (imported by deploy.frost:1)
+  Runs these programs:
+    psql  — line 2
+```
+
+And the `which may` clause is the part that makes single-file review survive
+multi-file code. A module defaults to no capabilities at all. If it does more
+than its import declared, the program is refused before anything runs:
+
+```text
+REFUSED: lib/sneaky.frost may not run curl
+  The import at deploy.frost:2 allows: nothing but compute.
+```
+
+So a reviewer who reads only the entry file has a sound upper bound on the
+whole program, and a shared module that later grows a network call breaks the
+build at the import site rather than quietly widening someone's manifest.
+`frost --lock` and `--frozen` pin the bytes.
+
 ### Closing the loop with the thing that wrote it
 
 Every refusal above is a sentence for a person. `--json` is the same
@@ -632,6 +673,8 @@ frost --trace script.frost       print each statement as it runs
 frost --explain script.frost     describe what it can do, without running it
 frost --check --json s.frost     diagnostics as JSON, with repairs
 frost --repair [--write] s.frost apply the repairs frost is sure about
+frost --lock s.frost             record the sha256 of every module
+frost --frozen s.frost           refuse to run if a module changed
 frost --explain --json s.frost   the manifest, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
@@ -668,7 +711,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1268 tests — python3 -m pytest tests/ -q
+tests/                1345 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -682,7 +725,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1268 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1345 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

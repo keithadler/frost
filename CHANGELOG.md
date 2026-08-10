@@ -11,6 +11,65 @@ bump may change the language.
 
 ### Added
 
+**Modules, designed around one constraint.** Everything frost is worth using
+for rests on the invariant that the tree you audit is the program you run and
+the audit sees all of it. Modules are the feature most likely to break that,
+so the goal was not "safe modules" but *modules that cannot put capability
+outside the manifest*.
+
+```
+use "lib/db.frost" for the connect, the migrate which may run "psql"
+```
+
+- **A module is declarations only** — handler definitions and imports, and a
+  top-level statement in one is refused. Import-time side effects are the
+  most abused feature of every module system ever shipped, and refusing them
+  means `use` can never do anything.
+- **The path is a literal**, enforced by the parser. A computed import would
+  put the graph out of reach of the static analysis everything else rests on.
+- **Resolution is relative and bounded** to the entry script's own directory.
+  No search path, no environment variable, no absolute paths, no registry.
+- **Imports are explicit and the graph is a DAG.** A collision is an error
+  rather than one module silently replacing another's handler; cycles are
+  refused; the closure is read exactly once, so audit and run come from the
+  same bytes.
+- **The manifest covers the closure**, attributing each capability to the
+  file it came from and the import it arrived through, and a module's
+  handlers are audited whether or not anything calls them.
+- **A ceiling at the import site.** A module defaults to no capabilities at
+  all, and one that exceeds what its import declared is refused before
+  anything runs. A reviewer who reads only the entry file therefore has a
+  sound upper bound on the whole program, and a shared module that later
+  grows a network call breaks the build at the import site instead of quietly
+  widening someone's manifest.
+- **`--lock` and `--frozen`** pin every file by sha256, closing the window
+  modules open between the audit and the run.
+- **`--explain` fails closed** on an unresolvable module: exit 2 and no
+  manifest, because a manifest with a hole in it is the one output that would
+  actively mislead a reviewer.
+
+Deliberately absent: conditional imports, re-export, module-level state,
+version solving, namespacing beyond the file path. Each exists to make a
+large dependency tree tractable, and a large dependency tree is what this
+review model cannot survive.
+
+### Fixed
+
+- **`collect_handlers` was a flat, last-write-wins table.** With two modules
+  loaded, one silently shadowed a handler in the other — a hijack rather than
+  a hygiene problem. Handler names now resolve in the file that defines the
+  code doing the calling, and a collision is an error at load time.
+- **Taint was name-based over the whole tree.** A `token` in one file and an
+  unrelated `token` in another were the same node, which gave false positives
+  directly and false negatives through the shadowing bug above. Taint is now
+  per file, crossing a boundary only where data does — through the arguments
+  of a handler call.
+- `--format` raised an uncaught traceback on any file that imports, because
+  it re-parsed with name resolution. Layout is lexical and never needed it,
+  and formatting now happens before modules are loaded so a broken import can
+  still be tidied.
+
+
 **Structured diagnostics.** `--json` now works with `--check`, `--policy`
 and on a runtime failure, not only with `--explain`. One schema covers every
 way a script can be refused: severity, a stable `code`, line and column, the

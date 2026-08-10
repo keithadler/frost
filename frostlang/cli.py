@@ -9,6 +9,9 @@ from .lexer import LexError
 from .parser import parse, ParseError
 from .interp import Interpreter, FrostError
 from . import diagnostics
+from . import modules as M
+from .program_audit import (audit_program, check_all_ceilings,
+                            describe_program)
 from .audit import (audit, describe, parse_policy, check, PolicyError,
                     find_dangers, summarise, verdict)
 
@@ -103,6 +106,34 @@ def repair_until_stuck(source):
         source = candidate
         applied.extend(just_applied)
     return source, applied
+
+
+def format_script(opts, source, source_lines):
+    """Canonical layout for one file, with no reference to its imports."""
+    from .formatter import format_source
+    try:
+        formatted = format_source(source)
+    except (LexError, ParseError) as e:
+        if opts.json:
+            emit_json(diagnostics.report(
+                opts.script, [diagnostics.from_error(e, source)], False, 2))
+            return 2
+        report("Syntax error", e.msg, e.line, getattr(e, "hint", None),
+               source_lines, opts.script)
+        sys.stderr.write("frost: refusing to format a script that does "
+                         "not parse\n")
+        return 2
+
+    if opts.write:
+        if formatted != source:
+            with open(opts.script, "w") as fh:
+                fh.write(formatted)
+            print(f"formatted {opts.script}")
+        else:
+            print(f"{opts.script} already formatted")
+    else:
+        sys.stdout.write(formatted)
+    return 0
 
 
 def collect_diagnostics(script, source):
@@ -319,6 +350,11 @@ def main(argv=None):
     ap.add_argument("--role", metavar="ROLE",
                     help="the role this run acts as; decides which secrets "
                          "it may read")
+    ap.add_argument("--lock", action="store_true",
+                    help="record the sha256 of every module in <script>.lock")
+    ap.add_argument("--frozen", action="store_true",
+                    help="refuse to run if any module differs from the "
+                         "lockfile")
     own, script_args = split_argv(raw)
     opts = ap.parse_args(own)
     opts.args = script_args
@@ -343,8 +379,15 @@ def main(argv=None):
     if opts.repair:
         return repair_script(opts, source)
 
+    # Before the modules load: laying out one file is a lexical job, and
+    # somebody fixing a broken import should still be able to format it.
+    if opts.fmt:
+        return format_script(opts, source, source_lines)
+
+    # The whole closure, read once. Everything below audits and runs these
+    # same bytes; nothing re-opens a module later.
     try:
-        tree = parse(source)
+        program = M.load(opts.script)
     except (LexError, ParseError) as e:
         if opts.json:
             emit_json(diagnostics.report(
@@ -356,31 +399,54 @@ def main(argv=None):
             sys.stderr.write("frost: refusing to format a script that does "
                              "not parse\n")
         return 2
+    except M.ModuleError as e:
+        # Fail closed. A manifest built from a partial closure would be a
+        # manifest with a hole in it, which is the one output that actively
+        # misleads a reviewer.
+        if opts.json:
+            emit_json(diagnostics.report(
+                opts.script,
+                [diagnostics.Diagnostic("error", "module-error", e.msg,
+                                        line=e.line, hint=e.hint or "")],
+                False, 2))
+            return 2
+        report("Module error", e.msg, e.line, e.hint, source_lines,
+               opts.script)
+        return 2
+    tree = program.tree
+
+    if opts.lock:
+        path = M.lock_path(opts.script)
+        M.write_lock(program, path)
+        print(f"wrote {path} ({len(program.modules)} file(s))")
+        return 0
+
+    if opts.frozen:
+        try:
+            drift = M.check_lock(program, M.lock_path(opts.script))
+        except M.ModuleError as e:
+            sys.stderr.write(f"frost: {e.msg}\n")
+            if e.hint:
+                sys.stderr.write(f"  hint: {e.hint}\n")
+            return 2
+        if drift:
+            for item in drift:
+                sys.stderr.write(f"REFUSED: {item}\n")
+            sys.stderr.write(f"\nthe program does not match its lockfile; "
+                             f"it was not run.\n")
+            return 3
 
     if opts.ast:
         import pprint
         pprint.pprint(tree)
         return 0
 
-    if opts.fmt:
-        # The parse above already refused anything broken, so this cannot
-        # raise; format_source re-checks for the benefit of library callers.
-        from .formatter import format_source
-        formatted = format_source(source)
-        if opts.write:
-            if formatted != source:
-                with open(opts.script, "w") as fh:
-                    fh.write(formatted)
-                print(f"formatted {opts.script}")
-            else:
-                print(f"{opts.script} already formatted")
-        else:
-            sys.stdout.write(formatted)
-        return 0
-
     if opts.explain:
-        caps = audit(tree)
-        findings = find_dangers(caps)
+        program_caps = audit_program(program)
+        caps = program_caps.merged
+        findings = find_dangers(caps) + check_all_ceilings(program,
+                                                           program_caps)
+        findings.sort(key=lambda f: f.line)
         if opts.json:
             import json
             print(json.dumps(audit_json(opts.script, caps, findings,
@@ -388,8 +454,11 @@ def main(argv=None):
             return 0
         print(f"{opts.script}\n" + "=" * len(opts.script))
         print(summarise(caps))
+        if len(program.modules) > 1:
+            print(f"\nBuilt from {len(program.modules)} files: "
+                  + ", ".join(sorted(program.modules)))
         print()
-        print(describe(caps))
+        print(describe_program(program, program_caps))
         if findings:
             print()
             label = {"danger": "DANGER ", "caution": "caution", "note": "note   "}
@@ -412,7 +481,7 @@ def main(argv=None):
             sys.stderr.write(f"frost: {e}\n")
             return 2
 
-        findings = check(audit(tree), rules)
+        findings = check(audit_program(program).merged, rules)
         blocked = [f for f in findings if f.severity == "forbid"]
         if opts.json:
             emit_json(diagnostics.report(
@@ -442,6 +511,26 @@ def main(argv=None):
             return 3
         if findings:
             sys.stderr.write("\npolicy passed with warnings.\n\n")
+
+    # An import declares what the module it names may do. Exceeding it is a
+    # refusal, not a warning: the point is that reading the entry file gives a
+    # sound upper bound on the whole program.
+    if len(program.modules) > 1:
+        breaches = check_all_ceilings(program, audit_program(program))
+        if breaches:
+            if opts.json:
+                emit_json(diagnostics.report(
+                    opts.script,
+                    [diagnostics.from_finding(f, source) for f in breaches],
+                    False, 3))
+                return 3
+            for f in breaches:
+                sys.stderr.write(f"REFUSED: {f.title}\n")
+                sys.stderr.write(f"  {f.detail}\n")
+            sys.stderr.write(
+                f"\n{len(breaches)} import(s) exceeded what they declared; "
+                f"the script was not run.\n")
+            return 3
 
     if opts.check:
         # Parse-only. Deliberately before the keystore: checking that a script
@@ -493,6 +582,8 @@ def main(argv=None):
 
     interp = Interpreter(argv=opts.args, trace=opts.trace,
                          keystore=store, role=opts.role)
+    if len(program.modules) > 1:
+        interp.install(program)
     try:
         return interp.run_program(tree)
     except FrostError as e:

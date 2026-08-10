@@ -183,7 +183,7 @@ tbody tr:last-child td{border-bottom:none}
   <p class="brand">fr<span>o</span>st</p>
   <p class="brand-sub">v0.4.0 · language docs</p>
   <button class="menu-btn" id="menu">Contents</button>
-  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
+  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-12a-modules">12a. Modules</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
 </aside>
 
 <main>
@@ -492,6 +492,35 @@ just saying no:</p>
   why: the deploy role already has the permissions it needs
 </code></pre>
 <p>No new syntax; policy authors already write that comment.</p>
+<h3 id="guide-modules-that-cannot-hide-anything">Modules that cannot hide anything</h3>
+<p>Sharing handlers across scripts is the feature most likely to break the one
+invariant frost depends on — that the tree you audit is the program you run,
+and the audit sees all of it. So the goal is not <em>safe modules</em>; it is
+<strong>modules that cannot put capability outside the manifest</strong>.</p>
+<pre><code>use &quot;lib/db.frost&quot; for the connect, the migrate which may run &quot;psql&quot;
+</code></pre>
+<p>A module is declarations only: handler definitions and imports, nothing that
+runs when it is imported. The path is a literal the parser insists on, and it
+resolves relative to the importing file with no search path, nothing above
+the entry script's directory, and no registry. Imports name exactly what they
+bring in, so a collision is an error rather than one module silently
+replacing another's handler.</p>
+<p><code>--explain</code> audits the whole closure and says where each capability came
+from:</p>
+<pre><code class="language-text">lib/db.frost   (imported by deploy.frost:1)
+  Runs these programs:
+    psql  — line 2
+</code></pre>
+<p>And the <code>which may</code> clause is the part that makes single-file review survive
+multi-file code. A module defaults to no capabilities at all. If it does more
+than its import declared, the program is refused before anything runs:</p>
+<pre><code class="language-text">REFUSED: lib/sneaky.frost may not run curl
+  The import at deploy.frost:2 allows: nothing but compute.
+</code></pre>
+<p>So a reviewer who reads only the entry file has a sound upper bound on the
+whole program, and a shared module that later grows a network call breaks the
+build at the import site rather than quietly widening someone's manifest.
+<code>frost --lock</code> and <code>--frozen</code> pin the bytes.</p>
 <h3 id="guide-closing-the-loop-with-the-thing-that-wrote-it">Closing the loop with the thing that wrote it</h3>
 <p>Every refusal above is a sentence for a person. <code>--json</code> is the same
 information as data, with the edit attached wherever frost already knew it:</p>
@@ -675,6 +704,8 @@ frost --trace script.frost       print each statement as it runs
 frost --explain script.frost     describe what it can do, without running it
 frost --check --json s.frost     diagnostics as JSON, with repairs
 frost --repair [--write] s.frost apply the repairs frost is sure about
+frost --lock s.frost             record the sha256 of every module
+frost --frozen s.frost           refuse to run if a module changed
 frost --explain --json s.frost   the manifest, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
@@ -704,7 +735,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1268 tests — python3 -m pytest tests/ -q
+tests/                1345 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -716,7 +747,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.4.0. The language runs, the examples are real, and 1268 tests cover
+<p>Version 0.4.0. The language runs, the examples are real, and 1345 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1483,6 +1514,123 @@ last command's output.</p>
 when the line runs, so <code>--check</code> catches a typo in a branch that rarely
 executes.</p>
 <hr />
+<h2 id="ref-12a-modules">12a. Modules</h2>
+<p>Everything frost is worth using for rests on one invariant: <strong>the tree you
+audit is the program you run, and the audit sees all of it.</strong> A module system
+is the feature most likely to break that. If a module could contribute a
+<code>run</code> that <code>--explain</code> does not print, frost would be worse than bash — bash
+never claimed to have audited anything.</p>
+<p>So the design goal is not <em>safe modules</em>. It is <strong>modules that cannot put
+capability outside the manifest</strong>, and every rule below is chosen for that.</p>
+<pre><code>use &quot;lib/db.frost&quot; for the connect, the migrate which may run &quot;psql&quot;
+use &quot;lib/text.frost&quot; for the shout
+</code></pre>
+<h3 id="ref-a-module-is-declarations-only">A module is declarations only</h3>
+<p>A module file may contain handler definitions and <code>use</code>, and nothing else. A
+top-level statement in one is refused:</p>
+<pre><code class="language-text">Module error at deploy.frost
+       a module may only define handlers, and lib/bad.frost has a statement
+       that would run when it is imported
+       hint: move it into a handler.
+</code></pre>
+<p>Import-time side effects are the most abused feature of every module system
+ever shipped — Python's <code>__init__.py</code>, npm's <code>postinstall</code> — and they turn
+<code>use</code> into <em>run this file</em>. Refusing them means <code>use</code> can never do anything,
+which is what makes it safe to read the whole graph before deciding anything.</p>
+<h3 id="ref-the-path-is-written-out-in-full">The path is written out in full</h3>
+<p><code>use (module name)</code> is a syntax error, not a runtime one. A computed import
+is <code>eval</code> wearing a hat: it would put the import graph out of reach of the
+static analysis that every other guarantee in this document depends on.</p>
+<h3 id="ref-resolution-is-relative-and-bounded">Resolution is relative, and bounded</h3>
+<p>A path resolves relative to the file that imports it. There is no search
+path, no environment variable, no absolute paths, nothing above the entry
+script's own directory, no network and no registry. One path string resolves
+to one file, the same way on every machine.</p>
+<p>The boundary is the entry script's directory, not the repository root, so a
+script in <code>tools/</code> cannot reach a sibling <code>lib/</code>. That is restrictive on
+purpose: the directory a reviewer opens is the directory the program lives
+in. Vendoring is the feature — if a module has to live with the script, then
+the review that covered the repository covered the module.</p>
+<h3 id="ref-imports-are-explicit-and-the-graph-is-a-dag">Imports are explicit, and the graph is a DAG</h3>
+<p><code>for the connect, the migrate</code> names exactly what arrives. Only those names
+are in scope; the module's other handlers are not. Two imports bringing in
+the same name is an error, as is an import shadowing a local handler — with
+a single flat table one would silently replace the other, which is a hijack
+rather than a hygiene problem.</p>
+<p>Cycles are refused rather than resolved, and the whole closure is read
+exactly once: resolve, read, hash, parse, audit and run all come from the
+same bytes.</p>
+<h3 id="ref-names-resolve-in-the-file-that-defines-the-code">Names resolve in the file that defines the code</h3>
+<p>A handler defined in a module calls its own file's handlers, whether or not
+the entry script imported them:</p>
+<pre><code>-- lib/a.frost
+to inner
+    return &quot;the module's own&quot;
+end inner
+
+to outer
+    return the inner
+end outer
+</code></pre>
+<pre><code>use &quot;lib/a.frost&quot; for the outer
+to inner
+    return &quot;the entry script's&quot;
+end inner
+
+put the outer          -- the module's own
+put the inner          -- the entry script's
+</code></pre>
+<h3 id="ref-the-manifest-covers-the-closure">The manifest covers the closure</h3>
+<p><code>--explain</code> audits every file, attributes each capability to the file it came
+from, and names the import it arrived through:</p>
+<pre><code class="language-text">lib/db.frost   (imported by deploy.frost:1)
+  Runs these programs:
+    psql  — line 2  (no timeout)
+</code></pre>
+<p>A module's handlers are audited whether or not anything calls them, which is
+the sound direction. An unresolvable module fails closed — exit 2 and no
+manifest at all, because a manifest with a hole in it is the one output that
+would actively mislead a reviewer.</p>
+<h3 id="ref-the-ceiling-at-the-import-site">The ceiling at the import site</h3>
+<p>This is the part that makes single-file review survive multi-file code. A
+module defaults to <strong>no capabilities</strong> — pure computation, chunk expressions
+and the string and number functions. Widen it explicitly:</p>
+<pre><code>use &quot;lib/db.frost&quot; for the connect which may run &quot;psql&quot;, &quot;pg_dump&quot;
+use &quot;lib/net.frost&quot; for the fetch which may run &quot;curl&quot; and write &quot;/tmp/*&quot;
+</code></pre>
+<p>If the module does more than its import allows, the program is refused before
+anything runs:</p>
+<pre><code class="language-text">REFUSED: lib/sneaky.frost may not run curl
+  The module runs it, but the import does not allow it. The import at
+  deploy.frost:2 allows: nothing but compute.
+</code></pre>
+<p>Two things fall out. A reviewer who reads only the entry file has a sound
+upper bound on what the entire program can do. And a shared module that later
+grows a network call breaks the build at the import site instead of quietly
+widening somebody's manifest — which is the supply-chain shape you become
+exposed to the moment modules can be shared at all.</p>
+<p>The vocabulary is the policy language's, pointed inward: <code>run</code>, <code>read</code>,
+<code>write</code>, <code>delete</code>, <code>set</code>, <code>read secret</code> and <code>change folder</code>, each taking
+globs. A capability built at runtime always exceeds a ceiling, because a
+limit that cannot be checked is not a limit.</p>
+<h3 id="ref-pinning-what-you-run">Pinning what you run</h3>
+<p>Modules open a window between the audit and the run that a single file never
+had. The closure being read once closes most of it; a lockfile closes the
+rest:</p>
+<pre><code class="language-bash">frost --lock deploy.frost      # records the sha256 of every file
+frost --frozen deploy.frost    # refuses to run if any of them changed
+</code></pre>
+<pre><code class="language-text">REFUSED: lib/text.frost has changed since the lockfile was written
+
+the program does not match its lockfile; it was not run.
+</code></pre>
+<h3 id="ref-deliberately-absent">Deliberately absent</h3>
+<p>No conditional imports, no re-export, no module-level state, no version
+solving, no namespacing beyond the file path. Every one of those exists to
+make a large dependency tree tractable, and a large dependency tree is the
+thing this review model cannot survive. Modules here are for sharing five
+handlers across four scripts in one repository.</p>
+<hr />
 <h2 id="ref-13-special-values">13. Special values</h2>
 <table>
 <thead>
@@ -1859,12 +2007,12 @@ else       empty      end        ends       ensure     every
 exists     exit       false      for        forever    from
 global     greater    if         in         into       is
 it         joined     least      less       like       matches
-most       multiply   next       not        of         or
-pipe       put        quit       reading    repeat     replace
-return     run        showing    split      standard   starts
-step       subtract   than       the        then       times
-to         true       try        until      while      whole
-with       within
+may        most       multiply   next       not        of
+or         pipe       put        quit       reading    repeat
+replace    return     run        showing    split      standard
+starts     step       subtract   than       the        then
+times      to         true       try        until      use
+which      while      whole      with       within
 </code></pre>
 <p>Notably absent: <code>line</code>, <code>word</code>, <code>item</code>, <code>character</code>, <code>match</code>, <code>file</code>, <code>status</code>,
 <code>error</code>, <code>output</code>, <code>count</code>, <code>name</code>, <code>path</code>, <code>result</code>. These are recognised by position,
@@ -2092,7 +2240,7 @@ spelling.</p></div>
 </div>
 
 <script>
-const KEYWORDS = new Set(["add", "after", "and", "are", "as", "at", "before", "by", "contains", "delete", "divide", "each", "else", "empty", "end", "ends", "ensure", "every", "exists", "exit", "false", "for", "forever", "from", "global", "greater", "if", "in", "into", "is", "it", "joined", "least", "less", "like", "matches", "most", "multiply", "next", "not", "of", "or", "pipe", "put", "quit", "reading", "repeat", "replace", "return", "run", "showing", "split", "standard", "starts", "step", "subtract", "than", "the", "then", "times", "to", "true", "try", "until", "while", "whole", "with", "within"]);
+const KEYWORDS = new Set(["add", "after", "and", "are", "as", "at", "before", "by", "contains", "delete", "divide", "each", "else", "empty", "end", "ends", "ensure", "every", "exists", "exit", "false", "for", "forever", "from", "global", "greater", "if", "in", "into", "is", "it", "joined", "least", "less", "like", "matches", "may", "most", "multiply", "next", "not", "of", "or", "pipe", "put", "quit", "reading", "repeat", "replace", "return", "run", "showing", "split", "standard", "starts", "step", "subtract", "than", "the", "then", "times", "to", "true", "try", "until", "use", "which", "while", "whole", "with", "within"]);
 const NOUNS = new Set(["any", "arguments", "char", "character", "characters", "chars", "current", "eighth", "environment", "error", "fifth", "first", "folder", "fourth", "hour", "hours", "item", "items", "last", "length", "line", "lines", "match", "matches", "middle", "millisecond", "milliseconds", "minute", "minutes", "ms", "ninth", "number", "output", "result", "second", "seconds", "seventh", "sixth", "status", "tenth", "third", "variable", "word", "words"]);
 
 /* ---- frost syntax highlighting ------------------------------------- */

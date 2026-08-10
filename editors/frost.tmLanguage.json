@@ -78,7 +78,7 @@
     },
     "keyword": {
       "name": "keyword.other.frost",
-      "match": "\\b(contains|multiply|standard|subtract|greater|matches|reading|replace|showing|before|delete|divide|exists|global|joined|starts|within|after|empty|every|false|least|split|times|whole|ends|from|into|less|like|most|step|than|true|with|add|and|are|not|put|run|the|as|at|by|in|is|it|of|or)\\b"
+      "match": "\\b(contains|multiply|standard|subtract|greater|matches|reading|replace|showing|before|delete|divide|exists|global|joined|starts|within|after|empty|every|false|least|split|times|which|whole|ends|from|into|less|like|most|step|than|true|with|add|and|are|may|not|put|run|the|use|as|at|by|in|is|it|of|or)\\b"
     },
     "function": {
       "name": "support.function.frost",

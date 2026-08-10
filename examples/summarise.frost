@@ -1,0 +1,29 @@
+#!/usr/bin/env frost
+--
+-- Reads a log on standard input and reports on it, using shared handlers.
+-- The import says what lib/reporting.frost is allowed to do: nothing. A
+-- reviewer reading only this file knows the whole program runs no commands.
+--
+--   frost --explain summarise.frost
+--   cat access.log | frost summarise.frost
+
+use "lib/reporting.frost" for the headline, the percentage, the worst line
+
+put the standard input into report
+if report is empty then
+    put "usage: summarise.frost < access.log" into standard error
+    quit with status 2
+end if
+
+put the headline of "log summary"
+
+put the number of lines in report into total
+put 0 into error count
+repeat for each line in report as row
+    if row contains "ERROR" then add 1 to error count
+end repeat
+
+put "lines:      " & total
+put "errors:     " & error count
+put "error rate: " & the percentage of error count, total
+put "first error:" && the worst line of report
