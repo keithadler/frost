@@ -1012,7 +1012,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1851 tests — python3 -m pytest tests/ -q
+tests/                1859 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1027,7 +1027,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.7.0. The language runs, the examples are real, and 1851 tests cover
+<p>Version 0.7.0. The language runs, the examples are real, and 1859 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1455,6 +1455,20 @@ waiting, so a slow job can be attributed rather than guessed at.</p>
 not. Secrets are redacted before an event is written, including in a command's
 arguments, because telemetry leaves the building more often than a recording
 does.</p>
+<p><strong>A refusal is an event.</strong> The one a security team most wants, and the one
+that is easiest to lose: a policy refusal, a breached import ceiling, an
+approval that no longer covers the script, an unusable signature, a secret the
+role may not read. Each closes the run out with what fired and which policy it
+came from, so a dashboard counting starts against finishes does not drift every
+time a policy does its job.</p>
+<pre><code class="language-json">{&quot;event&quot;: &quot;run.finish&quot;, &quot;status&quot;: 3, &quot;refused&quot;: &quot;policy&quot;,
+ &quot;rules&quot;: [{&quot;what&quot;: &quot;running \&quot;curl\&quot;&quot;, &quot;line&quot;: 1,
+            &quot;hint&quot;: &quot;egress goes through the proxy&quot;}],
+ &quot;policies&quot;: [{&quot;path&quot;: &quot;/etc/frost/policy.d/00-egress.policy&quot;,
+               &quot;sha256&quot;: &quot;05cd8a0c7c8f...&quot;, &quot;origin&quot;: &quot;site&quot;}]}
+</code></pre>
+<p>Analysis produces no run events. <code>--explain</code> runs nothing, so there is no run
+to report on and a dashboard should not see one.</p>
 <p>It composes with the other modes. <code>--events</code> alongside <code>--record</code> gives both,
 and a replayed run is marked <code>"replayed": true</code> so a dashboard does not count
 a fixture as production traffic.</p>

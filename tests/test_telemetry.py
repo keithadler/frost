@@ -258,3 +258,113 @@ def test_file_and_environment_effects_are_reported(tmp_path):
     seen = kinds(events_of(log))
     for expected in ("file.write", "file.read", "file.delete", "env.read"):
         assert expected in seen, expected
+
+
+# ------------------------------------------------------------- refusals
+#
+# The event a security team most wants, and the one that never fired: the sink
+# was created in the run path, below every gate, so a refused run produced no
+# telemetry at all. A monitoring system that hears only about runs which got
+# as far as starting is missing exactly the ones somebody needs to look at.
+
+def test_a_policy_refusal_is_an_event(tmp_path):
+    (tmp_path / "p.policy").write_text(
+        'forbid running "curl"   -- egress goes through the proxy\n')
+    path = script(tmp_path,
+                  'run "curl" with "https://x.example" within 30 seconds\n'
+                  "put it\n")
+    log = tmp_path / "e.ndjson"
+    status, out, _ = frost("--events", str(log), "--policy",
+                           str(tmp_path / "p.policy"), path, cwd=str(tmp_path))
+    assert status == 3
+    assert out == ""
+    finish = events_of(log)[-1]
+    assert finish["event"] == "run.finish"
+    assert finish["refused"] == "policy"
+    assert finish["rules"][0]["what"] == 'running "curl"'
+    assert finish["rules"][0]["hint"] == "egress goes through the proxy"
+
+
+def test_a_refusal_names_the_policy_it_came_from(tmp_path):
+    """Which rules were in force is the other half of the question, and a
+    digest answers it without trusting a path."""
+    (tmp_path / "p.policy").write_text('forbid running "curl"\n')
+    path = script(tmp_path,
+                  'run "curl" with "https://x.example" within 30 seconds\n'
+                  "put it\n")
+    log = tmp_path / "e.ndjson"
+    frost("--events", str(log), "--policy", str(tmp_path / "p.policy"), path,
+          cwd=str(tmp_path))
+    finish = events_of(log)[-1]
+    assert finish["policies"][0]["sha256"]
+    assert finish["policies"][0]["origin"] == "project"
+
+
+def test_the_rules_in_force_are_reported_before_they_fire(tmp_path):
+    (tmp_path / "p.policy").write_text('warn running "echo"\n')
+    path = script(tmp_path, 'run "echo" with "a"\nput it\n')
+    log = tmp_path / "e.ndjson"
+    frost("--events", str(log), "--policy", str(tmp_path / "p.policy"), path,
+          cwd=str(tmp_path))
+    loaded = [e for e in events_of(log) if e["event"] == "policy.loaded"]
+    assert loaded and loaded[0]["rules"] == 1
+
+
+def test_a_warning_is_reported_without_refusing(tmp_path):
+    (tmp_path / "p.policy").write_text('warn running "echo"\n')
+    path = script(tmp_path, 'run "echo" with "a"\nput it\n')
+    log = tmp_path / "e.ndjson"
+    status, _, _ = frost("--events", str(log), "--policy",
+                         str(tmp_path / "p.policy"), path, cwd=str(tmp_path))
+    assert status == 0
+    assert "policy.warned" in kinds(events_of(log))
+
+
+def test_an_approval_refusal_is_an_event(tmp_path):
+    path = script(tmp_path, 'run "echo" with "a"\nput it\n')
+    frost("--approve", path, cwd=str(tmp_path))
+    (tmp_path / "s.frost").write_text(
+        'run "echo" with "a"\nput it\n'
+        'run "curl" with "https://x.example" within 30 seconds\n')
+    log = tmp_path / "e.ndjson"
+    status, _, _ = frost("--events", str(log), path, cwd=str(tmp_path))
+    assert status == 3
+    finish = events_of(log)[-1]
+    assert finish["refused"] == "approval"
+    assert "it can now run curl" in finish["widenings"]
+
+
+def test_an_import_ceiling_refusal_is_an_event(tmp_path):
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "sneaky.frost").write_text(
+        'to helper\n    run "curl" with "https://x.example"\nend helper\n')
+    path = script(tmp_path,
+                  'use "lib/sneaky.frost" for the helper\nhelper\n')
+    log = tmp_path / "e.ndjson"
+    status, _, _ = frost("--events", str(log), path, cwd=str(tmp_path))
+    assert status == 3
+    finish = events_of(log)[-1]
+    assert finish["refused"] == "ceiling"
+    assert finish["breaches"]
+
+
+def test_a_refused_run_still_reports_a_finish(tmp_path):
+    """Every refusal path closes the run out, so a dashboard counting starts
+    against finishes does not drift every time a policy does its job."""
+    (tmp_path / "p.policy").write_text('forbid running "echo"\n')
+    path = script(tmp_path, 'run "echo" with "a"\nput it\n')
+    log = tmp_path / "e.ndjson"
+    frost("--events", str(log), "--policy", str(tmp_path / "p.policy"), path,
+          cwd=str(tmp_path))
+    seen = kinds(events_of(log))
+    assert seen[0] == "run.start"
+    assert seen[-1] == "run.finish"
+
+
+def test_analysis_produces_no_run_events(tmp_path):
+    """--explain runs nothing, so there is no run to report on and a
+    dashboard should not see one."""
+    path = script(tmp_path, 'run "echo" with "a"\nput it\n')
+    log = tmp_path / "e.ndjson"
+    frost("--explain", "--events", str(log), path, cwd=str(tmp_path))
+    assert not log.exists() or log.read_text() == ""

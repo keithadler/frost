@@ -645,6 +645,20 @@ def main(argv=None):
         pprint.pprint(tree)
         return 0
 
+    from . import runid as R
+    try:
+        run_id, run_id_from = R.resolve(opts.run_id, os.environ)
+    except R.RunIdError as e:
+        sys.stderr.write(f"frost: {e.msg}\n")
+        if e.hint:
+            sys.stderr.write(f"  hint: {e.hint}\n")
+        return 2
+
+    # Analysis never runs a script, so it produces no run to report on.
+    analysis_only = any((opts.check, opts.explain, opts.ast, opts.fmt,
+                         opts.repair, opts.policy_from, opts.against,
+                         opts.approve, opts.lock))
+
     from . import site as SITE
     try:
         site_rules, provenance = SITE.load()
@@ -722,6 +736,55 @@ def main(argv=None):
         print(f"Verdict: {verdict(findings)}")
         return 0 if verdict(findings) in ("clean", "caution") else 1
 
+    # Opened here, before anything can refuse. The refusal is the event a
+    # security team most wants, and while the sink was created further down
+    # every refusal returned before it existed.
+    events = observer = None
+
+    def told(event, **fields):
+        if events is not None:
+            events.emit(event, **fields)
+
+    def done(code, **fields):
+        """Close the run out, whatever happened. A monitoring system that
+        only hears about runs which got as far as starting is missing exactly
+        the ones somebody needs to look at."""
+        if events is not None:
+            told("run.finish", status=code, **fields)
+            events.close()
+        return code
+
+    if opts.events and not analysis_only:
+        from . import telemetry as T
+        try:
+            stream = (sys.stderr if opts.events == "-"
+                      else open(opts.events, "w"))
+        except OSError as e:
+            sys.stderr.write(f"frost: cannot write the event log: {e}\n")
+            return 2
+        events = T.Sink(stream, run_id=run_id, script=opts.script)
+        caps_now = audit_program(program).merged
+        events.emit("run.start",
+                    frost=__version__,
+                    run_id_from=run_id_from,
+                    automated=automated,
+                    policies=provenance,
+                    approved=os.path.exists(
+                        __import__("frostlang.baseline", fromlist=["x"])
+                        .path_for(opts.script)),
+                    declares={
+                        "programs": sorted({c.program for c in caps_now.commands
+                                            if c.program}),
+                        "hosts": sorted({h for h, _ in caps_now.reaches}),
+                        "reads": len(caps_now.reads),
+                        "writes": len(caps_now.writes),
+                        "deletes": len(caps_now.deletes),
+                        "secrets": sorted({n for n, _, _ in
+                                           caps_now.secret_reads if n}),
+                        "unknowable": caps_now.dynamic,
+                    })
+
+
     policy_rules = list(site_rules)
     if opts.policy:
         try:
@@ -738,6 +801,12 @@ def main(argv=None):
         except PolicyError as e:
             sys.stderr.write(f"frost: {e}\n")
             return 2
+
+    # Once every source is known. `run.start` fires before this so a policy
+    # that will not parse is still reported against a run, which means the
+    # provenance it carries is only the host's.
+    if policy_rules:
+        told("policy.loaded", policies=provenance, rules=len(policy_rules))
 
     # Enforced whenever there are rules, from wherever they came. Checking only
     # when --policy was passed would mean a machine's own policy applied solely
@@ -771,8 +840,12 @@ def main(argv=None):
             sys.stderr.write(
                 f"\n{len(blocked)} rule violation(s); the script was not "
                 f"run.\n")
-            return 3
+            return done(3, refused="policy", policies=provenance,
+                        rules=[{"what": f.what, "line": f.line,
+                                "hint": f.hint} for f in blocked])
         if findings:
+            told("policy.warned",
+                 rules=[{"what": f.what, "line": f.line} for f in findings])
             sys.stderr.write("\npolicy passed with warnings.\n\n")
 
     # An import declares what the module it names may do. Exceeding it is a
@@ -793,7 +866,9 @@ def main(argv=None):
             sys.stderr.write(
                 f"\n{len(breaches)} import(s) exceeded what they declared; "
                 f"the script was not run.\n")
-            return 3
+            return done(3, refused="ceiling",
+                        breaches=[{"what": f.title, "line": f.line}
+                                  for f in breaches])
 
     if opts.check and opts.sarif:
         from . import sarif as S
@@ -850,7 +925,8 @@ def main(argv=None):
                         f"usable.\n  {why}\n\n"
                         f"The policy requires an approval signed by one of "
                         f"{len(signers)} named approver(s).\n")
-                    return 3
+                    return done(3, refused="signature", reason=why,
+                                approvers=len(signers))
             try:
                 approved = B.read(path)
             except B.BaselineError as e:
@@ -868,7 +944,7 @@ def main(argv=None):
                     f"it was not run.\n"
                     f"  See them in context with --explain, then re-approve "
                     f"with --approve.\n")
-                return 3
+                return done(3, refused="approval", widenings=gained)
 
     # Secrets are a capability like any other, so the refusal happens here —
     # before anything runs — rather than at the line that reads one, by which
@@ -901,16 +977,9 @@ def main(argv=None):
             sys.stderr.write(
                 f"\n{len(denials)} secret(s) unavailable; the script was not "
                 f"run.\n")
-            return 3
-
-    from . import runid as R
-    try:
-        run_id, run_id_from = R.resolve(opts.run_id, os.environ)
-    except R.RunIdError as e:
-        sys.stderr.write(f"frost: {e.msg}\n")
-        if e.hint:
-            sys.stderr.write(f"  hint: {e.hint}\n")
-        return 2
+            return done(3, refused="secret",
+                        secrets=[{"name": n, "line": ln, "why": w}
+                                 for n, ln, w in denials])
 
     trace_stream = None
     if opts.trace_to_file:
@@ -920,37 +989,6 @@ def main(argv=None):
         except OSError as e:
             sys.stderr.write(f"frost: cannot write the trace: {e}\n")
             return 2
-
-    events = observer = None
-    if opts.events:
-        from . import telemetry as T
-        try:
-            stream = (sys.stderr if opts.events == "-"
-                      else open(opts.events, "w"))
-        except OSError as e:
-            sys.stderr.write(f"frost: cannot write the event log: {e}\n")
-            return 2
-        events = T.Sink(stream, run_id=run_id, script=opts.script)
-        caps_now = audit_program(program).merged
-        events.emit("run.start",
-                    frost=__version__,
-                    run_id_from=run_id_from,
-                    automated=automated,
-                    policies=provenance,
-                    approved=os.path.exists(
-                        __import__("frostlang.baseline", fromlist=["x"])
-                        .path_for(opts.script)),
-                    declares={
-                        "programs": sorted({c.program for c in caps_now.commands
-                                            if c.program}),
-                        "hosts": sorted({h for h, _ in caps_now.reaches}),
-                        "reads": len(caps_now.reads),
-                        "writes": len(caps_now.writes),
-                        "deletes": len(caps_now.deletes),
-                        "secrets": sorted({n for n, _, _ in
-                                           caps_now.secret_reads if n}),
-                        "unknowable": caps_now.dynamic,
-                    })
 
     interp = Interpreter(argv=opts.args, trace=opts.trace, source=source,
                          trace_to=trace_stream, run_id=run_id,
