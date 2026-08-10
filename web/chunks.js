@@ -286,6 +286,42 @@
       if (this.atWord("empty") && this.peek(1).k === "WORD" && this.peek(1).v === "list") {
         this.next(); this.next(); return [];
       }
+      if (this.atWord("empty") && this.peek(1).k === "WORD" && this.peek(1).v === "record") {
+        this.next(); this.next(); return {};
+      }
+      if (this.cur().k === "STR" || (this.cur().k === "OP" && this.cur().v === "(")) {
+        var key = this.primary();
+        this.want("of");
+        return field(this.chunkSource(), text(key));
+      }
+      if (this.atWord("json")) {
+        this.next();
+        if (this.atWord("text")) {
+          this.next(); this.want("of");
+          return jsonText(this.unary(), 0);
+        }
+        this.want("of");
+        var raw = text(this.unary());
+        /* Empty in, empty out — as null, not "". Both are frost's `empty`, but
+           they serialise differently, and `the json text of the json of ""`
+           caught the two implementations disagreeing. */
+        try { return raw.trim() === "" ? null : JSON.parse(raw); }
+        catch (e) { throw new Err("this is not valid JSON: " + e.message); }
+      }
+      if (this.atWord("keys") && this.peek(1).k === "WORD" && this.peek(1).v === "of") {
+        this.next(); this.next();
+        var kr = this.chunkSource();
+        if (kr === null || kr === "" || kr === undefined) return [];
+        if (!isRecord(kr)) throw new Err("only a record has keys");
+        return Object.keys(kr);
+      }
+      if (this.atWord("values") && this.peek(1).k === "WORD" && this.peek(1).v === "of") {
+        this.next(); this.next();
+        var vr = this.chunkSource();
+        if (vr === null || vr === "" || vr === undefined) return [];
+        if (!isRecord(vr)) throw new Err("only a record has values");
+        return Object.keys(vr).map(function (k) { return vr[k]; });
+      }
       if (this.cur().k === "WORD" && this.cur().v in TRANSFORMS) {
         var op = this.next().v;
         if (this.atWord("of")) this.next();
@@ -369,10 +405,53 @@
     if (op === "average") return ns.reduce(function (a, b) { return a + b; }, 0) / ns.length;
     throw new Err("unknown aggregate " + op);
   }
+  function isRecord(v) {
+    return v !== null && typeof v === "object" && !Array.isArray(v);
+  }
+  /* A record prints as JSON, matching frostlang/structured.py: anything else
+     would send a reader back to jq to look at their own data. */
+  function jsonText(v, depth) {
+    depth = depth || 0;
+    var pad = new Array(2 * (depth + 1) + 1).join(" ");
+    var close = new Array(2 * depth + 1).join(" ");
+    if (v === null || v === undefined) return "null";
+    if (v === true) return "true";
+    if (v === false) return "false";
+    if (typeof v === "number") return String(v);
+    if (isRecord(v)) {
+      var ks = Object.keys(v);
+      if (!ks.length) return "{}";
+      return "{\n" + ks.map(function (k) {
+        return pad + JSON.stringify(k) + ": " + jsonText(v[k], depth + 1);
+      }).join(",\n") + "\n" + close + "}";
+    }
+    if (Array.isArray(v)) {
+      if (!v.length) return "[]";
+      return "[\n" + v.map(function (x) {
+        return pad + jsonText(x, depth + 1);
+      }).join(",\n") + "\n" + close + "]";
+    }
+    return JSON.stringify(String(v));
+  }
+  function field(source, key) {
+    if (source === null || source === undefined || source === "") return "";
+    if (isRecord(source)) {
+      return Object.prototype.hasOwnProperty.call(source, key)
+        ? source[key] : "";
+    }
+    if (Array.isArray(source)) {
+      throw new Err("cannot ask for " + JSON.stringify(key) + " of a list",
+        "a list is numbered, not named — try: item 1 of X");
+    }
+    throw new Err("cannot ask for " + JSON.stringify(key) + " of text",
+      "only a record has named fields. If this came from a command, parse " +
+      "it first: put the json of it into report");
+  }
   function text(v) {
     if (v === null || v === undefined) return "";
     if (v === true) return "true";
     if (v === false) return "false";
+    if (isRecord(v)) return jsonText(v, 0);
     if (Array.isArray(v)) return v.map(text).join("\n");
     if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(v);
     return String(v);

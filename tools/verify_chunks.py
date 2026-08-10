@@ -21,7 +21,12 @@ from frostlang.interp import Interpreter, FrostError, to_text
 
 JS = os.path.join(HERE, "web", "chunks.js")
 
+JSON_SUBJECT = ('{"status": "green", "user": {"name": "ada", "id": 7}, '
+                '"tags": ["alpha", "beta"], "ratio": 1.5, "ok": true, '
+                '"nothing": null, "empty list": [], "empty record": {}}')
+
 SUBJECTS = {
+    "json": JSON_SUBJECT,
     "log": ("10.0.0.1 GET /index.html 200 0.014\n"
             "10.0.0.2 POST /api/login 500 1.221\n"
             "10.0.0.3 GET /about.html 200 0.031\n"
@@ -153,7 +158,153 @@ def corpus():
         'the uppercase it & "!"',
         'the number of words in the uppercase it',
     ]
+
+    # Records and JSON. The subject is only a document for the "json" case;
+    # everywhere else these produce errors, and the two implementations have
+    # to agree on the error just as much as on the answer.
+    out += [
+        # `the matches` and `the whole match` carry state from a preceding
+        # comparison. Standing alone they are empty on both sides, which is
+        # still a fact the two implementations have to agree on.
+        "the matches",
+        "the whole match",
+        "the number of matches",
+        'the matches joined by ","',
+        "the empty record",
+        "the json text of the empty record",
+        "the json of it",
+        "the json text of the json of it",
+        'the "status" of the json of it',
+        'the "ratio" of the json of it',
+        'the "ok" of the json of it',
+        'the "nothing" of the json of it',
+        'the "id" of the "user" of the json of it',
+        'the "name" of the "user" of the json of it',
+        'the "user" of the json of it',
+        'the "tags" of the json of it',
+        'the "empty list" of the json of it',
+        'the "empty record" of the json of it',
+        'the "absent" of the json of it',
+        'the "absent" of the json of it is empty',
+        'the "name" of the "nobody" of the json of it',
+        'the "name" of the "nobody" of the json of it is empty',
+        'item 2 of the "tags" of the json of it',
+        'the number of items in the "tags" of the json of it',
+        'the "tags" of the json of it joined by ","',
+        "the keys of the json of it",
+        "the values of the json of it",
+        'the keys of the json of it joined by ","',
+        "the number of items in the keys of the json of it",
+        'the "id" of the "user" of the json of it + 1',
+        'the "ratio" of the json of it * 2',
+        'the uppercase (the "status" of the json of it)',
+        'the "status" of the json of it is "green"',
+        # Both sides must refuse these, and refuse them the same way.
+        'the "status" of "not a record"',
+        'the "status" of the empty list',
+        "the json of \"not json at all\"",
+        "the keys of \"plain text\"",
+        "the values of 5",
+    ]
     return out
+
+
+# ---------------------------------------------------- coverage of the corpus
+#
+# The corpus is hand-written, so until now a new expression form was compared
+# only if somebody remembered to add it — and records shipped in 0.6.0 with no
+# browser support at all, silently, because nothing here asked. The check below
+# turns that omission into a build failure: every expression node the parser
+# can produce must appear in the corpus, or be excused here with a reason.
+
+# Nodes that need a host — a process, a filesystem, an environment, a clock.
+# The browser evaluator is a slice of the language on purpose: it evaluates
+# expressions against a subject, and none of these mean anything without a
+# machine underneath.
+NEEDS_A_HOST = {
+    "ArgList": "a script's arguments",
+    "ClockRef": "the clock",
+    "CurrentFolder": "the working directory",
+    "EnvRef": "the environment",
+    "ErrorRef": "the last command's standard error",
+    "FileRef": "the filesystem",
+    "FileExists": "the filesystem",
+    "GlobalRef": "a running program's globals",
+    "HandlerCall": "handlers, which are statements rather than expressions",
+    "ResultRef": "the last command's exit status",
+    "SecretRef": "the keystore",
+    "SecretEnvRef": "the keystore",
+    "SecretFileRef": "the keystore",
+    "StdInRef": "the standard input",
+    "Var": "a variable, which the scratchpad has no scope for",
+    "Call": "a handler call; the scratchpad evaluates one expression with no "
+            "definitions around it",
+    "FuncCall": "a handler call, as above",
+}
+
+
+def expression_nodes():
+    """Every AST class that can appear inside an expression."""
+    import dataclasses
+    from frostlang import ast as A
+
+    # Statements and assignment targets are structural: they can never be the
+    # result of parse_expression, so they are not the corpus's business.
+    statements = {"Put", "Run", "Pipe", "If", "Repeat", "RepeatFor",
+                  "RepeatWith", "RepeatWhile", "RepeatForEach",
+                  "RepeatForever", "RepeatTimes", "Quit", "Handler",
+                  "HandlerDef", "Return", "Arith", "AddTo", "SubtractFrom",
+                  "MultiplyBy", "DivideBy", "ExitRepeat", "NextRepeat",
+                  "DeleteFile", "Ensure", "Use", "Replace", "Wait", "Program",
+                  "Import", "Ceiling"}
+    targets = {n for n in dir(A) if n.endswith("Target")}
+    out = set()
+    for name in dir(A):
+        node = getattr(A, name)
+        if (isinstance(node, type) and dataclasses.is_dataclass(node)
+                and not name.startswith("_")
+                and name not in statements and name not in targets):
+            out.add(name)
+    return out
+
+
+def nodes_used_by(exprs):
+    """Which AST classes the corpus actually exercises."""
+    import dataclasses
+    seen = set()
+
+    def walk(node):
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if not dataclasses.is_dataclass(node):
+            return
+        seen.add(type(node).__name__)
+        for f in dataclasses.fields(node):
+            walk(getattr(node, f.name))
+
+    for expr in exprs:
+        try:
+            p = Parser(expr)
+            walk(p.parse_expression())
+        except (ParseError, LexError):
+            continue          # a deliberately-invalid case covers no node
+    return seen
+
+
+def check_coverage(exprs):
+    missing = expression_nodes() - nodes_used_by(exprs) - set(NEEDS_A_HOST)
+    if missing:
+        print("\n%d EXPRESSION FORM(S) NEVER COMPARED:\n" % len(missing))
+        for name in sorted(missing):
+            print("  %s" % name)
+        print("\nAdd an expression using each to corpus(), or list it in "
+              "NEEDS_A_HOST with the reason it cannot be evaluated in a "
+              "browser. An untested form is one where the two implementations "
+              "are free to disagree.")
+        return False
+    return True
 
 
 def python_eval(expr, subject):
@@ -208,6 +359,9 @@ process.stdin.on("end", function () {
 
 
 def main():
+    if not check_coverage(corpus()):
+        raise SystemExit(1)
+
     cases = []
     for name, subject in SUBJECTS.items():
         for expr in corpus():
