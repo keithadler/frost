@@ -31,6 +31,8 @@ contract instead of trusted as a guess.
 | **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
 | **Declared record shapes** | `with fields "status", "number"` makes a mistyped field a `--check` failure instead of a silent empty, and verifies the payload at the line that parsed it. |
 | **`--approve`** | Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability. |
+| **SARIF and an Action** | `--check --sarif` feeds GitHub code scanning, so a refusal appears on the diff line in front of the person merging rather than in a log nobody opens. `action.yml` wires check, explain, policy and approvals into six lines of workflow. |
+| **`--policy-from`** | Writes a starter policy describing what a script already does. The policy engine was the most useful thing here and the least used, because the first step was a blank file. |
 | **`--json` / `--repair`** | Every diagnostic as structured data with the edit attached, so the model that wrote the script can repair it without a human in the loop. |
 
 ### The lifecycle
@@ -893,6 +895,11 @@ frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
 frost --trace-to-file F s.frost  write that trace to a file instead
 frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
+frost --check --sarif s.frost    findings for code scanning on a pull request
+frost --policy-from s.frost      a starter policy describing what it does
+frost --explain --against F s.frost   what changed since it was approved
+frost --exit-codes [--json]      what each exit status means
+frost --completion bash|zsh      a completion script
 frost --explain script.frost     describe what it can do, without running it
 frost --check --json s.frost     diagnostics as JSON, with repairs
 frost --repair [--write] s.frost apply the repairs frost is sure about
@@ -941,6 +948,8 @@ frostlang/
     modules.py        import resolution, ceilings, lockfile
     baseline.py       what a script was approved to do
     runid.py          one identity per execution
+    sarif.py          findings for code review tools
+    scaffold.py       a starter policy from a manifest
     browser.py        the analysis surface with no OS underneath
     sandbox.py        capability boundaries the kernel holds
     sealed.py         values that cannot be printed by accident
@@ -953,7 +962,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1729 tests — python3 -m pytest tests/ -q
+tests/                1753 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -963,12 +972,14 @@ play.html             live scratchpad (tools/build_play.py)
 MODEL-SPEC.md         prompt-sized reference (tools/build_model_spec.py)
 web/chunks.js         browser evaluator, verified against frostlang/
 canary_browser.py     boots play.html in Chromium and checks its answers
+build_site.py         assembles what GitHub Pages publishes
+action.yml            the GitHub Action
 editors/              syntax highlighting
 ```
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1729 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1753 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

@@ -11,6 +11,37 @@ bump may change the language.
 
 ### Added
 
+**SARIF, and a GitHub Action.** `--check --sarif` and `--explain --sarif` emit
+what every code-scanning tool already reads, so a finding arrives as an
+annotation on the diff line it concerns, in front of the person deciding
+whether to merge. A refusal in a CI log is read by whoever opens the log,
+which on a green-enough day is nobody. A repair becomes an applicable fix,
+except at `guess` confidence: the confidence levels exist so a guess is not
+applied unattended, and a one-click fix in a review tool is exactly unattended.
+
+`action.yml` wires check, explain, policy and approvals into a few lines of
+workflow, for people who will never install frost locally.
+
+**`--policy-from`** writes a starter policy describing what a script already
+does. The policy engine was the most useful thing here and the least used,
+because the first step was a blank file and nobody enumerates capabilities in
+a language they have just met. Anything that would refuse the script as it
+stands is emitted commented out and marked, since a scaffold that fails the
+build immediately is one people delete rather than edit.
+
+**`--explain --against FILE`** diffs a script against a recorded approval
+without running it, which is what a reviewer wants and what CI needs.
+
+**`require an approval`** lets a policy insist a script carries a matching
+approval, so an organisation can mandate it centrally rather than hoping every
+caller passes a flag. The driver enforces it: whether a file exists is not
+something the policy checker can see, and giving it the filesystem would undo
+the reason it takes only a parse tree.
+
+**Exit codes are published** with `--exit-codes [--json]`, and **completion**
+with `--completion bash|zsh`, generated from the parser rather than written
+beside it.
+
 **`the run id`, and `--run-id`.** These scripts are run by agents and
 pipelines, where the question afterwards is never "what happened" but "what
 did *that* run do". Each execution now has an identity: supplied with

@@ -898,6 +898,10 @@ RULE_PATTERNS = [
     # cannot. The two are different guarantees and the docs keep them apart.
     (re.compile(r'^(forbid|warn)\s+reaching\s+"([^"]+)"\s*$'), "reach"),
     (re.compile(r'^require\s+reaching\s+only\s+(.+?)\s*$'), "reach_only"),
+    # Enforced by the driver rather than here: whether an approval exists is a
+    # fact about the filesystem, and `check` is given a parse tree and nothing
+    # else on purpose.
+    (re.compile(r'^require\s+an\s+approval\s*$'), "approval"),
 
     # The sandbox boundary. Allow-shaped, because a deny-list cannot become
     # one: `forbid writing to "/etc/*"` says nothing about what writing is
@@ -1024,6 +1028,8 @@ def parse_policy(text):
                 rules.append(Rule(kind, g[0], g[1], g[2], n))
             elif kind == "chfolder":
                 rules.append(Rule(kind, g[0], "*", None, n))
+            elif kind == "approval":
+                rules.append(Rule(kind, "forbid", "approval", None, n))
             elif kind == "reach":
                 rules.append(Rule(kind, g[0], g[1], None, n))
             elif kind == "reach_only":
@@ -1221,6 +1227,9 @@ def _check_rules(caps, rules):
                     (rule.severity,
                      f"changing the working folder to {path or '(runtime)'}",
                      line))
+
+        elif rule.kind == "approval":
+            continue          # the driver checks this; see cli.open_approval
 
         elif rule.kind == "reach":
             for host, line in caps.reaches:

@@ -1,0 +1,126 @@
+name: frost
+description: >-
+  Check frost scripts, enforce a policy, and refuse a script that gained a
+  capability since it was approved. Findings appear on the pull request.
+author: Keith Adler
+
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  scripts:
+    description: >-
+      Which scripts to check. A glob, evaluated by the shell. Defaults to every
+      .frost file in the repository.
+    required: false
+    default: "**/*.frost"
+  policy:
+    description: >-
+      A policy file to enforce. When set, a script that breaks a rule fails the
+      job before anything runs.
+    required: false
+    default: ""
+  approvals:
+    description: >-
+      Refuse a script that does more than its committed .approved file allows.
+      Set to "false" to skip.
+    required: false
+    default: "true"
+  sarif:
+    description: >-
+      Upload findings so they appear as annotations on the diff. Needs
+      `security-events: write` on the job.
+    required: false
+    default: "true"
+  version:
+    description: Which frost to install. A version, or "." for this repository.
+    required: false
+    default: "frostlang"
+
+runs:
+  using: composite
+  steps:
+    - name: Install frost
+      shell: bash
+      run: |
+        python3 -m pip install --quiet --upgrade pip
+        python3 -m pip install --quiet "${{ inputs.version }}"
+        frost --version
+
+    - name: Check every script
+      shell: bash
+      # Every script, not the first failure: a reviewer wants the whole list
+      # in one pass, not one error per push.
+      run: |
+        set -uo pipefail
+        failed=0
+        shopt -s globstar nullglob
+        for script in ${{ inputs.scripts }}; do
+          if ! frost --check "$script"; then failed=1; fi
+        done
+        exit $failed
+
+    - name: Describe what each script can do
+      shell: bash
+      # Printed, never gating. The manifest is for the human reading the run;
+      # the gate is the policy, which somebody wrote on purpose.
+      run: |
+        set -uo pipefail
+        shopt -s globstar nullglob
+        for script in ${{ inputs.scripts }}; do
+          echo "::group::$script"
+          frost --explain "$script" || true
+          echo "::endgroup::"
+        done
+
+    - name: Enforce the policy
+      if: inputs.policy != ''
+      shell: bash
+      run: |
+        set -uo pipefail
+        failed=0
+        shopt -s globstar nullglob
+        for script in ${{ inputs.scripts }}; do
+          if ! frost --policy "${{ inputs.policy }}" --check "$script"; then
+            failed=1
+          fi
+        done
+        exit $failed
+
+    - name: Refuse a script that gained a capability
+      if: inputs.approvals == 'true'
+      shell: bash
+      # Only scripts that carry an approval. A repository adopting frost should
+      # not have to approve everything on day one to use the rest of this.
+      run: |
+        set -uo pipefail
+        failed=0
+        shopt -s globstar nullglob
+        for approval in **/*.frost.approved; do
+          script="${approval%.approved}"
+          echo "checking $script against its approval"
+          if ! frost --explain --against "$approval" "$script"; then failed=1; fi
+        done
+        exit $failed
+
+    - name: Collect findings as SARIF
+      if: inputs.sarif == 'true'
+      shell: bash
+      run: |
+        set -uo pipefail
+        shopt -s globstar nullglob
+        mkdir -p .frost-sarif
+        for script in ${{ inputs.scripts }}; do
+          safe="${script//\//_}"
+          frost --explain --sarif "$script" > ".frost-sarif/${safe}.sarif" \
+            || frost --check --sarif "$script" > ".frost-sarif/${safe}.sarif" \
+            || true
+        done
+
+    - name: Upload the findings
+      if: inputs.sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: .frost-sarif
+        category: frost
