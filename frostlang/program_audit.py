@@ -221,22 +221,29 @@ def _allowed(subject, patterns):
     return any(fnmatch.fnmatchcase(subject, p) for p in patterns)
 
 
-def check_ceiling(path, caps, ceiling, line, importer):
+def check_ceiling(path, caps, ceiling, line, importer, through=None):
     """Everything a module does that its import did not allow.
 
     Default-deny: with no `which may`, a module may compute and nothing else.
     A capability built at runtime always exceeds a ceiling, because a limit
     that cannot be checked is not a limit.
+
+    `through` names the module the import actually mentions, when `path` is
+    something further down the graph. Saying only that `app.frost:1` forbids
+    what `lib/deep.frost` does would send a reader to an import that never
+    names that file.
     """
     ceiling = ceiling or M.Ceiling()
     out = []
 
     def refuse(what, detail, at):
+        reached = (f" {path} is reached through {through}."
+                   if through and through != path else "")
         out.append(Finding(
             "danger",
             f"{path} may not {what}",
             f"{detail} The import at {importer}:{line} allows: "
-            f"{ceiling.describe()}.",
+            f"{ceiling.describe()}.{reached}",
             at))
 
     for command in caps.commands:
@@ -277,16 +284,38 @@ def check_ceiling(path, caps, ceiling, line, importer):
     return out
 
 
+def _reachable(program, path, seen=None):
+    """`path` and everything reachable from it. The graph is a DAG, so this
+    terminates; cycles are refused when the program is loaded."""
+    seen = set() if seen is None else seen
+    if path in seen or path not in program.modules:
+        return seen
+    seen.add(path)
+    for imported, _, _, _ in program.modules[path].imports:
+        _reachable(program, imported, seen)
+    return seen
+
+
 def check_all_ceilings(program, program_caps):
-    """Every ceiling violation in the program, in file order."""
+    """Every ceiling violation in the program, in file order.
+
+    A ceiling constrains the whole subtree an import pulls in, not just the
+    file it names. Checking only the named file left the guarantee with a hole
+    exactly one level deep: a module that was allowed to run `psql` could
+    import a second module that runs `curl`, and nothing objected — so the
+    upper bound a reviewer got from the entry file was not an upper bound at
+    all. Every capability that arrives because of an import is checked against
+    the ceiling that import declared, however far down it actually lives.
+    """
     out = []
     for module in program.modules.values():
         for imported, line, _, ceiling in module.imports:
-            entry = program_caps.by_path(imported)
-            if entry is None:                       # pragma: no cover
-                continue
-            out.extend(check_ceiling(imported, entry.caps, ceiling, line,
-                                     module.path))
+            for path in sorted(_reachable(program, imported)):
+                entry = program_caps.by_path(path)
+                if entry is None:                   # pragma: no cover
+                    continue
+                out.extend(check_ceiling(path, entry.caps, ceiling, line,
+                                         module.path, through=imported))
     return sorted(out, key=lambda f: (f.line, f.title))
 
 

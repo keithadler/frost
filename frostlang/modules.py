@@ -33,6 +33,16 @@ from the same bytes. Re-opening a module at execution time would open a
 window between the audit and the run, which is the one thing single-file
 frost never had.
 
+**A ceiling constrains the whole subtree, not one file.** `which may run
+"psql"` bounds everything that arrives because of that import, including what
+the imported module imports in turn. Checking only the named file left the
+guarantee holed exactly one level down — a module allowed to run `psql` could
+import a second one that ran `curl`, and nothing objected, so the upper bound
+a reviewer took from the entry file was not an upper bound at all. A breach
+names the file that actually holds the capability and the import that forbade
+it, since blaming the module the import names would send a reader to a file
+that does not contain the offending line.
+
 **Imports are explicit and the graph is a DAG.** `for the connect, the
 migrate` names what arrives, so a collision between two modules is an error
 here rather than one silently shadowing the other. Cycles are refused rather
