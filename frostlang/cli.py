@@ -181,10 +181,23 @@ def audit_json(path, caps, findings, source_lines):
 
 # Options that take a separate value token, so the splitter below does not
 # mistake that value for the script path.
-VALUE_OPTIONS = {"--policy", "--keystore", "--role", "--record", "--replay"}
+def value_options(parser):
+    """Which of frost's own flags consume the token after them.
+
+    Read off the parser rather than kept in a list beside it. The list version
+    was missing `--trace-to-file` the moment it was added, which made
+    `frost --trace-to-file out.log s.frost` treat out.log as the script — a
+    silent misparse, since argparse then complained about something else
+    entirely.
+    """
+    out = set()
+    for action in parser._actions:
+        if action.option_strings and action.nargs != 0:
+            out.update(action.option_strings)
+    return out
 
 
-def split_argv(argv):
+def split_argv(argv, value_taking=None):
     """Separate frost's own options from the script's arguments.
 
     frost's options end at the script path; everything after it belongs to the
@@ -192,13 +205,18 @@ def split_argv(argv):
     that takes `--check` as its own argument could never be given one, because
     argparse would claim the flag for frost.
     """
+    if value_taking is None:
+        # Deriving it is the default rather than the opt-in. An empty default
+        # does not fail loudly, it misparses quietly, which is how the stale
+        # list went unnoticed in the first place.
+        value_taking = value_options(build_parser())
     own = []
     i = 0
     while i < len(argv):
         arg = argv[i]
         if arg.startswith("-") and arg != "-":
             own.append(arg)
-            if arg in VALUE_OPTIONS and i + 1 < len(argv):
+            if arg in value_taking and i + 1 < len(argv):
                 own.append(argv[i + 1])
                 i += 1
             i += 1
@@ -299,14 +317,8 @@ def check_secret_access(tree, store, role):
     return denials
 
 
-def main(argv=None):
-    raw = list(sys.argv[1:] if argv is None else argv)
-    # `frost keystore ...` administers a keystore rather than running a
-    # script. Checked before the main parser so its own flags do not collide.
-    if raw and raw[0] == "keystore":
-        from .keystore_cli import main as keystore_main
-        return keystore_main(raw[1:])
-
+def build_parser():
+    """frost's own options. One definition, so nothing can drift from it."""
     ap = argparse.ArgumentParser(
         prog="frost",
         description="Run a frost script.")
@@ -327,6 +339,8 @@ def main(argv=None):
                     help="parse and dump the syntax tree")
     ap.add_argument("--trace", action="store_true",
                     help="print each statement as it runs")
+    ap.add_argument("--trace-to-file", metavar="FILE", dest="trace_to_file",
+                    help="write the trace to a file instead of standard error")
     ap.add_argument("--explain", action="store_true",
                     help="describe what the script can do, without running it")
     ap.add_argument("--json", action="store_true",
@@ -367,7 +381,19 @@ def main(argv=None):
     ap.add_argument("--sandbox", action="store_true",
                     help="hold the boundary the policy declares; refuses to "
                          "run if it cannot be enforced here")
-    own, script_args = split_argv(raw)
+    return ap
+
+
+def main(argv=None):
+    raw = list(sys.argv[1:] if argv is None else argv)
+    # `frost keystore ...` administers a keystore rather than running a
+    # script. Checked before the main parser so its own flags do not collide.
+    if raw and raw[0] == "keystore":
+        from .keystore_cli import main as keystore_main
+        return keystore_main(raw[1:])
+
+    ap = build_parser()
+    own, script_args = split_argv(raw, value_options(ap))
     opts = ap.parse_args(own)
     opts.args = script_args
 
@@ -637,7 +663,16 @@ def main(argv=None):
                 f"run.\n")
             return 3
 
-    interp = Interpreter(argv=opts.args, trace=opts.trace,
+    trace_stream = None
+    if opts.trace_to_file:
+        try:
+            trace_stream = open(opts.trace_to_file, "w")
+        except OSError as e:
+            sys.stderr.write(f"frost: cannot write the trace: {e}\n")
+            return 2
+
+    interp = Interpreter(argv=opts.args, trace=opts.trace, source=source,
+                         trace_to=trace_stream,
                          keystore=store, role=opts.role)
     if len(program.modules) > 1:
         interp.install(program)
@@ -666,13 +701,9 @@ def main(argv=None):
         except (ValueError, J.Divergence) as e:
             sys.stderr.write(f"frost: {getattr(e, 'msg', e)}\n")
             return 2
+    outcome = 1
     try:
-        status = interp.run_program(tree)
-        if recorder is not None:
-            recorder.status = status
-            recorder.save(opts.record, opts.script, opts.args)
-            sys.stderr.write(f"frost: recorded {len(recorder.events)} "
-                             f"event(s) to {opts.record}\n")
+        outcome = status = interp.run_program(tree)
         if player is not None:
             left = player.unconsumed()
             if left:
@@ -682,13 +713,16 @@ def main(argv=None):
                         f"{J._describe(event)}\n")
                 sys.stderr.write(f"\n{len(left)} recorded effect(s) did not "
                                  f"happen this time.\n")
-                return 4
+                outcome = 4
+                return outcome
         return status
     except J.Divergence as e:
         where = f"{opts.script}:{e.line}" if e.line else opts.script
         sys.stderr.write(f"\nDIVERGED at {where}\n    {e.msg}\n\n")
-        return 4
+        outcome = 4
+        return outcome
     except FrostError as e:
+        outcome = 1
         if opts.json:
             e.candidates = sorted(interp.globals)
             emit_json(diagnostics.report(
@@ -698,10 +732,30 @@ def main(argv=None):
         return 1
     except KeyboardInterrupt:
         sys.stderr.write("\nfrost: interrupted\n")
-        return 130
+        outcome = 130
+        return outcome
     except RecursionError:
         sys.stderr.write("frost: handlers nested too deeply\n")
-        return 1
+        outcome = 1
+        return outcome
+    finally:
+        # However the run ended. A recording that only survives success is
+        # useless for the case it is most wanted in: the run that failed,
+        # was interrupted, or wedged is exactly the one somebody needs to
+        # read afterwards, and it was the one being thrown away.
+        if trace_stream is not None:
+            trace_stream.close()
+        if recorder is not None:
+            recorder.status = outcome
+            try:
+                recorder.save(opts.record, opts.script, opts.args)
+                sys.stderr.write(f"frost: recorded {len(recorder.events)} "
+                                 f"event(s) to {opts.record}\n")
+            except OSError as e:
+                # Never let a failure to write the record hide the failure
+                # the record was about.
+                sys.stderr.write(f"frost: could not write {opts.record}: "
+                                 f"{e}\n")
 
 
 if __name__ == "__main__":

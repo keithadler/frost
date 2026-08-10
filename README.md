@@ -885,6 +885,7 @@ frost script.frost [args...]     run a script
 frost --check script.frost       parse only, report errors
 frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
+frost --trace-to-file F s.frost  write that trace to a file instead
 frost --explain script.frost     describe what it can do, without running it
 frost --check --json s.frost     diagnostics as JSON, with repairs
 frost --repair [--write] s.frost apply the repairs frost is sure about
@@ -944,7 +945,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1659 tests — python3 -m pytest tests/ -q
+tests/                1670 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -959,7 +960,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1659 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1670 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

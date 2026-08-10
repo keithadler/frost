@@ -910,6 +910,7 @@ bash; then <code>--explain</code> and <code>--policy</code> check the result bef
 frost --check script.frost       parse only, report errors
 frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
+frost --trace-to-file F s.frost  write that trace to a file instead
 frost --explain script.frost     describe what it can do, without running it
 frost --check --json s.frost     diagnostics as JSON, with repairs
 frost --repair [--write] s.frost apply the repairs frost is sure about
@@ -962,7 +963,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1659 tests — python3 -m pytest tests/ -q
+tests/                1670 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -975,7 +976,7 @@ canary_browser.py     boots play.html in Chromium and checks its answers
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.6.0. The language runs, the examples are real, and 1659 tests cover
+<p>Version 0.6.0. The language runs, the examples are real, and 1670 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1285,6 +1286,30 @@ replaying anything else.</p>
 <p>A script that waits says so in <code>--explain</code>, under <code>Waits:</code>. It is not a
 capability, since it touches nothing, but a reviewer approving a CI job wants
 to know it sleeps for ten minutes.</p>
+<h3 id="ref-watching-a-run-and-auditing-one">Watching a run, and auditing one</h3>
+<p>Two different questions, and it is worth reaching for the right one.</p>
+<p><strong>What did it do?</strong> <code>--record run.json</code> writes down every effect: each command
+with its arguments, standard input, output and exit status, every file read or
+written, every environment variable, every clock reading. Secrets are never
+recorded. That is the auditable artefact, and it is a replayable fixture as
+well.</p>
+<p>The recording is written <strong>however the run ends</strong>. A run that failed, was
+interrupted or wedged is exactly the one somebody needs to read afterwards,
+and for a while frost was throwing precisely those away.</p>
+<p><strong>What did it execute?</strong> <code>--trace</code> prints each statement as it runs, and
+<code>--trace-to-file FILE</code> puts that somewhere you can read later:</p>
+<pre><code class="language-text">[frost]    1  put 0 into error count
+[frost]    2  repeat for each line in the standard input as row
+[frost]    3      if row contains &quot;ERROR&quot; then add 1 to error count
+</code></pre>
+<p>A recording cannot answer this. It holds effects, so a script that took the
+wrong branch and therefore did nothing produces an empty recording and no
+explanation. The trace shows the condition being evaluated and the branch not
+taken.</p>
+<p>The trace is flushed line by line, because the run worth tracing is often the
+one that never finishes and a buffered trace of a wedged script is an empty
+file. It prints source text and never runtime values, so a credential cannot
+reach it.</p>
 <h3 id="ref-approving-what-a-script-may-do">Approving what a script may do</h3>
 <p><code>--frozen</code> asks whether a script is byte-identical to the one that was
 reviewed. That is the right question for a vendored module and the wrong one
