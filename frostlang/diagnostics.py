@@ -195,6 +195,15 @@ def repairs_for(code, error, source_lines):
                 text.replace(wanted, candidate, 1) if text else "",
                 GUESS, f"there is a handler named {candidate!r}"))
 
+    elif code == "no-such-field":
+        wanted = getattr(error, "subject", None)
+        for candidate in nearest(wanted, getattr(error, "candidates", ())):
+            out.append(Repair(
+                "replace-line", line,
+                text.replace(f'"{wanted}"', f'"{candidate}"', 1) if text
+                else "",
+                GUESS, f"the shape declares a field named {candidate!r}"))
+
     elif code == "no-variable-named":
         wanted = getattr(error, "subject", None)
         for candidate in nearest(wanted, getattr(error, "candidates", ())):

@@ -388,6 +388,31 @@ class Interpreter:
                 f"{type(node).__name__}\n")
         return method(node)
 
+    def check_declared_fields(self, node, value):
+        """`with fields "a", "b"` is checked the moment the value arrives.
+
+        The alternative is discovering a missing field wherever it is first
+        read, which for an optional-looking field means never: a missing key
+        is empty by design, so a payload that quietly stopped carrying
+        `status` would make `if the "status" of build is not "green"` take the
+        failure branch forever, and nothing would say why.
+        """
+        if not node.fields:
+            return
+        if not S.is_record(value):
+            raise FrostError(
+                "a shape was declared, but this is not a record", node.line,
+                hint='`with fields` describes a record. Parse first: '
+                     'put the json of it into build with fields "status"')
+        missing = [f for f in node.fields if f not in value]
+        if missing:
+            present = ", ".join(sorted(value)) or "nothing"
+            raise FrostError(
+                "the value is missing " + ", ".join(repr(m) for m in missing),
+                node.line,
+                hint=f"it has: {present}. A declared field has to be there, "
+                     f"or every read of it downstream is silently empty.")
+
     def exec_Put(self, node):
         value = self.eval(node.expr)
         target = node.target
@@ -475,6 +500,7 @@ class Interpreter:
             return
 
         if node.mode == "into":
+            self.check_declared_fields(node, value)
             self.write_target(target, value)
             return
 

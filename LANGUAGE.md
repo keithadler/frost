@@ -266,6 +266,40 @@ put "connecting as" && the "user" of config
 -- connecting as «secret credentials.json»
 ```
 
+### Declaring the shape of a record
+
+A missing key is empty, which is right for an optional field and lethal for a
+typo. `the "staus" of build` reads as empty, the comparison against it quietly
+goes the wrong way, and nothing anywhere says that `staus` was never a field.
+
+So say what shape you expect:
+
+```
+run "curl" with "-fsS", url within 30 seconds
+put the json of it into build with fields "status", "number", "author"
+```
+
+Two things follow from that one line.
+
+**The names become checkable.** `the "staus" of build` is now a mistake
+`--check` catches, with the near miss suggested as a repair, before a single
+process starts.
+
+**The payload is verified where it arrives.** If the response does not carry
+`number`, the script stops at the line that parsed it and says what was there
+instead, rather than failing somewhere further down wearing a different
+disguise.
+
+Only names that were declared are checked, and only against a literal key. The
+declaration is your claim about the payload, so checking against it is
+checking the script against itself. Inferring a shape from whatever JSON
+happened to arrive during development would reject correct scripts, so frost
+does not do it. A record with no declaration is not second-guessed at all.
+
+A name reassigned without a claim loses its shape, and a shape declared inside
+a block does not leak out of it. Field names must be written out: one built at
+runtime could not be checked, which is the whole point of declaring it.
+
 ### Standard error
 
 `the error output` is what the last command wrote to its standard error, the

@@ -28,6 +28,7 @@ contract instead of trusted as a guess.
 | **`--record` / `--replay`** | Snapshot testing for shell scripts. A recording is a fixture you can commit; replay spawns no process, writes no file, and reports a divergence rather than a stack trace. Secret values are never written down. |
 | **Records and JSON** | `the "name" of the "user" of report` — API responses without a second language in the file. Shelling out to `jq` handed the auditor a string it could not see into; a record is part of the tree. |
 | **`the error output`** | Why a command failed, not just that it did — without `sh -c "... 2>&1"`, which is the one construct the auditor flags and the spec forbids. |
+| **Declared record shapes** | `with fields "status", "number"` makes a mistyped field a `--check` failure instead of a silent empty, and verifies the payload at the line that parsed it. |
 | **`--approve`** | Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability. |
 | **`--json` / `--repair`** | Every diagnostic as structured data with the edit attached, so the model that wrote the script can repair it without a human in the loop. |
 
@@ -943,7 +944,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1644 tests — python3 -m pytest tests/ -q
+tests/                1659 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -958,7 +959,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1644 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1659 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
@@ -1007,9 +1008,9 @@ Remaining, honestly:
   then `run tool` is reported as running `ls`. A value genuinely assembled at
   runtime is reported as *unknowable* rather than guessed, which is why
   `--sandbox` exists: the kernel confines what the analyser could not resolve.
-- **No schema for records.** JSON parses into records and lists, but nothing
-  validates a payload's shape ahead of time — a missing field is discovered
-  when it is read, not when the script is checked.
+- **A declared shape is one level deep.** `with fields "a", "b"` checks the
+  top level of a record. A nested shape has to be declared by pulling the
+  inner record out into its own name first.
 - **No compile-to-bash mode** for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.
