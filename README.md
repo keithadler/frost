@@ -55,8 +55,11 @@ turns a run into a fixture.
   into a system prompt so a model writes correct frost first time.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed and why.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how the pieces fit together.
-- `docs.html`, `audit.html`, `play.html` — browsable reference, a visual audit
-  report, and a live scratchpad that runs frost in the browser.
+- `docs.html`, `audit.html`, `play.html` are a browsable reference, a visual
+  audit report, and a live scratchpad. `play.html` now runs **frost itself** in
+  the page: CPython compiled to WebAssembly, the same Python the command line
+  runs, so `--explain`, `--policy`, `--repair` and an approval comparison all
+  answer exactly as they would in a terminal.
 
 ```
 #!/usr/bin/env frost
@@ -928,6 +931,7 @@ frostlang/
     program_audit.py  the same, across an imported closure
     modules.py        import resolution, ceilings, lockfile
     baseline.py       what a script was approved to do
+    browser.py        the analysis surface with no OS underneath
     sandbox.py        capability boundaries the kernel holds
     sealed.py         values that cannot be printed by accident
     keystore.py       role-gated envelope encryption
@@ -939,7 +943,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1558 tests — python3 -m pytest tests/ -q
+tests/                1581 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -953,7 +957,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.6.0. The language runs, the examples are real, and 1558 tests cover
+Version 0.6.0. The language runs, the examples are real, and 1581 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

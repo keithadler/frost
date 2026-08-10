@@ -36,6 +36,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
+from .parser import parse, ParseError
+from .lexer import LexError
+from .audit import audit, find_dangers
+
 SCHEMA_VERSION = 1
 
 HIGH, LIKELY, GUESS = "high", "likely", "guess"
@@ -330,3 +334,61 @@ def apply_repairs(source, diagnostics, minimum=HIGH):
             del lines[index]
             applied.append(repair)
     return "\n".join(lines), applied
+
+# --------------------------------------------------- the repair loop
+#
+# Lives here rather than in the CLI driver because it is pure text in, text
+# out, and because a browser needs it too. A second copy of this loop would
+# recreate exactly the drift problem the differential verifier exists to
+# police.
+
+MAX_REPAIR_PASSES = 10
+
+
+def collect_diagnostics(script, source):
+    """Every diagnostic frost can produce for this source, without running."""
+    try:
+        tree = parse(source)
+    except (LexError, ParseError) as e:
+        return [from_error(e, source)]
+    return [from_finding(f, source)
+            for f in find_dangers(audit(tree))]
+
+
+def first_error_line(source):
+    """Where the parser gives up, or None if it does not."""
+    try:
+        parse(source)
+        return None
+    except (LexError, ParseError) as e:
+        return e.line or 0
+
+
+def repair_until_stuck(source):
+    """Apply repairs until nothing is left that frost is sure about.
+
+    One pass is not enough. A recursive-descent parser stops at the first
+    error, so fixing it reveals the next one — a single round would look like
+    it had failed whenever a script had two mistakes, which is most of them.
+
+    A pass is kept only if it made progress: either the script now parses, or
+    the first error moved strictly later. That is what stops a repair which
+    merely rearranges the problem from being written to disk, without
+    demanding that one edit fix everything.
+    """
+    applied = []
+    for _ in range(MAX_REPAIR_PASSES):
+        before = first_error_line(source)
+        if before is None:
+            break
+        candidate, just_applied = apply_repairs(
+            source, collect_diagnostics(None, source),
+            minimum=HIGH)
+        if not just_applied:
+            break
+        after = first_error_line(candidate)
+        if after is not None and after <= before:
+            break                     # no progress; leave it for a human
+        source = candidate
+        applied.extend(just_applied)
+    return source, applied

@@ -11,6 +11,39 @@ bump may change the language.
 
 ### Added
 
+**`play.html` runs the real frost.** The scratchpad was `web/chunks.js`, a
+second implementation of a slice of the language in JavaScript. It could
+evaluate expressions and nothing else, so the demo showed the least
+interesting part of the project: a visitor could try `the first word of it`
+and could not see a manifest, a policy refusal, or an approval.
+
+The page now loads CPython compiled to WebAssembly and runs `frostlang`
+itself, so what the demo shows is what the tool does. `--check`, `--explain`,
+`--policy`, `--approve`, `--as-approved`, `--check --json` and `--repair` all
+work in the page, against seven samples read from `examples/` so they cannot
+drift from the scripts the test suite already runs.
+
+This works because everything worth demonstrating is static analysis. A
+manifest, a policy refusal and an approval are facts about the parse tree, and
+a parse tree needs no processes, no filesystem and no network. Only `run`
+needs a machine, which is the one thing a stranger's browser should not be
+doing. `frostlang/browser.py` is the whole surface, and a test asserts it
+imports nothing that touches an operating system.
+
+The repair loop moved from `cli.py` to `diagnostics.py` on the way. It is pure
+text in, text out, and the page needs it too; a second copy would have
+recreated exactly the drift the differential verifier exists to police.
+
+### Fixed
+
+**`--approve` reported narrowings as "it no longer reachs".** The headings are
+phrases, not verbs, and no suffix rule inflects "let a secret leave the
+process" correctly. They read "it no longer needs to ..." now.
+
+**The browser comparison took its two scripts the wrong way round**, reporting
+a poisoned regeneration as a list of narrowings, which reads as reassuring and
+is exactly backwards.
+
 **`--approve` and `--as-approved`: a capability baseline.** `--frozen` asks
 whether a script is byte-identical to the reviewed one. That is right for a
 vendored module and wrong for a script a model regenerates — every
