@@ -48,9 +48,22 @@ since arguments are visible to every process on the machine. Policy gains
 `secret releases`. A script naming a secret its role cannot open is refused
 before anything runs, exit 3.
 
+**A benchmark for the claim the design rests on.** `tools/benchmark.py`
+measures the front end against the cost of spawning a process, on every
+example.
+
 ### Changed
 
 - Version bumped to 0.4.0: this adds substantial language surface.
+- **The README's performance claim is corrected.** It said you can parse
+  verbose syntax faster than you can spawn a process. That is true on macOS
+  and false on Linux: `fork`/`exec` of `true` costs about 0.7ms on Linux
+  against 2.4ms on macOS, while parsing varies far less. CI on Linux
+  disproved it twice — once for `true` and once for `git --version`. The
+  README now states what actually holds, which is the thing the design
+  relies on anyway: parsing is paid once and spawning is paid per command,
+  so a script running ten commands pays ten spawns against one parse on any
+  platform.
 
 ### Added — language
 
