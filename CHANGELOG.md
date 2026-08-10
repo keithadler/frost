@@ -7,6 +7,48 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
+## Unreleased
+
+### Added
+
+**Structured diagnostics.** `--json` now works with `--check`, `--policy`
+and on a runtime failure, not only with `--explain`. One schema covers every
+way a script can be refused: severity, a stable `code`, line and column, the
+offending source, the hint, and any repairs.
+
+**Repair payloads.** A diagnostic can carry the edit that fixes it. Most come
+from information the front end already had — several of the parser's hints
+literally contained the corrected line — so handing it over as data costs
+nothing and saves an agent a round trip. Confidence is three-valued and
+honest: `high` is a mechanical rewrite, `likely` infers a detail, `guess` is a
+name that looks close to one that exists.
+
+**`frost --repair [--write]`** applies the high-confidence repairs and repeats
+until nothing certain is left. One pass is not enough — a recursive-descent
+parser stops at the first error, so fixing it reveals the next, and a single
+round would give up on any script with two mistakes. A pass is kept only if
+it made progress: the script parses, or the first error moved strictly later.
+That is what makes it safe to run unattended.
+
+**Policy rules carry hints.** A rule's trailing comment is its explanation,
+and frost prints it when the rule fires:
+
+```
+REFUSED: running "sudo"
+  deploy.frost:1  run "sudo" with "systemctl", "restart", "api"
+  why: the deploy role already has the permissions it needs
+```
+
+No new syntax — policy authors already write that comment, so every policy
+that already exists gains the explanation for free. A comment on its own line
+stays a section header. `examples/production.policy` now explains all eleven
+of its rules.
+
+### Changed
+
+- `check()` returns a `PolicyFinding` with a `hint`, rather than a bare
+  triple. It still unpacks in the same order.
+
 ## 0.4.0
 
 ### Added

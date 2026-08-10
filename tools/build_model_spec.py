@@ -197,6 +197,19 @@ Everything else is available for names, including `line`, `word`, `item`,
 `match`, `file`, `status`, `error`, `count`, `name`, `path`, and `result`,
 so `line count` and `error count` are valid variables.
 
+## When frost refuses
+
+Ask for JSON and act on it rather than reading the prose:
+
+```bash
+frost --check --json script.frost
+```
+
+Each diagnostic has a `code`, a `line`, and often a `repairs` list. A repair
+with `"confidence": "high"` is a mechanical rewrite — apply it verbatim.
+`frost --repair --write script.frost` applies all of those for you and
+repeats until nothing certain is left.
+
 ## Self-check before returning a script
 
 - Every `run` has a bare program name and a `with` list, never a command line.

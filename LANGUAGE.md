@@ -38,6 +38,7 @@ day, there is no pressure anywhere in the design to shorten anything.
 12. [Handlers](#12-handlers)
 13. [Special values](#13-special-values)
 13a. [Secrets](#13a-secrets)
+13b. [Talking to the thing that wrote the script](#13b-talking-to-the-thing-that-wrote-the-script)
 14. [Grammar](#14-grammar)
 15. [Deliberate omissions](#15-deliberate-omissions)
 
@@ -1076,6 +1077,72 @@ credentials in a `.env` that nobody encrypts.
 
 ---
 
+## 13b. Talking to the thing that wrote the script
+
+Every error in this document is a sentence with a line number and usually a
+hint, which is the right output for a person reading at 3am. It is the wrong
+output for a model, which has to parse the English and guess an edit.
+
+`--json` gives the same information as data:
+
+```bash
+frost --check --json report.frost
+```
+
+```json
+{
+  "schema": 1,
+  "ok": false,
+  "exit": 2,
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "missing-then",
+      "message": "expected 'then' but found end of line",
+      "line": 2, "column": 20,
+      "source": "if error count is 0",
+      "hint": "an 'if' condition is followed by 'then'",
+      "repairs": [
+        {"kind": "replace-line", "line": 2,
+         "text": "if error count is 0 then", "confidence": "high",
+         "why": "an 'if' condition is closed by 'then'"}
+      ]
+    }
+  ]
+}
+```
+
+It works with `--check`, `--explain`, `--policy`, and on a runtime failure,
+so one flag covers every way a script can be refused.
+
+### Repairs
+
+A repair is an edit, not advice. Most come from information the front end
+already had — several hints in this document literally contain the corrected
+line — so handing it over as data costs nothing and saves a round trip.
+
+| Confidence | Meaning |
+|---|---|
+| `high` | a mechanical rewrite; the parser knew the answer |
+| `likely` | the fix is right, a detail is inferred — which unit a timeout meant, where a missing `end repeat` goes |
+| `guess` | a name that looks close to one that exists |
+
+```bash
+frost --repair --write report.frost
+```
+
+applies `high` repairs only, and repeats until nothing is left that it is
+sure about — a recursive-descent parser stops at the first error, so fixing
+one reveals the next, and a single pass would give up on any script with two
+mistakes.
+
+A pass is kept only if it made progress: the script now parses, or the first
+error moved strictly later. That is what makes the loop safe to run
+unattended. An error with no mechanical fix gets no repair at all, because a
+wrong repair costs a round trip and teaches the wrong grammar.
+
+---
+
 ## 14. Grammar
 
 EBNF. `{ }` is zero or more, `[ ]` optional, `|` alternation.
@@ -1317,6 +1384,28 @@ forbid setting "PATH"
 forbid setting "LD_*"
 forbid changing folder
 ```
+
+#### Saying why
+
+A rule's trailing comment is its hint, and frost prints it when the rule
+fires. A refusal that says only *no* leaves the reader to guess what to do
+instead:
+
+```policy
+forbid running "sudo"          -- the deploy role already has the permissions it needs
+require timeout on "curl"      -- an unbounded fetch wedges the whole pipeline
+require at least 1 cleanup     -- every job must release its lock, even when it fails
+```
+
+```text
+REFUSED: running "sudo"
+  deploy.frost:1  run "sudo" with "systemctl", "restart", "api"
+  why: the deploy role already has the permissions it needs
+```
+
+There is no new syntax: policy authors already write that comment, so every
+policy that already exists gains the explanation for free. A comment on its
+own line is a section header and is not attached to any rule.
 
 #### Counting rules
 

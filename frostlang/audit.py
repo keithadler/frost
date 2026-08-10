@@ -16,7 +16,7 @@ is worse than no manifest.
 import fnmatch
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 
 from . import ast as A
 from .parser import TIME_UNITS
@@ -664,6 +664,17 @@ class Rule:
     low: Optional[float] = None
     high: Optional[float] = None
     noun: Optional[str] = None       # as the policy author wrote it
+    # The trailing comment on the rule's own line. A policy that refuses a
+    # script should be able to say why and what to do instead, and the
+    # comment authors already write is exactly that text.
+    hint: str = ""
+
+
+class PolicyFinding(NamedTuple):
+    severity: str                    # forbid | warn
+    what: str
+    line: int
+    hint: str = ""
 
 
 def _resolve_noun(phrase, policy_line):
@@ -691,7 +702,8 @@ def _seconds(amount, unit, policy_line):
 def parse_policy(text):
     rules = []
     for n, raw in enumerate(text.splitlines(), start=1):
-        line = raw.split("--")[0].split("#")[0].strip()
+        code, _, comment = _split_comment(raw)
+        line = code.strip()
         if not line:
             continue
         for rx, kind in RULE_PATTERNS:
@@ -742,10 +754,21 @@ def parse_policy(text):
                                   low=low, high=high, noun=phrase.strip()))
             else:
                 rules.append(Rule(kind, g[0], g[1], None, n))
+            if comment:
+                rules[-1].hint = comment
             break
         else:
             raise PolicyError(f"policy line {n}: cannot read {line!r}")
     return rules
+
+
+def _split_comment(raw):
+    """Split a policy line into code, marker and trailing comment."""
+    for marker in ("--", "#"):
+        if marker in raw:
+            code, _, comment = raw.partition(marker)
+            return code, marker, comment.strip()
+    return raw, "", ""
 
 
 def _plain(n):
@@ -802,7 +825,7 @@ def count_lines(caps, key, subject=None):
     return [ln for _, ln in pairs]
 
 
-def check(caps, rules):
+def _check_rules(caps, rules):
     """Return a list of (severity, message, script_line)."""
     findings = []
 
@@ -921,6 +944,24 @@ def check(caps, rules):
 
     findings.sort(key=lambda f: f[2])
     return findings
+
+
+def check(caps, rules):
+    """Every rule violation, each carrying the rule's own explanation.
+
+    Wraps the plain checker so the hint is attached once, at the boundary,
+    rather than at each of the fourteen places a violation is constructed —
+    which would be fourteen chances to forget.
+    """
+    out = []
+    for rule in rules:
+        start = len(out)
+        out.extend(_check_rules(caps, [rule]))
+        for i in range(start, len(out)):
+            severity, what, line = out[i][:3]
+            out[i] = PolicyFinding(severity, what, line, rule.hint)
+    out.sort(key=lambda f: f.line)
+    return out
 
 
 # ------------------------------------------------- built-in danger checks

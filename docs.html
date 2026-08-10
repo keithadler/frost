@@ -183,7 +183,7 @@ tbody tr:last-child td{border-bottom:none}
   <p class="brand">fr<span>o</span>st</p>
   <p class="brand-sub">v0.4.0 · language docs</p>
   <button class="menu-btn" id="menu">Contents</button>
-  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
+  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-why">Why</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
 </aside>
 
 <main>
@@ -484,6 +484,33 @@ require timeout on &quot;*&quot; between 1 and 120 seconds
 in minutes. A limit that is exceeded points at the line that crossed it. A
 deadline computed at runtime is refused rather than assumed acceptable, on the
 same principle as the manifest: say what is unknowable, do not guess it.</p>
+<p>Rules say why. A rule's trailing comment is its hint, and frost prints it
+when the rule fires — so a refusal explains what to do instead rather than
+just saying no:</p>
+<pre><code class="language-text">REFUSED: running &quot;sudo&quot;
+  deploy.frost:1  run &quot;sudo&quot; with &quot;systemctl&quot;, &quot;restart&quot;, &quot;api&quot;
+  why: the deploy role already has the permissions it needs
+</code></pre>
+<p>No new syntax; policy authors already write that comment.</p>
+<h3 id="guide-closing-the-loop-with-the-thing-that-wrote-it">Closing the loop with the thing that wrote it</h3>
+<p>Every refusal above is a sentence for a person. <code>--json</code> is the same
+information as data, with the edit attached wherever frost already knew it:</p>
+<pre><code class="language-json">{&quot;code&quot;: &quot;missing-then&quot;, &quot;line&quot;: 2, &quot;column&quot;: 20,
+ &quot;message&quot;: &quot;expected 'then' but found end of line&quot;,
+ &quot;repairs&quot;: [{&quot;kind&quot;: &quot;replace-line&quot;, &quot;line&quot;: 2,
+              &quot;text&quot;: &quot;if error count is 0 then&quot;, &quot;confidence&quot;: &quot;high&quot;}]}
+</code></pre>
+<p><code>frost --repair --write</code> applies the high-confidence ones and repeats until
+nothing certain is left — fixing one error reveals the next, so a single pass
+would give up on any script with two mistakes. A pass is kept only if it made
+progress, which is what makes it safe to run unattended:</p>
+<pre><code class="language-text">repaired deploy.frost (3 change(s))
+  line 2: an 'if' condition is closed by 'then'
+  line 3: run takes a program and a list of arguments, never a command line
+  line 5: a global is written 'the global &lt;name&gt;'
+</code></pre>
+<p>That is the loop: generate, check, repair, re-check — with a policy deciding
+what is acceptable and a manifest a human approves at the end.</p>
 <p>Built-in checks catch the classics with no policy at all — <code>curl … | sh</code> is
 reported as <em>downloaded code piped into a shell</em>, and a script that reads
 <code>~/.ssh/id_rsa</code> and then makes a network call is flagged as <em>secrets read, then
@@ -646,7 +673,9 @@ frost --check script.frost       parse only, report errors
 frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
 frost --explain script.frost     describe what it can do, without running it
-frost --explain --json s.frost   the same, as JSON
+frost --check --json s.frost     diagnostics as JSON, with repairs
+frost --repair [--write] s.frost apply the repairs frost is sure about
+frost --explain --json s.frost   the manifest, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
 frost --keystore F --role R s.frost   run with access to secrets
@@ -675,7 +704,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1221 tests — python3 -m pytest tests/ -q
+tests/                1268 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -687,7 +716,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.4.0. The language runs, the examples are real, and 1221 tests cover
+<p>Version 0.4.0. The language runs, the examples are real, and 1268 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1634,6 +1663,73 @@ audit trail of reads and no network service. If you run Vault or SSM, use
 those. This exists for the many projects that run neither and keep
 credentials in a <code>.env</code> that nobody encrypts.</p>
 <hr />
+<h2 id="ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</h2>
+<p>Every error in this document is a sentence with a line number and usually a
+hint, which is the right output for a person reading at 3am. It is the wrong
+output for a model, which has to parse the English and guess an edit.</p>
+<p><code>--json</code> gives the same information as data:</p>
+<pre><code class="language-bash">frost --check --json report.frost
+</code></pre>
+<pre><code class="language-json">{
+  &quot;schema&quot;: 1,
+  &quot;ok&quot;: false,
+  &quot;exit&quot;: 2,
+  &quot;diagnostics&quot;: [
+    {
+      &quot;severity&quot;: &quot;error&quot;,
+      &quot;code&quot;: &quot;missing-then&quot;,
+      &quot;message&quot;: &quot;expected 'then' but found end of line&quot;,
+      &quot;line&quot;: 2, &quot;column&quot;: 20,
+      &quot;source&quot;: &quot;if error count is 0&quot;,
+      &quot;hint&quot;: &quot;an 'if' condition is followed by 'then'&quot;,
+      &quot;repairs&quot;: [
+        {&quot;kind&quot;: &quot;replace-line&quot;, &quot;line&quot;: 2,
+         &quot;text&quot;: &quot;if error count is 0 then&quot;, &quot;confidence&quot;: &quot;high&quot;,
+         &quot;why&quot;: &quot;an 'if' condition is closed by 'then'&quot;}
+      ]
+    }
+  ]
+}
+</code></pre>
+<p>It works with <code>--check</code>, <code>--explain</code>, <code>--policy</code>, and on a runtime failure,
+so one flag covers every way a script can be refused.</p>
+<h3 id="ref-repairs">Repairs</h3>
+<p>A repair is an edit, not advice. Most come from information the front end
+already had — several hints in this document literally contain the corrected
+line — so handing it over as data costs nothing and saves a round trip.</p>
+<table>
+<thead>
+<tr>
+<th>Confidence</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>high</code></td>
+<td>a mechanical rewrite; the parser knew the answer</td>
+</tr>
+<tr>
+<td><code>likely</code></td>
+<td>the fix is right, a detail is inferred — which unit a timeout meant, where a missing <code>end repeat</code> goes</td>
+</tr>
+<tr>
+<td><code>guess</code></td>
+<td>a name that looks close to one that exists</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash">frost --repair --write report.frost
+</code></pre>
+<p>applies <code>high</code> repairs only, and repeats until nothing is left that it is
+sure about — a recursive-descent parser stops at the first error, so fixing
+one reveals the next, and a single pass would give up on any script with two
+mistakes.</p>
+<p>A pass is kept only if it made progress: the script now parses, or the first
+error moved strictly later. That is what makes the loop safe to run
+unattended. An error with no mechanical fix gets no repair at all, because a
+wrong repair costs a round trip and teaches the wrong grammar.</p>
+<hr />
 <h2 id="ref-14-grammar">14. Grammar</h2>
 <p>EBNF. <code>{ }</code> is zero or more, <code>[ ]</code> optional, <code>|</code> alternation.</p>
 <pre><code class="language-ebnf">program      = { statement NEWLINE } ;
@@ -1862,6 +1958,21 @@ a way around the rest of the policy:</p>
 forbid setting &quot;LD_*&quot;
 forbid changing folder
 </code></pre>
+<h4>Saying why</h4>
+<p>A rule's trailing comment is its hint, and frost prints it when the rule
+fires. A refusal that says only <em>no</em> leaves the reader to guess what to do
+instead:</p>
+<pre><code class="language-policy">forbid running &quot;sudo&quot;          -- the deploy role already has the permissions it needs
+require timeout on &quot;curl&quot;      -- an unbounded fetch wedges the whole pipeline
+require at least 1 cleanup     -- every job must release its lock, even when it fails
+</code></pre>
+<pre><code class="language-text">REFUSED: running &quot;sudo&quot;
+  deploy.frost:1  run &quot;sudo&quot; with &quot;systemctl&quot;, &quot;restart&quot;, &quot;api&quot;
+  why: the deploy role already has the permissions it needs
+</code></pre>
+<p>There is no new syntax: policy authors already write that comment, so every
+policy that already exists gains the explanation for free. A comment on its
+own line is a section header and is not attached to any rule.</p>
 <h4>Counting rules</h4>
 <p>The rules above ask whether something appears at all. Business rules usually
 ask <em>how much</em>, so the same vocabulary counts:</p>

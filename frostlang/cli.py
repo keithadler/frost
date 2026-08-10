@@ -8,8 +8,111 @@ from . import __version__
 from .lexer import LexError
 from .parser import parse, ParseError
 from .interp import Interpreter, FrostError
+from . import diagnostics
 from .audit import (audit, describe, parse_policy, check, PolicyError,
                     find_dangers, summarise, verdict)
+
+
+def emit_json(payload):
+    import json
+    sys.stdout.write(json.dumps(payload, indent=2) + "\n")
+    sys.stdout.flush()
+
+
+def repair_script(opts, source):
+    """Apply the repairs frost is sure about.
+
+    The loop this exists for is: generate, check, repair, re-check. That is
+    only safe if a repair can never make things worse, which is what
+    `repair_until_stuck` guarantees — a pass that does not move the first
+    error later is thrown away rather than left on disk for a human to
+    unpick.
+    """
+    repaired, applied = repair_until_stuck(source)
+
+    if opts.json:
+        emit_json({
+            "schema": diagnostics.SCHEMA_VERSION,
+            "script": opts.script,
+            "ok": first_error_line(repaired) is None,
+            "applied": [r.as_dict() for r in applied],
+            "remaining": [d.as_dict() for d in
+                          collect_diagnostics(opts.script, repaired)],
+            "source": repaired,
+        })
+        return 0 if applied else 1
+
+    if not applied:
+        sys.stderr.write("frost: nothing to repair with confidence\n")
+        for diagnostic in collect_diagnostics(opts.script, source):
+            if diagnostic.repairs:
+                sys.stderr.write(
+                    f"  line {diagnostic.line}: {diagnostic.message}\n"
+                    f"    suggestion ({diagnostic.repairs[0].confidence}): "
+                    f"{diagnostic.repairs[0].text.strip()}\n")
+        return 1
+
+    if opts.write:
+        with open(opts.script, "w") as fh:
+            fh.write(repaired)
+        print(f"repaired {opts.script} ({len(applied)} change(s))")
+        for r in applied:
+            print(f"  line {r.line}: {r.why}")
+    else:
+        sys.stdout.write(repaired)
+    return 0
+
+
+MAX_REPAIR_PASSES = 10
+
+
+def first_error_line(source):
+    """Where the parser gives up, or None if it does not."""
+    try:
+        parse(source)
+        return None
+    except (LexError, ParseError) as e:
+        return e.line or 0
+
+
+def repair_until_stuck(source):
+    """Apply repairs until nothing is left that frost is sure about.
+
+    One pass is not enough. A recursive-descent parser stops at the first
+    error, so fixing it reveals the next one — a single round would look like
+    it had failed whenever a script had two mistakes, which is most of them.
+
+    A pass is kept only if it made progress: either the script now parses, or
+    the first error moved strictly later. That is what stops a repair which
+    merely rearranges the problem from being written to disk, without
+    demanding that one edit fix everything.
+    """
+    applied = []
+    for _ in range(MAX_REPAIR_PASSES):
+        before = first_error_line(source)
+        if before is None:
+            break
+        candidate, just_applied = diagnostics.apply_repairs(
+            source, collect_diagnostics(None, source),
+            minimum=diagnostics.HIGH)
+        if not just_applied:
+            break
+        after = first_error_line(candidate)
+        if after is not None and after <= before:
+            break                     # no progress; leave it for a human
+        source = candidate
+        applied.extend(just_applied)
+    return source, applied
+
+
+def collect_diagnostics(script, source):
+    """Every diagnostic frost can produce for this source, without running."""
+    try:
+        tree = parse(source)
+    except (LexError, ParseError) as e:
+        return [diagnostics.from_error(e, source)]
+    return [diagnostics.from_finding(f, source)
+            for f in find_dangers(audit(tree))]
 
 
 def report(kind, msg, line, hint, source_lines, path):
@@ -202,7 +305,12 @@ def main(argv=None):
     ap.add_argument("--explain", action="store_true",
                     help="describe what the script can do, without running it")
     ap.add_argument("--json", action="store_true",
-                    help="with --explain, emit the audit as JSON")
+                    help="emit the result as JSON: the manifest with "
+                         "--explain, and otherwise the diagnostics, with a "
+                         "repair for each one that has a mechanical fix")
+    ap.add_argument("--repair", action="store_true",
+                    help="apply every high-confidence repair and print the "
+                         "result; refuses to write unless it then parses")
     ap.add_argument("--policy", metavar="FILE",
                     help="check the script against a policy file, "
                          "then run it only if it passes")
@@ -232,9 +340,16 @@ def main(argv=None):
 
     source_lines = source.splitlines()
 
+    if opts.repair:
+        return repair_script(opts, source)
+
     try:
         tree = parse(source)
     except (LexError, ParseError) as e:
+        if opts.json:
+            emit_json(diagnostics.report(
+                opts.script, [diagnostics.from_error(e, source)], False, 2))
+            return 2
         report("Syntax error", e.msg, e.line, getattr(e, "hint", None),
                source_lines, opts.script)
         if opts.fmt:
@@ -298,10 +413,17 @@ def main(argv=None):
             return 2
 
         findings = check(audit(tree), rules)
-        blocked = [f for f in findings if f[0] == "forbid"]
-        for severity, what, line in findings:
-            label = "REFUSED" if severity == "forbid" else "warning"
-            sys.stderr.write(f"{label}: {what}\n")
+        blocked = [f for f in findings if f.severity == "forbid"]
+        if opts.json:
+            emit_json(diagnostics.report(
+                opts.script,
+                [diagnostics.from_policy_finding(f, source) for f in findings],
+                not blocked, 3 if blocked else 0))
+            return 3 if blocked else 0
+        for finding in findings:
+            label = "REFUSED" if finding.severity == "forbid" else "warning"
+            sys.stderr.write(f"{label}: {finding.what}\n")
+            line = finding.line
             if 0 < line <= len(source_lines):
                 sys.stderr.write(f"  {opts.script}:{line}  "
                                  f"{source_lines[line - 1].strip()}\n")
@@ -309,6 +431,10 @@ def main(argv=None):
                 # A shortfall — "at least one cleanup" — is about the script
                 # as a whole, so there is no line to point at.
                 sys.stderr.write(f"  {opts.script}\n")
+            # The rule's own comment. A refusal that says only "no" leaves
+            # the reader to guess what to do instead.
+            if finding.hint:
+                sys.stderr.write(f"  why: {finding.hint}\n")
         if blocked:
             sys.stderr.write(
                 f"\n{len(blocked)} rule violation(s); the script was not "
@@ -321,6 +447,14 @@ def main(argv=None):
         # Parse-only. Deliberately before the keystore: checking that a script
         # is well formed must not require the credentials it will use, or it
         # stops being usable as a pre-commit hook.
+        if opts.json:
+            findings = find_dangers(audit(tree))
+            emit_json(diagnostics.report(
+                opts.script,
+                [diagnostics.from_finding(f, source) for f in findings],
+                True, 0, {"statements": len(tree),
+                          "verdict": verdict(findings)}))
+            return 0
         print(f"{opts.script}: ok ({len(tree)} top-level statements)")
         return 0
 
@@ -340,6 +474,18 @@ def main(argv=None):
                 sys.stderr.write(f"  {opts.script}:{line}  "
                                  f"{source_lines[line - 1].strip()}\n")
         if denials:
+            if opts.json:
+                emit_json(diagnostics.report(
+                    opts.script,
+                    [diagnostics.Diagnostic(
+                        "error", "secret-unavailable",
+                        f"the secret {name!r} is unavailable: {why}",
+                        line=line,
+                        source=(source_lines[line - 1].strip()
+                                if 0 < line <= len(source_lines) else ""))
+                     for name, line, why in denials],
+                    False, 3))
+                return 3
             sys.stderr.write(
                 f"\n{len(denials)} secret(s) unavailable; the script was not "
                 f"run.\n")
@@ -350,6 +496,11 @@ def main(argv=None):
     try:
         return interp.run_program(tree)
     except FrostError as e:
+        if opts.json:
+            e.candidates = sorted(interp.globals)
+            emit_json(diagnostics.report(
+                opts.script, [diagnostics.from_error(e, source)], False, 1))
+            return 1
         report("Error", e.msg, e.line, e.hint, source_lines, opts.script)
         return 1
     except KeyboardInterrupt:

@@ -363,6 +363,45 @@ in minutes. A limit that is exceeded points at the line that crossed it. A
 deadline computed at runtime is refused rather than assumed acceptable, on the
 same principle as the manifest: say what is unknowable, do not guess it.
 
+Rules say why. A rule's trailing comment is its hint, and frost prints it
+when the rule fires — so a refusal explains what to do instead rather than
+just saying no:
+
+```text
+REFUSED: running "sudo"
+  deploy.frost:1  run "sudo" with "systemctl", "restart", "api"
+  why: the deploy role already has the permissions it needs
+```
+
+No new syntax; policy authors already write that comment.
+
+### Closing the loop with the thing that wrote it
+
+Every refusal above is a sentence for a person. `--json` is the same
+information as data, with the edit attached wherever frost already knew it:
+
+```json
+{"code": "missing-then", "line": 2, "column": 20,
+ "message": "expected 'then' but found end of line",
+ "repairs": [{"kind": "replace-line", "line": 2,
+              "text": "if error count is 0 then", "confidence": "high"}]}
+```
+
+`frost --repair --write` applies the high-confidence ones and repeats until
+nothing certain is left — fixing one error reveals the next, so a single pass
+would give up on any script with two mistakes. A pass is kept only if it made
+progress, which is what makes it safe to run unattended:
+
+```text
+repaired deploy.frost (3 change(s))
+  line 2: an 'if' condition is closed by 'then'
+  line 3: run takes a program and a list of arguments, never a command line
+  line 5: a global is written 'the global <name>'
+```
+
+That is the loop: generate, check, repair, re-check — with a policy deciding
+what is acceptable and a manifest a human approves at the end.
+
 Built-in checks catch the classics with no policy at all — `curl … | sh` is
 reported as *downloaded code piped into a shell*, and a script that reads
 `~/.ssh/id_rsa` and then makes a network call is flagged as *secrets read, then
@@ -591,7 +630,9 @@ frost --check script.frost       parse only, report errors
 frost --ast script.frost         dump the syntax tree
 frost --trace script.frost       print each statement as it runs
 frost --explain script.frost     describe what it can do, without running it
-frost --explain --json s.frost   the same, as JSON
+frost --check --json s.frost     diagnostics as JSON, with repairs
+frost --repair [--write] s.frost apply the repairs frost is sure about
+frost --explain --json s.frost   the manifest, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
 frost --keystore F --role R s.frost   run with access to secrets
@@ -627,7 +668,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1221 tests — python3 -m pytest tests/ -q
+tests/                1268 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -641,7 +682,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.4.0. The language runs, the examples are real, and 1221 tests cover
+Version 0.4.0. The language runs, the examples are real, and 1268 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

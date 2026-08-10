@@ -16,11 +16,25 @@ from . import ast as A
 
 
 class ParseError(Exception):
-    def __init__(self, msg, line, hint=None):
+    """A refusal, with enough structure to be repaired mechanically.
+
+    `code` is a stable identifier for the kind of mistake, which is what
+    frostlang/diagnostics.py keys its repairs on — matching on the English
+    message would break the moment someone improved the wording. `subject`
+    and `candidates` carry the name that was wrong and the names that exist,
+    for the two errors where "did you mean" is worth offering.
+    """
+
+    def __init__(self, msg, line, hint=None, code=None, subject=None,
+                 candidates=()):
         super().__init__(msg)
         self.msg = msg
         self.line = line
         self.hint = hint
+        self.code = code
+        self.subject = subject
+        self.candidates = tuple(candidates)
+        self.offset = None
 
 
 # Words that can never form part of an identifier.
@@ -115,11 +129,11 @@ class Parser:
         self.i += 1
         return t
 
-    def expect_word(self, word, hint=None):
+    def expect_word(self, word, hint=None, code=None):
         if not self.at_word(word):
             raise ParseError(
                 f"expected {word!r} but found {self.describe(self.cur)}",
-                self.cur.line, hint)
+                self.cur.line, hint, code=code)
         return self.advance()
 
     def expect_op(self, op):
@@ -157,9 +171,16 @@ class Parser:
     def parse_program(self):
         stmts = []
         self.skip_newlines()
-        while self.cur.kind != "EOF":
-            stmts.append(self.parse_statement())
-            self.skip_newlines()
+        try:
+            while self.cur.kind != "EOF":
+                stmts.append(self.parse_statement())
+                self.skip_newlines()
+        except ParseError as e:
+            # Where the parser stopped, so a diagnostic can report a column.
+            # Best effort: the token may have advanced past the real cause.
+            if e.offset is None:
+                e.offset = self.cur.col
+            raise
         return stmts
 
     def parse_block(self, *terminators):
@@ -303,7 +324,8 @@ class Parser:
             raise ParseError(
                 "'global' is a reserved word", self.cur.line,
                 hint="to reach a global from inside a handler, write "
-                     "'the global <name>'")
+                     "'the global <name>'",
+                code="global-is-reserved")
         if (target_position and words and self.cur.kind == "WORD"
                 and self.cur.value in HARD_WORDS):
             # e.g. `put "" into error times` — `times` belongs to `repeat`.
@@ -397,7 +419,8 @@ class Parser:
             raise ParseError(
                 "a timeout needs a unit", self.cur.line,
                 hint="try: within 30 seconds / within 2 minutes / "
-                     "within 500 milliseconds")
+                     "within 500 milliseconds",
+                code="timeout-needs-a-unit")
         if scale == 1:
             return amount
         return A.BinOp("*", amount, A.Lit(scale), amount.line)
@@ -419,7 +442,8 @@ class Parser:
                 raise ParseError(
                     "run takes a program name, not a command line",
                     line,
-                    hint=f"did you mean:  {suggestion}")
+                    hint=f"did you mean:  {suggestion}",
+                    code="run-takes-a-program-name")
 
     def parse_try(self):
         line = self.expect_word("try").line
@@ -484,7 +508,8 @@ class Parser:
         line = self.expect_word("if").line
         cond = self.parse_expression()
         self.expect_word("then",
-                         hint="an 'if' condition is followed by 'then'")
+                         hint="an 'if' condition is followed by 'then'",
+                         code="missing-then")
 
         # Single-line form: if X then <statement>
         if not self.end_of_statement():
@@ -1158,7 +1183,9 @@ def resolve_calls(stmts):
                 f"there is no handler named {node.name!r}", node.line,
                 hint=f"'the {node.name} of ...' calls a handler; define one "
                      f"with 'to {node.name} with ...', or check the spelling "
-                     f"of a built-in property")
+                     f"of a built-in property",
+                code="no-handler-named", subject=node.name,
+                candidates=known)
         if hasattr(node, "__dataclass_fields__"):
             for value in vars(node).values():
                 if isinstance(value, list) or hasattr(
