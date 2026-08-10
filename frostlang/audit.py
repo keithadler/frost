@@ -61,13 +61,19 @@ class Capabilities:
     write_fragments: List[tuple] = field(default_factory=list)
 
 
-def literal(node):
-    """The literal text of a node, or None if it is computed at runtime."""
+def literal(node, known=None):
+    """The literal text of a node, or None if it is computed at runtime.
+
+    `known` maps names proved to hold a single literal, so a program or path
+    assembled from constants resolves instead of being reported as unknowable.
+    """
     if isinstance(node, A.Lit):
         return str(node.value)
+    if known and isinstance(node, (A.Var, A.GlobalRef)):
+        return known.get(node.name)
     if isinstance(node, A.BinOp) and node.op in ("&", "&&"):
-        left = literal(node.left)
-        right = literal(node.right)
+        left = literal(node.left, known)
+        right = literal(node.right, known)
         if left is not None and right is not None:
             return left + ("" if node.op == "&" else " ") + right
     return None
@@ -107,6 +113,76 @@ def literal_number(node):
             except (OverflowError, ValueError):
                 return None
     return None
+
+
+def constants(stmts):
+    """Names whose value is the same literal everywhere, or nothing.
+
+    `put "ls" into tool` then `run tool` is knowable, and reporting it as
+    "built at runtime" understates the manifest as badly as guessing would
+    overstate it. But the analysis only ever claims a value it is certain of,
+    so the rule is deliberately blunt: a name is a constant when every
+    definition of it anywhere in the file is the *same* literal, and it is
+    never mutated afterwards.
+
+    Anything else — two different literals, an append, an arithmetic
+    statement, a loop variable, a handler parameter, a value that came from a
+    command — makes the name unknown. Unknown is the safe answer, and the
+    manifest already knows how to say it.
+    """
+    values = {}          # name -> literal text
+    poisoned = set()     # names that cannot be trusted
+
+    def poison(name):
+        poisoned.add(name)
+        values.pop(name, None)
+
+    def note(name, expr):
+        if name in poisoned:
+            return
+        text = literal(expr)
+        if text is None or name in values and values[name] != text:
+            poison(name)
+            return
+        values[name] = text
+
+    def walk(node, in_loop=False):
+        if isinstance(node, list):
+            for item in node:
+                walk(item, in_loop)
+            return
+        if isinstance(node, A.Put) and isinstance(
+                node.target, (A.VarTarget, A.GlobalTarget)):
+            if node.mode != "into" or in_loop:
+                # An append changes the value; an assignment inside a loop
+                # may run many times with different results.
+                poison(node.target.name)
+            else:
+                note(node.target.name, node.expr)
+        elif isinstance(node, A.Arith):
+            poison(node.target.name)
+        elif isinstance(node, A.Replace):
+            poison(node.target.name)
+        elif isinstance(node, A.RepeatWith):
+            poison(node.var)
+        elif isinstance(node, A.RepeatForEach):
+            poison(node.var)
+        elif isinstance(node, A.HandlerDef):
+            for parameter in node.params:
+                poison(parameter)
+
+        nested = isinstance(node, (A.RepeatTimes, A.RepeatWith,
+                                   A.RepeatForEach, A.RepeatWhile,
+                                   A.RepeatForever))
+        if hasattr(node, "__dataclass_fields__"):
+            for value in vars(node).values():
+                if isinstance(value, list) or hasattr(
+                        value, "__dataclass_fields__"):
+                    walk(value, in_loop or nested)
+
+    walk(stmts)
+    return {name: text for name, text in values.items()
+            if name not in poisoned}
 
 
 SECRET_NODES = (A.SecretRef, A.SecretEnvRef, A.SecretFileRef)
@@ -251,12 +327,17 @@ def literal_fragments(node):
 
 
 class Auditor:
-    def __init__(self, handlers=None, tainted=None):
+    def __init__(self, handlers=None, tainted=None, known=None):
         self.caps = Capabilities()
         self.seen = set()   # Run nodes already recorded, so pipe stages are
                             # not counted twice by the generic walk
         self.handlers = handlers or {}
         self.tainted = tainted or set()
+        self.known = known or {}
+
+    def literal(self, node):
+        """The literal text of a node, resolving names that are constants."""
+        return literal(node, self.known)
 
     def scan(self, stmts):
         self.visit_block(stmts)
@@ -337,20 +418,20 @@ class Auditor:
         if id(node) in self.seen:
             return
         self.seen.add(id(node))
-        program = literal(node.program)
+        program = self.literal(node.program)
         if program is None:
             self.caps.dynamic += 1
         stdin = node.stdin if node.stdin is not None else stdin
         folder = node.folder if node.folder is not None else folder
         self.caps.commands.append(Command(
             program=program,
-            args=[literal(a) for a in node.args],
+            args=[self.literal(a) for a in node.args],
             line=node.line,
             checked=node.checked,
             timeout=node.timeout is not None,
             in_pipe=in_pipe,
             stdin=stdin is not None,
-            folder=literal(folder) if folder is not None else None,
+            folder=self.literal(folder) if folder is not None else None,
             timeout_seconds=(literal_number(node.timeout)
                              if node.timeout is not None else None),
         ))
@@ -368,7 +449,7 @@ class Auditor:
                             folder=node.folder)
 
     def on_FileRef(self, node):
-        path = literal(node.path)
+        path = self.literal(node.path)
         self.caps.reads.append((path, node.line))
         self.caps.read_fragments.append((node.line,
                                          literal_fragments(node.path)))
@@ -380,24 +461,24 @@ class Auditor:
         # visit on its own. Only record the bare-expression form here.
         if isinstance(node.path, A.FileRef):
             return
-        path = literal(node.path)
+        path = self.literal(node.path)
         self.caps.reads.append((path, node.line))
 
     def on_Put(self, node):
         if isinstance(node.target, A.FileTarget):
-            path = literal(node.target.path)
+            path = self.literal(node.target.path)
             self.caps.writes.append((path, node.line))
             self.caps.write_fragments.append(
                 (node.line, literal_fragments(node.target.path)))
             if path is None:
                 self.caps.dynamic += 1
         elif isinstance(node.target, A.EnvTarget):
-            name = literal(node.target.name)
+            name = self.literal(node.target.name)
             self.caps.env_writes.append((name, node.line))
             if name is None:
                 self.caps.dynamic += 1
         elif isinstance(node.target, A.FolderTarget):
-            path = literal(node.expr)
+            path = self.literal(node.expr)
             self.caps.folder_changes.append((path, node.line))
             if path is None:
                 self.caps.dynamic += 1
@@ -406,15 +487,15 @@ class Auditor:
         self.caps.cleanups.append(node.line)
 
     def on_SecretRef(self, node):
-        self.caps.secret_reads.append((literal(node.name), "keystore",
+        self.caps.secret_reads.append((self.literal(node.name), "keystore",
                                        node.line))
 
     def on_SecretEnvRef(self, node):
-        self.caps.secret_reads.append((literal(node.name), "environment",
+        self.caps.secret_reads.append((self.literal(node.name), "environment",
                                        node.line))
 
     def on_SecretFileRef(self, node):
-        self.caps.secret_reads.append((literal(node.path), "file", node.line))
+        self.caps.secret_reads.append((self.literal(node.path), "file", node.line))
 
     def note_releases(self, node):
         """Where a secret's plaintext leaves the process.
@@ -425,7 +506,7 @@ class Auditor:
         than imply a seal that does not hold.
         """
         if isinstance(node, A.Run):
-            program = literal(node.program)
+            program = self.literal(node.program)
             if any(carries_secret(a, self.tainted) for a in node.args):
                 self.caps.secret_releases.append(("argument", program,
                                                   node.line))
@@ -436,22 +517,22 @@ class Auditor:
                                                         self.tainted):
             if isinstance(node.target, A.FileTarget):
                 self.caps.secret_releases.append(
-                    ("file", literal(node.target.path), node.line))
+                    ("file", self.literal(node.target.path), node.line))
             elif isinstance(node.target, A.EnvTarget):
                 self.caps.secret_releases.append(
-                    ("environment", literal(node.target.name), node.line))
+                    ("environment", self.literal(node.target.name), node.line))
 
     def on_DeleteFile(self, node):
-        path = literal(node.path)
+        path = self.literal(node.path)
         self.caps.deletes.append((path, node.line))
         if path is None:
             self.caps.dynamic += 1
 
     def on_EnvRef(self, node):
-        self.caps.env_reads.append((literal(node.name), node.line))
+        self.caps.env_reads.append((self.literal(node.name), node.line))
 
     def on_Quit(self, node):
-        code = literal(node.status) if node.status else "0"
+        code = self.literal(node.status) if node.status else "0"
         self.caps.exit_codes.append((code, node.line))
 
     def on_HandlerDef(self, node):
@@ -485,7 +566,7 @@ def audit(stmts, handlers=None, tainted=None):
         collect_handlers(stmts, handlers)
     if tainted is None:
         tainted = tainted_names(stmts)
-    return Auditor(handlers, tainted).scan(stmts)
+    return Auditor(handlers, tainted, constants(stmts)).scan(stmts)
 
 
 # --------------------------------------------------------------- manifest

@@ -511,7 +511,8 @@ def test_every_kind_of_capability_is_covered(workspace, body, clause, breach):
 def test_a_runtime_built_program_name_always_exceeds_a_ceiling(workspace):
     """A limit that cannot be checked is not a limit."""
     workspace("lib/m.frost",
-              'to act\n    put "ps" & "ql" into tool\n    run tool\nend act\n')
+              'to act\n    run "cat" with "n.txt"\n    put it into tool\n'
+              "    run tool\nend act\n")
     workspace("entry.frost",
               'use "lib/m.frost" for the act which may run "psql"\nact\n')
     program = load(workspace)

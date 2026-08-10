@@ -221,6 +221,9 @@ class Interpreter:
         # calling, not in one flat table. A flat table lets an entry script's
         # handler capture a call made inside a module, which is a hijack
         # rather than a hygiene problem.
+        # A Recorder writes down every effect; a Player serves them back and
+        # performs none. None means run normally.
+        self.journal = None
         self.handler_tables = {}      # file -> {name: HandlerDef}
         self.handler_home = {}        # id(HandlerDef) -> defining file
         self.current_file = None      # whose table calls resolve in
@@ -382,16 +385,25 @@ class Interpreter:
             # A deliberate release: writing a config file is a real need, and
             # --explain reports it as a secret leaving the process.
             written = to_argument(value)
-            if node.mode == "before":
-                existing = ""
-                if os.path.exists(path):
-                    with open(path) as fh:
-                        existing = fh.read()
-                with open(path, "w") as fh:
-                    fh.write(written + "\n" + existing)
+
+            def do_write():
+                if node.mode == "before":
+                    existing = ""
+                    if os.path.exists(path):
+                        with open(path) as fh:
+                            existing = fh.read()
+                    with open(path, "w") as fh:
+                        fh.write(written + "\n" + existing)
+                    return
+                with open(path, mode) as fh:
+                    fh.write(written + "\n")
+
+            if self.journal is not None:
+                # Replay performs nothing: that is what makes it safe to run
+                # a script against a recording with no consequences.
+                self.journal.write_file(node.line, path, written, do_write)
                 return
-            with open(path, mode) as fh:
-                fh.write(written + "\n")
+            do_write()
             return
 
         if isinstance(target, A.FolderTarget):
@@ -419,6 +431,8 @@ class Interpreter:
                 current = self.env.get(name, "")
                 self.env[name] = (current + addition if node.mode == "after"
                                   else addition + current)
+            if self.journal is not None:
+                self.journal.env_write(node.line, name, self.env[name])
             return
 
         if node.mode == "into":
@@ -440,6 +454,41 @@ class Interpreter:
             target,
             current + addition if node.mode == "after"
             else addition + current)
+
+    def journal_run(self, node, program, argv, stdin_text, folder, seconds):
+        """A command, recorded or replayed. Replay spawns nothing."""
+        def spawn():
+            done = subprocess.run(argv, capture_output=not node.streaming,
+                                  text=True, cwd=folder, env=self.env,
+                                  input=stdin_text, timeout=seconds)
+            return (done.stdout or "", done.stderr or "", done.returncode)
+
+        try:
+            out, err, code = self.journal.command(
+                node.line, argv, stdin_text, folder, spawn)
+        except subprocess.TimeoutExpired:
+            self.it = ""
+            self.result = TIMEOUT_STATUS
+            if node.checked:
+                raise FrostError(
+                    f"{program!r} ran longer than {format_seconds(seconds)} "
+                    f"and was stopped", node.line)
+            return
+        except FileNotFoundError:
+            raise FrostError(f"there is no program named {program!r}",
+                             node.line,
+                             hint="check the name, or that it is on your PATH")
+
+        if err:
+            sys.stderr.write(err)
+            sys.stderr.flush()
+        self.it = "" if node.streaming else out.rstrip("\n")
+        self.result = code
+        if node.checked and code != 0:
+            raise FrostError(
+                f"{program!r} failed with status {code}", node.line,
+                hint="if this failure is expected, write 'try to run ...' "
+                     "and check 'the result'")
 
     def eval_timeout(self, node):
         if node.timeout is None:
@@ -477,14 +526,21 @@ class Interpreter:
             if not stdin_text.endswith("\n"):
                 stdin_text += "\n"
 
+        argv = [program] + args
+        folder = self.child_folder(node)
+
+        if self.journal is not None:
+            return self.journal_run(node, program, argv, stdin_text, folder,
+                                    seconds)
+
         try:
             # `showing output` lets the child write straight to the terminal:
             # the only way to see a long build as it happens, or to run
             # anything interactive at all. Nothing is captured, so `it` is
             # empty afterwards rather than stale.
-            proc = subprocess.run([program] + args,
+            proc = subprocess.run(argv,
                                   capture_output=not node.streaming,
-                                  text=True, cwd=self.child_folder(node),
+                                  text=True, cwd=folder,
                                   env=self.env, input=stdin_text,
                                   timeout=seconds)
         except subprocess.TimeoutExpired as e:
@@ -657,6 +713,14 @@ class Interpreter:
             current += step
 
     def exec_RepeatForEach(self, node):
+        # `repeat for each line in the standard input` is the shape of every
+        # filter, and reading the whole stream first makes frost useless for
+        # one that never ends — a tail, a log follow, anything piped from a
+        # long-running command. Lines are consumed as they arrive.
+        if (node.kind == "line" and isinstance(node.source, A.StdInRef)
+                and self._stdin_text is None):
+            return self.stream_standard_input(node)
+
         parts = as_chunks(self.eval(node.source), node.kind)
         for part in parts:
             self.set_var(node.var, part)
@@ -666,6 +730,52 @@ class Interpreter:
                 continue
             except ExitRepeatSignal:
                 break
+
+    def stream_standard_input(self, node):
+        """Run the loop body per line, as the lines arrive.
+
+        Under a recording the text is still consumed lazily, but the whole of
+        what was read is written down at the end, so a replay of a streaming
+        filter is deterministic.
+        """
+        if self.journal is not None and self.journal.replaying:
+            recorded = self.journal.standard_input(lambda: "")
+            lines = recorded.split("\n") if recorded else []
+            self._stdin_text = ""
+            return self.walk_lines(node, iter(lines))
+
+        consumed = []
+
+        def source():
+            stream = sys.stdin
+            if stream is None:
+                return
+            for line in stream:
+                text = line.rstrip("\n")
+                consumed.append(text)
+                yield text
+
+        try:
+            exhausted = self.walk_lines(node, source())
+        finally:
+            if self.journal is not None:
+                self.journal.standard_input(lambda: "\n".join(consumed))
+        # Everything was consumed, so a later read finds nothing. An early
+        # `exit repeat` leaves the rest in the pipe for whoever asks next.
+        if exhausted:
+            self._stdin_text = ""
+
+    def walk_lines(self, node, lines):
+        """The loop body over an iterator of lines. True if it ran to the end."""
+        for line in lines:
+            self.set_var(node.var, line)
+            try:
+                self.exec_block(node.block)
+            except NextRepeatSignal:
+                continue
+            except ExitRepeatSignal:
+                return False
+        return True
 
     def exec_RepeatWhile(self, node):
         guard = 0
@@ -738,10 +848,16 @@ class Interpreter:
 
     def exec_DeleteFile(self, node):
         path = self.resolve_path(to_text(self.eval(node.path)))
-        try:
-            os.remove(path)
-        except FileNotFoundError:
-            raise FrostError(f"there is no file at {path!r}", node.line)
+
+        def remove():
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                raise FrostError(f"there is no file at {path!r}", node.line)
+
+        if self.journal is not None:
+            return self.journal.delete_file(node.line, path, remove)
+        return remove()
 
     def visible_handlers(self):
         """The names the code currently running is allowed to call."""
@@ -810,18 +926,28 @@ class Interpreter:
         return self.cwd
 
     def eval_EnvRef(self, node):
-        return self.env.get(to_text(self.eval(node.name)), "")
+        name = to_text(self.eval(node.name))
+        value = self.env.get(name, "")
+        if self.journal is not None:
+            return self.journal.env_read(node.line, name, value)
+        return value
 
     def eval_SecretEnvRef(self, node):
         name = to_text(self.eval(node.name))
-        return Sealed(self.env.get(name, ""), name)
+        plaintext = self.env.get(name, "")
+        if self.journal is not None:
+            self.journal.note_secret(name, plaintext)
+        return Sealed(plaintext, name)
 
     def eval_SecretFileRef(self, node):
         path = to_text(self.eval(node.path))
         resolved = self.resolve_path(path)
         try:
             with open(resolved) as fh:
-                return Sealed(fh.read().rstrip("\n"), path)
+                plaintext = fh.read().rstrip("\n")
+            if self.journal is not None:
+                self.journal.note_secret(path, plaintext)
+            return Sealed(plaintext, path)
         except FileNotFoundError:
             raise FrostError(f"there is no file at {resolved!r}", node.line)
         except IsADirectoryError:
@@ -836,7 +962,10 @@ class Interpreter:
                 hint="run with:  frost --keystore <file> --role <role> "
                      "script.frost")
         try:
-            return Sealed(self.keystore.open_secret(name, self.role), name)
+            plaintext = self.keystore.open_secret(name, self.role)
+            if self.journal is not None:
+                self.journal.note_secret(name, plaintext)
+            return Sealed(plaintext, name)
         except KeyError:
             raise FrostError(
                 f"the keystore has no secret named {name!r}", node.line,
@@ -854,13 +983,20 @@ class Interpreter:
 
     def eval_FileRef(self, node):
         path = self.resolve_path(to_text(self.eval(node.path)))
-        try:
-            with open(path) as fh:
-                return fh.read().rstrip("\n")
-        except FileNotFoundError:
-            raise FrostError(f"there is no file at {path!r}", node.line)
-        except IsADirectoryError:
-            raise FrostError(f"{path!r} is a folder, not a file", node.line)
+
+        def read():
+            try:
+                with open(path) as fh:
+                    return fh.read().rstrip("\n")
+            except FileNotFoundError:
+                raise FrostError(f"there is no file at {path!r}", node.line)
+            except IsADirectoryError:
+                raise FrostError(f"{path!r} is a folder, not a file",
+                                 node.line)
+
+        if self.journal is not None:
+            return self.journal.read_file(node.line, path, read)
+        return read()
 
     def eval_FileExists(self, node):
         inner = node.path
@@ -868,7 +1004,11 @@ class Interpreter:
             path = to_text(self.eval(inner.path))
         else:
             path = to_text(self.eval(inner))
-        return os.path.exists(self.resolve_path(path))
+        resolved = self.resolve_path(path)
+        if self.journal is not None:
+            return self.journal.file_exists(
+                node.line, resolved, lambda: os.path.exists(resolved))
+        return os.path.exists(resolved)
 
     def eval_UnaryOp(self, node):
         if node.op == "not":
@@ -1017,11 +1157,14 @@ class Interpreter:
 
     def eval_StdInRef(self, node):
         if self._stdin_text is None:
-            try:
-                self._stdin_text = ("" if sys.stdin is None
-                                    else sys.stdin.read()).rstrip("\n")
-            except (OSError, ValueError):
-                self._stdin_text = ""
+            def read():
+                try:
+                    return ("" if sys.stdin is None
+                            else sys.stdin.read()).rstrip("\n")
+                except (OSError, ValueError):
+                    return ""
+            self._stdin_text = (self.journal.standard_input(read)
+                                if self.journal is not None else read())
         return self._stdin_text
 
     def eval_EmptyList(self, node):

@@ -40,6 +40,7 @@ day, there is no pressure anywhere in the design to shorten anything.
 13. [Special values](#13-special-values)
 13a. [Secrets](#13a-secrets)
 13b. [Talking to the thing that wrote the script](#13b-talking-to-the-thing-that-wrote-the-script)
+13c. [Recording and replaying a run](#13c-recording-and-replaying-a-run)
 14. [Grammar](#14-grammar)
 15. [Deliberate omissions](#15-deliberate-omissions)
 
@@ -214,6 +215,23 @@ put the third word of line 7 of file "access.log"
 
 The bash equivalent is `sed -n '7p' access.log | awk '{print $3}'`, which
 requires knowing two tool dialects. The frost version requires knowing English.
+
+### Streaming input
+
+`repeat for each line in the standard input` consumes lines as they arrive
+rather than reading the whole stream first, so a filter works against a
+producer that never ends:
+
+```
+repeat for each line in the standard input as row
+    if row contains "ERROR" then put the uppercase row
+    if the number of characters in row is 0 then exit repeat
+end repeat
+```
+
+`exit repeat` gets out of an unbounded stream and leaves the rest in the pipe
+for whoever reads next. Asking for `the standard input` as a value still
+reads what remains, all at once.
 
 ### Out of range
 
@@ -1305,6 +1323,50 @@ A pass is kept only if it made progress: the script now parses, or the first
 error moved strictly later. That is what makes the loop safe to run
 unattended. An error with no mechanical fix gets no repair at all, because a
 wrong repair costs a round trip and teaches the wrong grammar.
+
+---
+
+## 13c. Recording and replaying a run
+
+What a script *can* do is knowable before it runs. What it *did* was not
+knowable at all — you ran it and watched.
+
+```bash
+frost --record run.json deploy.frost      # run it, write down everything
+frost --replay run.json deploy.frost      # run it again, spawn nothing
+```
+
+A recording holds every command with its arguments, standard input, output
+and exit status; every file read and its contents; every environment variable
+read; and whatever was piped in. **Replay performs nothing**: no process is
+spawned, no file is written, nothing is deleted. The recorded answers are
+served back in order.
+
+That makes a recording a fixture. Change the script, replay it, and every
+command it would run is compared against what it ran before — so a refactor
+meant to preserve behaviour either did or did not, and you find out without a
+database or a network.
+
+A difference is reported rather than raised:
+
+```text
+DIVERGED at deploy.frost:3
+    the recording ran: echo two
+    this run wants:  echo CHANGED
+```
+
+Matching is on the identity of the effect — which program with which
+arguments, which path — not on line numbers, so reformatting or adding
+comments replays clean. Exit status is 4 for a divergence, distinct from a
+policy refusal.
+
+Secret *values* are never recorded, only their names, and any plaintext the
+run revealed is scrubbed from everything written down — including command
+arguments, which is where the first version of this leaked. So a recording is
+safe to commit, which is the point: a fixture you cannot check in is not a
+fixture. The scrubbing is exact-match, so a program that transforms a secret
+before printing it will defeat it; the manifest already reports that the
+secret was released there.
 
 ---
 

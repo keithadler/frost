@@ -122,7 +122,7 @@ CASES = [
     ("cleanups", 'ensure\n    put "x"\nend ensure\nput "y"', 1),
     ("unchecked commands", 'try to run "a"\nrun "b"', 1),
     ("commands without a timeout", 'run "a"\nrun "b" within 5 seconds', 1),
-    ("runtime names", 'put "ls" into t\nrun t', 1),
+    ("runtime names", 'run "cat" with "n"\nput it into t\nrun t', 1),
     ("handlers", 'to helper\n    put "x"\nend helper\nhelper', 1),
 ]
 
@@ -173,7 +173,7 @@ def test_runs_of_can_require_a_minimum():
 
 
 def test_a_program_built_at_runtime_is_not_counted_as_a_named_run():
-    src = 'put "curl" into tool\nrun tool'
+    src = 'run "cat" with "n"\nput it into tool\nrun tool'
     assert not blocked(src, 'forbid any runs of "curl"')
     assert blocked(src, "forbid any runtime names")
 

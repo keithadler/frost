@@ -8,7 +8,7 @@
       ],
       "checked": true,
       "in_pipe": false,
-      "line": 43,
+      "line": 45,
       "program": "psql",
       "source": "try to run \"psql\" with \"--no-password\", \"--file\", migration file \\",
       "timeout": true
@@ -16,7 +16,7 @@
   ],
   "deletes": [
     {
-      "line": 38,
+      "line": 40,
       "path": null,
       "source": "delete file (lock path)"
     }
@@ -39,7 +39,7 @@
   "verdict": "clean",
   "writes": [
     {
-      "line": 35,
+      "line": 37,
       "path": null,
       "source": "put \"held\" into file (lock path)"
     }
