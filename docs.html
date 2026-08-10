@@ -556,6 +556,29 @@ progress, which is what makes it safe to run unattended:</p>
 </code></pre>
 <p>That is the loop: generate, check, repair, re-check — with a policy deciding
 what is acceptable and a manifest a human approves at the end.</p>
+<h3 id="guide-boundaries-the-kernel-holds">Boundaries the kernel holds</h3>
+<p>Everything above reasons about the text of a script, and is careful to say
+when it cannot know something. Once the script runs, an unknowable path is a
+real path. So the boundary is declared once and held at runtime:</p>
+<pre><code class="language-policy">sandbox may run &quot;git&quot;, &quot;make&quot;
+sandbox may read &quot;*&quot;
+sandbox may write &quot;build/*&quot;
+</code></pre>
+<pre><code class="language-bash">frost --policy prod.policy --sandbox deploy.frost
+</code></pre>
+<pre><code class="language-text">sh: /tmp/anywhere-else.txt: Operation not permitted
+</code></pre>
+<p>Child processes are confined by the operating system — <code>sandbox-exec</code> on
+macOS, <code>bubblewrap</code> on Linux — so a path the analyser could not resolve is
+confined anyway. frost's own file operations are checked by frost, which is a
+weaker guarantee, and the docs keep the two apart rather than blurring them.</p>
+<p>Two things it deliberately will not do. <strong>Per-host network rules are refused,
+not faked</strong>: macOS filters on addresses and a Linux namespace is
+all-or-nothing, so <code>sandbox may reach "api.github.com"</code> is a parse error and
+<code>sandbox may reach the network</code> means exactly what it says. And if a boundary
+is declared but cannot be enforced here, <strong>frost refuses to run</strong> rather than
+warning and continuing — including when the backend is present but a live
+self-test shows it not actually confining.</p>
 <p>Built-in checks catch the classics with no policy at all — <code>curl … | sh</code> is
 reported as <em>downloaded code piped into a shell</em>, and a script that reads
 <code>~/.ssh/id_rsa</code> and then makes a network call is flagged as <em>secrets read, then
@@ -724,6 +747,7 @@ frost --lock s.frost             record the sha256 of every module
 frost --frozen s.frost           refuse to run if a module changed
 frost --record run.json s.frost  run it and write down everything it did
 frost --replay run.json s.frost  run it against a recording, spawning nothing
+frost --policy p --sandbox s.frost   hold the declared boundary at runtime
 frost --explain --json s.frost   the manifest, as JSON
 frost --policy rules.policy s.frost   enforce rules, then run if it passes
 frost --try [subject.txt]        scratchpad for chunk expressions
@@ -754,7 +778,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1379 tests — python3 -m pytest tests/ -q
+tests/                1453 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -766,7 +790,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.4.0. The language runs, the examples are real, and 1379 tests cover
+<p>Version 0.4.0. The language runs, the examples are real, and 1453 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -2259,6 +2283,51 @@ better for the noun. <code>forbid any X</code> is a limit of zero. <code>warn</c
 <p>A count that is exceeded reports the line of the occurrence that crossed the
 limit, not the whole script. A count that falls short has no line to point at,
 so it is reported against the file.</p>
+<h4>The sandbox boundary</h4>
+<p>Every rule above is a statement about the <em>text</em> of a script, and every one of
+them is honest about its limits: a path built at runtime is reported as
+unknowable rather than guessed. That honesty is also the gap. Once the script
+runs, an unknowable path is a real path.</p>
+<p>A boundary closes it. Declared in the same file, but <strong>allow-shaped</strong>, because
+a deny-list cannot become a sandbox — <code>forbid writing to "/etc/*"</code> says
+nothing about what writing <em>is</em> permitted:</p>
+<pre><code class="language-policy">sandbox may run &quot;git&quot;, &quot;make&quot;
+sandbox may read &quot;*&quot;
+sandbox may write &quot;build/*&quot;, &quot;/tmp/frost-*&quot;
+sandbox may reach the network
+</code></pre>
+<pre><code class="language-bash">frost --policy prod.policy --sandbox deploy.frost
+</code></pre>
+<p>A path the analyser could not resolve is still confined, because the
+confinement never needed it resolved.</p>
+<h5>Two enforcers, and the difference is real</h5>
+<p><strong>Child processes are confined by the operating system</strong> — <code>sandbox-exec</code> on
+macOS, <code>bubblewrap</code> on Linux. Once a program runs inside one, frost is not in
+the loop: the kernel refuses the write. That holds even if the program is
+hostile, even if frost has a bug.</p>
+<p><strong>frost's own file operations are confined by frost.</strong> <code>put X into file
+(path)</code> never becomes a child process, so the check is a check in the
+interpreter — enforced by the same code being trusted to run the script at
+all. A weaker claim, and named differently here for that reason.</p>
+<h5>What it cannot do</h5>
+<p><strong>Per-host network rules.</strong> The obvious thing to want is <em>may reach
+api.github.com and nothing else</em>. macOS's sandbox language filters on
+addresses, not names; a Linux namespace gives you a network or no network. A
+hostname allow-list needs a proxy, which is a different program. So network is
+all-or-nothing, <code>sandbox may reach the network</code> says exactly that, and</p>
+<pre><code class="language-text">sandbox may reach &quot;api.github.com&quot;
+</code></pre>
+<p>is <strong>refused when the policy is read</strong> rather than accepted and quietly
+under-enforced. A boundary that does not hold is worse than no boundary,
+because somebody relies on it.</p>
+<p><strong>Platforms with no backend.</strong> If a boundary is declared and cannot be
+enforced here, frost refuses to run — it does not warn and continue. Before
+each run it also executes a real confined command that tries to write outside
+its boundary, and refuses if that write succeeds: present is not the same as
+working.</p>
+<p><strong>Anything a permitted program then does.</strong> A sandbox that may run <code>git</code> may
+run every <code>git</code> subcommand. Confinement bounds the blast radius; it does not
+read intent.</p>
 <h4>Bounded timeouts</h4>
 <p><code>require timeout on "curl"</code> asks only that a deadline exists. A deadline of
 six hours satisfies it, and so does one of a millisecond — the first hangs the

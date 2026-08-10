@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import argparse
+import os
 import sys
 
 from . import __version__
@@ -134,6 +135,49 @@ def format_script(opts, source, source_lines):
     else:
         sys.stdout.write(formatted)
     return 0
+
+
+def open_sandbox(opts):
+    """Build the boundary, and prove it can be held before running anything.
+
+    Fails closed at every step. A sandbox that is declared but not enforced
+    is worse than none, because somebody will rely on it.
+    """
+    from . import sandbox as S
+    from .audit import parse_policy, boundary_from, PolicyError
+
+    if not opts.policy:
+        return None, ("--sandbox needs a policy to say what is allowed.\n"
+                      "  Declare one:  sandbox may run \"git\"")
+    try:
+        with open(opts.policy) as fh:
+            rules = parse_policy(fh.read())
+    except OSError as e:
+        return None, f"cannot read policy: {e}"
+    except PolicyError as e:
+        return None, str(e)
+
+    boundary = boundary_from(rules)
+    if not boundary.declared:
+        return None, (f"{opts.policy} declares no sandbox boundary.\n"
+                      f"  Add one, for example:  sandbox may run \"git\"\n"
+                      f"  A policy says what is forbidden; a sandbox has to "
+                      f"say what is allowed.")
+
+    try:
+        S.require_backend()
+    except S.SandboxError as e:
+        return None, f"{e.msg}\n  hint: {e.hint}"
+
+    working, detail = S.self_test()
+    if not working:
+        return None, (f"the sandbox backend is present but did not confine a "
+                      f"test command: {detail}\n"
+                      f"  Refusing to run, because a boundary that does not "
+                      f"hold is worse than none.")
+
+    root = os.path.dirname(os.path.abspath(opts.script)) or "."
+    return S.Sandbox(boundary, root), None
 
 
 def collect_diagnostics(script, source):
@@ -360,6 +404,9 @@ def main(argv=None):
     ap.add_argument("--replay", metavar="FILE",
                     help="run the script against a recording, spawning "
                          "nothing and changing nothing")
+    ap.add_argument("--sandbox", action="store_true",
+                    help="hold the boundary the policy declares; refuses to "
+                         "run if it cannot be enforced here")
     own, script_args = split_argv(raw)
     opts = ap.parse_args(own)
     opts.args = script_args
@@ -589,6 +636,14 @@ def main(argv=None):
                          keystore=store, role=opts.role)
     if len(program.modules) > 1:
         interp.install(program)
+
+    guard = None
+    if opts.sandbox:
+        guard, problem = open_sandbox(opts)
+        if problem:
+            sys.stderr.write(f"frost: {problem}\n")
+            return 2
+        interp.sandbox = guard
 
     from . import journal as J
     recorder = player = None

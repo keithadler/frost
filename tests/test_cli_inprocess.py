@@ -19,7 +19,7 @@ import pytest
 
 from frostlang import cli, __version__
 
-from helpers import REPO, EXAMPLES
+from helpers import REPO, EXAMPLES, needs_coreutils
 
 
 @pytest.fixture
@@ -405,3 +405,164 @@ def test_find_secret_names_reports_runtime_names(script):
     found = cli.find_secret_names(tree)
     assert ("literal", 1) in found
     assert any(name is None for name, _ in found)
+
+
+# ------------------------------------------ modules, recording, sandboxing
+
+@pytest.fixture
+def workspace(tmp_path):
+    def write(name, source):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source.lstrip("\n"))
+        return str(path)
+    write.root = tmp_path
+    return write
+
+
+LIBRARY = 'to shout with w\n    return the uppercase w & "!"\nend shout\n'
+
+
+def test_a_program_with_modules_runs(run_cli, workspace):
+    workspace("lib/text.frost", LIBRARY)
+    entry = workspace("entry.frost",
+                      'use "lib/text.frost" for the shout\n'
+                      'put the shout of "hi"\n')
+    assert run_cli(entry) == (0, "HI!\n", "")
+
+
+def test_an_unresolvable_module_fails_closed(run_cli, workspace):
+    entry = workspace("entry.frost", 'use "lib/missing.frost" for the a\n')
+    status, out, err = run_cli("--explain", entry)
+    assert status == 2
+    assert "Verdict" not in out
+    assert "no module at" in err
+
+
+def test_a_module_error_reports_its_hint(run_cli, workspace):
+    entry = workspace("entry.frost", 'use "/etc/passwd" for the a\n')
+    status, _, err = run_cli(entry)
+    assert (status, "absolute" in err) == (2, True)
+
+
+def test_the_lockfile_round_trips(run_cli, workspace):
+    workspace("lib/text.frost", LIBRARY)
+    entry = workspace("entry.frost", 'use "lib/text.frost" for the shout\n'
+                                     'put the shout of "x"\n')
+    status, out, _ = run_cli("--lock", entry)
+    assert (status, "wrote" in out) == (0, True)
+    assert run_cli("--frozen", entry)[0] == 0
+
+
+def test_frozen_refuses_drift(run_cli, workspace):
+    workspace("lib/text.frost", LIBRARY)
+    entry = workspace("entry.frost", 'use "lib/text.frost" for the shout\n'
+                                     'put the shout of "x"\n')
+    run_cli("--lock", entry)
+    workspace("lib/text.frost", LIBRARY + 'to extra\n    put 1\nend extra\n')
+    status, _, err = run_cli("--frozen", entry)
+    assert (status, "has changed" in err) == (3, True)
+
+
+def test_a_breached_ceiling_refuses(run_cli, workspace):
+    workspace("lib/m.frost", 'to act\n    run "curl"\nend act\n')
+    entry = workspace("entry.frost", 'use "lib/m.frost" for the act\nact\n')
+    status, _, err = run_cli(entry)
+    assert status == 3
+    assert "may not run curl" in err
+
+
+def test_a_ceiling_breach_is_available_as_json(run_cli, workspace):
+    workspace("lib/m.frost", 'to act\n    run "curl"\nend act\n')
+    entry = workspace("entry.frost", 'use "lib/m.frost" for the act\nact\n')
+    status, out, _ = run_cli("--json", entry)
+    payload = json.loads(out)
+    assert (status, payload["ok"]) == (3, False)
+
+
+@needs_coreutils
+def test_record_then_replay(run_cli, workspace, tmp_path):
+    entry = workspace("s.frost", 'run "echo" with "one"\nput it\n')
+    recording = str(tmp_path / "run.json")
+    status, out, err = run_cli("--record", recording, entry)
+    assert (status, out.strip()) == (0, "one"), err
+    assert run_cli("--replay", recording, entry) == (0, "one\n", "")
+
+
+def test_replaying_a_missing_recording(run_cli, workspace):
+    entry = workspace("s.frost", 'put "x"\n')
+    status, _, err = run_cli("--replay", "/no/such.json", entry)
+    assert (status, "cannot read" in err) == (2, True)
+
+
+def test_replaying_a_malformed_recording(run_cli, workspace, tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json")
+    entry = workspace("s.frost", 'put "x"\n')
+    assert run_cli("--replay", str(bad), entry)[0] == 2
+
+
+def test_sandbox_without_a_policy(run_cli, workspace):
+    entry = workspace("s.frost", 'put "x"\n')
+    status, _, err = run_cli("--sandbox", entry)
+    assert (status, "needs a policy" in err) == (2, True)
+
+
+def test_sandbox_with_a_policy_that_declares_nothing(run_cli, workspace):
+    workspace("p.policy", 'forbid running "sudo"\n')
+    entry = workspace("s.frost", 'put "x"\n')
+    status, _, err = run_cli("--policy", str(workspace.root / "p.policy"),
+                             "--sandbox", entry)
+    assert (status, "declares no sandbox boundary" in err) == (2, True)
+
+
+def test_policy_hints_reach_the_output(run_cli, workspace):
+    workspace("p.policy",
+              'forbid running "sudo"   -- the deploy role already has it\n')
+    entry = workspace("s.frost", 'run "sudo" with "ls"\n')
+    status, _, err = run_cli("--policy", str(workspace.root / "p.policy"),
+                             entry)
+    assert status == 3
+    assert "why: the deploy role already has it" in err
+
+
+def test_repair_prints_the_repaired_source(run_cli, workspace):
+    entry = workspace("s.frost", 'run "ls -la"\n')
+    status, out, _ = run_cli("--repair", entry)
+    assert (status, out.strip()) == (0, 'run "ls" with "-la"')
+
+
+def test_repair_write_changes_the_file(run_cli, workspace):
+    entry = workspace("s.frost", 'run "ls -la"\n')
+    status, out, _ = run_cli("--repair", "--write", entry)
+    assert status == 0
+    assert open(entry).read().strip() == 'run "ls" with "-la"'
+
+
+def test_repair_with_nothing_to_do(run_cli, workspace):
+    entry = workspace("s.frost", "put the frobnitz\n")
+    status, _, err = run_cli("--repair", entry)
+    assert (status, "nothing to repair" in err) == (1, True)
+
+
+def test_repair_as_json(run_cli, workspace):
+    entry = workspace("s.frost", 'run "ls -la"\n')
+    status, out, _ = run_cli("--repair", "--json", entry)
+    payload = json.loads(out)
+    assert (status, payload["ok"]) == (0, True)
+    assert payload["applied"][0]["confidence"] == "high"
+
+
+def test_check_as_json_reports_the_verdict(run_cli, workspace):
+    entry = workspace("s.frost", 'run "git" with "status"\n')
+    status, out, _ = run_cli("--check", "--json", entry)
+    payload = json.loads(out)
+    assert (status, payload["verdict"]) == (0, "clean")
+    assert payload["statements"] == 1
+
+
+def test_format_works_on_a_file_with_a_broken_import(run_cli, workspace):
+    """Layout is lexical; a broken import should still be tidyable."""
+    entry = workspace("s.frost", 'use   "lib/missing.frost"   for the a\n')
+    status, out, _ = run_cli("--format", entry)
+    assert (status, out.strip()) == (0, 'use "lib/missing.frost" for the a')

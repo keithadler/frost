@@ -410,3 +410,161 @@ def test_a_streaming_run_can_be_recorded_and_replayed(script, tmp_path):
     assert recorded == "saw: one\nsaw: two\n", err
     status, replayed, err = frost("--replay", recording, path)
     assert (status, replayed) == (0, recorded), err
+
+
+# ------------------------------------------- the recorder, in this process
+#
+# The tests above drive frost as a subprocess, which is what proves the CLI
+# and the exit codes. A subprocess contributes nothing to coverage and cannot
+# see inside, so the mechanism is also exercised directly.
+
+def run_with(source, journal, stdin=None, cwd=None):
+    """Run a script with a journal attached; return its stdout."""
+    interp = Interpreter(cwd=cwd)
+    interp.journal = journal
+    held_out, held_in = sys.stdout, sys.stdin
+    sys.stdout = io.StringIO()
+    if stdin is not None:
+        sys.stdin = io.StringIO(stdin)
+    try:
+        interp.run_program(parse(source))
+        return sys.stdout.getvalue()
+    finally:
+        sys.stdout, sys.stdin = held_out, held_in
+
+
+@needs_coreutils
+def test_the_recorder_captures_a_command_in_process():
+    recorder = Recorder()
+    out = run_with('run "echo" with "hi"\nput it\n', recorder)
+    assert out.strip() == "hi"
+    [event] = [e for e in recorder.events if e["kind"] == "command"]
+    assert event["argv"] == ["echo", "hi"]
+
+
+def test_the_recorder_captures_a_file_read(tmp_path):
+    source = tmp_path / "in.txt"
+    source.write_text("contents\n")
+    recorder = Recorder()
+    run_with(f'put file "{source}"\n', recorder)
+    assert any(e["kind"] == "read" and e["content"] == "contents"
+               for e in recorder.events)
+
+
+def test_the_recorder_captures_an_existence_check(tmp_path):
+    recorder = Recorder()
+    run_with(f'if file "{tmp_path / "nope"}" exists then put "yes"\n',
+             recorder)
+    assert any(e["kind"] == "exists" and e["answer"] is False
+               for e in recorder.events)
+
+
+def test_the_recorder_captures_an_environment_write():
+    recorder = Recorder()
+    run_with('put "x" into the environment variable "FROST_J"\n', recorder)
+    assert any(e["kind"] == "env-write" and e["name"] == "FROST_J"
+               for e in recorder.events)
+
+
+def test_the_recorder_captures_a_delete(tmp_path):
+    victim = tmp_path / "gone.txt"
+    victim.write_text("x\n")
+    recorder = Recorder()
+    run_with(f'delete file "{victim}"\n', recorder)
+    assert any(e["kind"] == "delete" for e in recorder.events)
+    assert not victim.exists()
+
+
+def test_the_recorder_serialises_with_the_run(tmp_path):
+    recorder = Recorder()
+    recorder.status = 3
+    path = tmp_path / "run.json"
+    recorder.save(str(path), "s.frost", ["a", "b"])
+    data = json.loads(path.read_text())
+    assert data["exit"] == 3
+    assert data["arguments"] == ["a", "b"]
+    assert data["script"] == "s.frost"
+
+
+# --------------------------------------------- the player, in this process
+
+def test_the_player_serves_a_command_without_spawning(tmp_path):
+    canary = tmp_path / "canary.txt"
+    player = Player({"events": [
+        {"kind": "command", "argv": ["touch", str(canary)],
+         "stdout": "", "stderr": "", "status": 0}]})
+    run_with(f'run "touch" with "{canary}"\n', player)
+    assert not canary.exists()
+
+
+def test_the_player_serves_recorded_output():
+    player = Player({"events": [
+        {"kind": "command", "argv": ["echo", "x"],
+         "stdout": "recorded\n", "stderr": "", "status": 0}]})
+    out = run_with('run "echo" with "x"\nput it\n', player)
+    assert out.strip() == "recorded"
+
+
+def test_the_player_suppresses_a_write(tmp_path):
+    target = tmp_path / "out.txt"
+    player = Player({"events": [
+        {"kind": "write", "path": str(target), "content": "data"}]})
+    run_with(f'put "data" into file "{target}"\n', player)
+    assert not target.exists()
+    assert player.performed == [("write", str(target))]
+
+
+def test_the_player_suppresses_a_delete(tmp_path):
+    victim = tmp_path / "keep.txt"
+    victim.write_text("x\n")
+    player = Player({"events": [{"kind": "delete", "path": str(victim)}]})
+    run_with(f'delete file "{victim}"\n', player)
+    assert victim.exists()
+
+
+def test_the_player_serves_an_environment_read():
+    player = Player({"events": [
+        {"kind": "env-read", "name": "HOME", "value": "/recorded/home"}]})
+    out = run_with('put the environment variable "HOME"\n', player)
+    assert out.strip() == "/recorded/home"
+
+
+def test_the_player_serves_an_existence_check(tmp_path):
+    player = Player({"events": [
+        {"kind": "exists", "path": str(tmp_path / "x"), "answer": True}]})
+    out = run_with(f'if file "{tmp_path / "x"}" exists then put "yes"\n',
+                   player)
+    assert out.strip() == "yes"
+
+
+def test_the_player_diverges_on_a_different_path(tmp_path):
+    player = Player({"events": [
+        {"kind": "read", "path": "/recorded/a.txt", "content": "x"}]})
+    with pytest.raises(Divergence) as e:
+        run_with('put file "/live/b.txt"\n', player)
+    assert "/recorded/a.txt" in e.value.msg
+
+
+def test_the_player_diverges_when_the_recording_runs_out():
+    player = Player({"events": []})
+    with pytest.raises(Divergence) as e:
+        run_with('run "echo" with "x"\n', player)
+    assert "recording ended" in e.value.msg
+
+
+def test_the_player_skips_secret_events():
+    """They carry no value to serve, so they must not be matched against."""
+    player = Player({"events": [
+        {"kind": "secret", "name": "db password"},
+        {"kind": "env-read", "name": "HOME", "value": "/x"}]})
+    assert run_with('put the environment variable "HOME"\n',
+                    player).strip() == "/x"
+
+
+def test_describing_every_event_kind():
+    for event, expected in (
+            ({"kind": "command", "argv": ["ls", "-l"]}, "run ls -l"),
+            ({"kind": "read", "path": "a.txt"}, "read a.txt"),
+            ({"kind": "env-read", "name": "HOME"}, "env-read HOME"),
+            ({"kind": "stdin"}, "stdin")):
+        assert J._describe(event) == expected
