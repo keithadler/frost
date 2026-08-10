@@ -1796,6 +1796,7 @@ returned from a handler. Anything derived from a secret is a secret.
 | Where | What happens |
 |---|---|
 | `put`, `put into standard error`, `--trace`, errors | redacted |
+| a released value echoed back by a program | re-sealed, so it redacts |
 | a program's arguments | released |
 | `reading <secret>` | released |
 | `put ... into the environment variable "N"` | released |
@@ -1816,6 +1817,44 @@ put the length of password
 
 Equality on a sealed value is a constant-time comparison, so it cannot be
 turned into an oracle that recovers the value a character at a time.
+
+### When a program prints it back
+
+A program handed a credential often echoes it. `psql` names the connection
+string in an error, a deploy tool prints the flags it was given, a health check
+reports the URL it called. That output used to come back into the script as
+ordinary text: sealed on the way out, plain on the way in, and printed by the
+next `put` that touched it.
+
+frost now finds the released plaintext in what the child wrote and re-seals it
+in place:
+
+```
+put the secret "db_password" into pw
+run "psql" with "--password", pw          -- released, and reported
+put it                                     -- the password redacts
+```
+
+The value is preserved, not deleted. An earlier version replaced the plaintext
+with a marker, which closed the leak and broke every script that used the
+surrounding text: the error message you needed to read was still there, with a
+hole where the detail was. Re-sealing keeps the text intact and redacts it at
+the point of printing, which is where the leak actually happens.
+
+Three limits, stated plainly.
+
+**Exact match only.** It re-seals a secret frost itself released. It does not
+detect things that look like credentials. A mask that guesses at shapes fails
+in both directions, and the direction that matters is the quiet one: it gets
+trusted for the case it misses.
+
+**A derivation is not tracked through the child.** If a program base64s the
+value before printing it, the encoded form is not recognised. Nothing at this
+layer could recognise it.
+
+**Inside a `pipe`, only the last stage's streams pass through frost.** The
+intermediate stages are connected to each other directly, which is what makes
+a pipe a pipe, and frost never sees what crosses them.
 
 ### The keystore
 
@@ -1874,10 +1913,10 @@ forbid any secret releases
 It does not stop a script handing a secret to a program it was already
 allowed to run. Nothing at this layer can.
 
-More sharply: **once the plaintext reaches another program, frost cannot
-follow it.** `run "echo" with password` puts the value in that program's
-output, and `it` afterwards is ordinary text. The manifest reports the
-release rather than pretending the seal survives it.
+Once the plaintext reaches another program, frost cannot follow it *into*
+that program. What it can do is recognise the value coming back out, and it
+does: see below. The manifest still reports the release rather than pretending
+the seal survives the boundary.
 
 Passing a secret as a command-line argument is reported as a caution for a
 second reason: arguments are visible to every other process on the machine
@@ -2395,6 +2434,80 @@ This is the part a traditional shell cannot offer. `rm -rf "$DIR"` is a string
 until the moment it executes, so there is nothing to inspect beforehand. In
 frost the program and its arguments are separate nodes in a tree, which is what
 makes a script checkable as a contract rather than trusted as a guess.
+
+---
+
+## 14b. `frost diff`
+
+Two versions of a script, compared by what they can do.
+
+```bash
+frost diff old.frost new.frost
+```
+
+```text
+wider:    it can now run curl
+wider:    it can now reach telemetry.example
+```
+
+It exits 3 when the second version is wider than the first, 0 when it is the
+same or narrower, so it drops into a pre-merge hook without any parsing.
+
+A text diff answers the wrong question. Three rearranged lines can be a
+widening and thirty can be a rename, and a reviewer reading a regenerated
+script has no way to tell which they are looking at without reading all of it.
+This compares the two manifests instead: what the new version can do that the
+old one could not, and what it no longer does.
+
+What it does not compare is behaviour. Two scripts that run the same commands
+and reach the same hosts are identical to this, whatever else changed between
+them. It answers "did the blast radius grow", which is what a reviewer is
+actually asking of a script a machine rewrote.
+
+---
+
+## 14c. When a rule refuses
+
+A refusal names the rule. The next question is always what would have to
+change, and answering it by hand means finding the rule and working out what a
+change to it would mean everywhere else.
+
+```text
+What would have to change, if this should be allowed:
+
+  reaching telemetry.example, which is not in the allow-list
+    change:  require reaching only "api.github.com", "telemetry.example"
+    effect:  widen the allow-list to include telemetry.example
+    allows:  every connection to telemetry.example, from any script
+
+None of this is applied. A policy change permits more than the script
+that prompted it, so it belongs to whoever owns the policy.
+```
+
+The `allows:` line is the point. Relaxing `forbid running "curl"` does not
+permit this script's `curl`; it permits every `curl` on that host, in every
+script, from then on. A "minimal delta" framing hides exactly that, so every
+suggestion states its reach.
+
+Where a rule can be tightened rather than removed, the tightening is offered
+first: `require reaching only "a", "b"` is a smaller change than deleting the
+rule, and a reviewer shown only the deletion will take the deletion.
+
+Two things it deliberately will not do.
+
+**It never writes to a policy file.** The output is a report. Applying it is a
+decision about every script the policy covers, and it belongs to whoever owns
+that policy.
+
+**Under `--automated` it declines to answer at all.** An agent that hits a
+refusal and is handed the exact edit that clears it has been handed the
+instructions for widening its own bounds, which is the failure `--automated`
+exists to prevent everywhere else. A machine that cannot approve should not be
+drafting its own permission slip either.
+
+A subject that does not exist until the script runs gets an honest non-answer
+rather than an invented one, because no allow-list entry can cover a host
+assembled at runtime.
 
 ---
 

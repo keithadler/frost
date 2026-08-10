@@ -78,7 +78,7 @@ def test_a_site_rule_applies_with_no_project_policy(project):
     project("pol/00-egress.policy", 'forbid running "curl"\n')
     path = project("s.frost", REACHES)
     status, out, err = frost(path, cwd=str(project.root), env=project.env)
-    assert status == 3
+    assert status == 3, err
     assert "REFUSED" in err
     assert out == "", "the script ran despite the host forbidding it"
 
@@ -91,7 +91,7 @@ def test_a_project_policy_cannot_loosen_a_site_rule(project):
     path = project("s.frost", REACHES)
     status, _, err = frost("--policy", loose, path, cwd=str(project.root),
                            env=project.env)
-    assert status == 3
+    assert status == 3, err
     assert "REFUSED" in err
 
 
@@ -103,7 +103,7 @@ def test_two_allow_lists_compose_as_an_intersection(project):
     path = project("s.frost", REACHES)
     status, _, err = frost("--policy", tighter, path, cwd=str(project.root),
                            env=project.env)
-    assert status == 3
+    assert status == 3, err
 
 
 def test_the_project_policy_still_applies_alongside(project):
@@ -112,7 +112,7 @@ def test_the_project_policy_still_applies_alongside(project):
     path = project("s.frost", REACHES)
     status, _, err = frost("--policy", own, path, cwd=str(project.root),
                            env=project.env)
-    assert status == 3
+    assert status == 3, err
     assert "curl" in err
 
 
@@ -125,7 +125,7 @@ def test_an_unreadable_site_policy_fails_closed(project):
         script = project("s.frost", HARMLESS)
         status, _, err = frost(script, cwd=str(project.root),
                                env=project.env)
-        assert status == 2
+        assert status == 2, err
         assert "cannot be read" in err
     finally:
         os.chmod(path, 0o644)
@@ -135,7 +135,7 @@ def test_a_broken_site_policy_fails_closed(project):
     project("pol/00.policy", "forbid flying to the moon\n")
     script = project("s.frost", HARMLESS)
     status, _, err = frost(script, cwd=str(project.root), env=project.env)
-    assert status == 2
+    assert status == 2, err
     assert "does not parse" in err
 
 
@@ -203,7 +203,7 @@ def test_an_automated_run_may_not_approve(project):
     path = project("s.frost", HARMLESS)
     status, _, err = frost("--automated", "--approve", path,
                            cwd=str(project.root))
-    assert status == 2
+    assert status == 2, err
     assert "cannot be used in an automated run" in err
     assert not os.path.exists(path + ".approved")
 
@@ -212,7 +212,7 @@ def test_an_automated_run_may_not_ignore_an_approval(project):
     path = project("s.frost", HARMLESS)
     status, _, err = frost("--automated", "--ignore-approval", path,
                            cwd=str(project.root))
-    assert status == 2
+    assert status == 2, err
     assert "cannot be used in an automated run" in err
 
 
@@ -221,7 +221,7 @@ def test_the_environment_can_declare_automation(project):
     path = project("s.frost", HARMLESS)
     status, _, err = frost("--approve", path, cwd=str(project.root),
                            env={"FROST_AUTOMATED": "1"})
-    assert status == 2
+    assert status == 2, err
     assert "automated run" in err
 
 
@@ -342,7 +342,7 @@ def test_an_agent_cannot_approve_with_its_own_key(project):
         "be about a missing file rather than an untrusted signer")
 
     status, out, err = frost(path, cwd=str(project.root), env=project.env)
-    assert status == 3
+    assert status == 3, f"expected a refusal about the signer\n{err}"
     assert "not in the list of approvers" in err
     assert out == ""
 

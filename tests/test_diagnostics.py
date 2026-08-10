@@ -313,11 +313,16 @@ def test_the_hint_survives_a_counting_rule():
 
 
 def test_a_policy_finding_still_unpacks_in_order():
+    """The first four positions are the ones callers unpack, so they are the
+    ones that must not move. Fields may be added after them (`rule` was), and
+    the star here says so deliberately: appending is allowed, reordering is
+    not, and a bare four-way unpack could not tell the two apart."""
     rules = parse_policy('forbid running "sudo"')
     [finding] = check(audit(parse('run "sudo"')), rules)
-    severity, what, line, hint = finding
+    severity, what, line, hint, *added = finding
     assert severity == "forbid"
-    assert finding.severity == severity and finding.what == what
+    assert (finding.severity, finding.what, finding.line, finding.hint) == (
+        severity, what, line, hint)
 
 
 def test_the_hint_becomes_the_diagnostic_hint():

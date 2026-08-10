@@ -7,9 +7,46 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
-## Unreleased
+## 0.8.0 - 2026-08-10
 
 ### Added
+
+**`frost diff`, comparing two versions by what they can do.** `frost diff
+old.frost new.frost` reports the capability change between two scripts: what
+the second version can do that the first could not, and what it no longer
+does. A review that reads a text diff is reading the wrong artefact, because
+three lines of rearranged text can be a widening and thirty can be a rename.
+
+It compares the manifests, not the behaviour. Two scripts that reach the same
+hosts and run the same commands are the same to this, whatever else changed
+between them. It answers "did the blast radius grow", which is the question a
+reviewer is actually asking of a regenerated script.
+
+**A secret a child prints back is re-sealed.** A program handed a credential
+often echoes it — into a log line, an error, a summary of what it just did. It
+used to come back into the script as ordinary text, sealed on the way out and
+plain on the way in.
+
+The plaintext is now found in what a child wrote and re-sealed in place, so it
+redacts wherever the script prints it. The value is preserved rather than
+deleted: an earlier attempt substituted a marker, which closed the leak and
+broke every script that used the surrounding text.
+
+Exact-match only. It re-seals a secret frost released, not anything that looks
+like a credential, because a mask that guesses at shapes fails in both
+directions and gets trusted for the one it fails at quietly. One hole worth
+naming: inside a `pipe`, only the last stage's streams pass through frost.
+
+**A refusal says what would have to change, and what that would allow.**
+Every `forbid` now comes with the narrowest policy change that would clear it,
+and a plain statement of what else that change permits. Widening an allow-list
+by one host is one line; that line applies to every script the policy covers,
+and that is the fact a reviewer needs and the one a "minimal delta" hides.
+
+It is a report and never a patch. Nothing is written to a policy file, and
+under `--automated` it declines to answer at all: an agent that hits a refusal
+and is handed the exact edit that clears it has been handed the instructions
+for widening its own bounds.
 
 **Dead code is reported.** Unreachable statements after a `quit`, `return`,
 `exit repeat` or `next repeat`; handlers called nowhere in the program; names

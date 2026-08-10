@@ -484,8 +484,50 @@ def build_parser():
     return ap
 
 
+def diff_scripts(before, after):
+    """What changed in what two scripts may do.
+
+    The same comparison `--against` makes with an approval, pointed at two
+    files instead. A reviewer looking at a change wants this and should not
+    have to record an approval first to get it.
+    """
+    from . import baseline as B
+    from . import modules as M
+
+    sets = {}
+    for label, path in (("before", before), ("after", after)):
+        try:
+            program = M.load(path)
+        except (LexError, ParseError) as e:
+            sys.stderr.write(f"frost: {path} does not parse: {e.msg}\n")
+            return 2, None
+        except M.ModuleError as e:
+            sys.stderr.write(f"frost: {path}: {e.msg}\n")
+            return 2, None
+        sets[label] = B.capability_set(audit_program(program).merged)
+
+    gained = B.widenings(sets["before"], sets["after"])
+    lost = B.narrowings(sets["before"], sets["after"])
+    for item in gained:
+        print(f"wider:    {item}")
+    for item in lost:
+        print(f"narrower: {item}")
+    if not gained and not lost:
+        print("unchanged: both can do exactly the same things.")
+    # Widening is the answer CI acts on, exactly as it is for an approval.
+    return (3 if gained else 0), (gained, lost)
+
+
 def main(argv=None):
     raw = list(sys.argv[1:] if argv is None else argv)
+    # `frost diff a b` compares two scripts. Checked before the main parser so
+    # its own flags cannot collide, the same way `frost keystore` is.
+    if len(raw) == 3 and raw[0] == "diff":
+        return diff_scripts(raw[1], raw[2])[0]
+    if raw and raw[0] == "diff":
+        sys.stderr.write("frost: usage: frost diff <before.frost> "
+                         "<after.frost>\n")
+        return 2
     # `frost keystore ...` administers a keystore rather than running a
     # script. Checked before the main parser so its own flags do not collide.
     if raw and raw[0] == "keystore":
@@ -867,6 +909,9 @@ def main(argv=None):
             sys.stderr.write(
                 f"\n{len(blocked)} rule violation(s); the script was not "
                 f"run.\n")
+            from . import whynot
+            sys.stderr.write(whynot.explain_refusals(findings, rules,
+                                                     automated))
             return done(3, refused="policy", policies=provenance,
                         rules=[{"what": f.what, "line": f.line,
                                 "hint": f.hint} for f in blocked])

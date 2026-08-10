@@ -85,6 +85,14 @@ class Capabilities:
 
 RUNTIME_HOST = "(destination built at runtime)"
 
+# The tail of every allow-list refusal that names a real subject. The repair
+# report keys off it to decide whether it can offer a widened list at all: a
+# subject that does not exist until the script runs cannot be added to one,
+# and the first version of that check looked for the RUNTIME_HOST sentinel in
+# prose that never contained it, so it offered to allow-list the phrase
+# "a destination built at runtime". Shared here so the two cannot drift again.
+NOT_IN_ALLOW_LIST = "which is not in the allow-list"
+
 # Sound rather than clever. A scheme, or an scp-style `user@host:path`, is
 # unambiguously a destination; a bare `example.com` is indistinguishable from
 # a filename, and guessing would put invented hosts in a manifest people are
@@ -1132,6 +1140,9 @@ class PolicyFinding(NamedTuple):
     what: str
     line: int
     hint: str = ""
+    # The rule that fired. Carried so a refusal can say what would have to
+    # change without anybody re-deriving which rule produced it.
+    rule: object = None
 
 
 def _resolve_noun(phrase, policy_line):
@@ -1442,8 +1453,8 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
                 elif not any(fnmatch.fnmatchcase(name, p) for p in allowed):
                     findings.append(
                         (rule.severity,
-                         f"reading the environment {name}, which is not in "
-                         f"the allow-list", line))
+                         f"reading the environment {name}, "
+                         f"{NOT_IN_ALLOW_LIST}", line))
 
         elif rule.kind == "reach":
             for host, line in caps.reaches:
@@ -1475,8 +1486,7 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
                 elif not any(fnmatch.fnmatchcase(host, p) for p in allowed):
                     findings.append(
                         (rule.severity,
-                         f"reaching {host}, which is not in the allow-list",
-                         line))
+                         f"reaching {host}, {NOT_IN_ALLOW_LIST}", line))
 
         elif rule.kind == "count":
             lines = sorted(count_lines(caps, rule.subject, rule.detail))
@@ -1574,7 +1584,7 @@ def check(caps, rules, defer_unknown_hosts=False):
                                 defer_unknown_hosts))
         for i in range(start, len(out)):
             severity, what, line = out[i][:3]
-            out[i] = PolicyFinding(severity, what, line, rule.hint)
+            out[i] = PolicyFinding(severity, what, line, rule.hint, rule)
     out.sort(key=lambda f: f.line)
     return out
 

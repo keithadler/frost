@@ -32,6 +32,9 @@ contract instead of trusted as a guess.
 | **Declared record shapes** | `with fields "status", "number"` makes a mistyped field a `--check` failure instead of a silent empty, and verifies the payload at the line that parsed it. |
 | **`--events`** | NDJSON for Splunk, New Relic, Datadog or a collector. Every command timed, every effect reported, secrets redacted. The finish event says which approved capabilities went **unused**, which is a signal a shell cannot produce and which drives tightening an approval before it is abused. |
 | **Dead code** | Unreachable statements, handlers nobody calls, values computed and dropped. Harmless individually, and together the clearest sign a generated script contains more than anyone intended. |
+| **`frost diff`** | `frost diff old.frost new.frost` compares two versions by what they can do, not by their text. Three rearranged lines can be a widening and thirty can be a rename, so a review that reads the text diff is reading the wrong artefact. |
+| **Output masking** | A program handed a credential often echoes it back. frost finds the plaintext in what a child wrote and re-seals it, so it redacts wherever the script prints it. Exact-match only: a mask that guesses at shapes fails in both directions and gets trusted for the one it fails at quietly. |
+| **Repair report** | A refusal names the narrowest policy change that would clear it, and states what else that change would allow. It is never a patch, and under `--automated` it declines to answer: an agent handed the exact edit that clears its own refusal has been handed the instructions for widening its own bounds. |
 | **Environment rules** | `forbid reading the environment "AWS_*"` and `require reading only the environment "PATH"`. Setting had a rule and reading did not, which was the wrong way round. |
 | **`--deadline`** | A budget for the whole run, honoured with cleanup and exiting 124. A loop doing arithmetic has no capabilities, so the manifest called it clean; an unbounded loop is now a finding, and a policy can impose the budget centrally. |
 | **Site policy** | `/etc/frost/policy.d/*.policy` applies to every run on the host, whether or not anyone passed `--policy`. Site rules add to a project's and can only narrow them, and every policy applied is named by digest in the manifest and the recording. |
@@ -1038,7 +1041,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1945 tests — python3 -m pytest tests/ -q
+tests/                1973 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1057,7 +1060,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.7.0. The language runs, the examples are real, and 1945 tests cover
+Version 0.8.0. The language runs, the examples are real, and 1973 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

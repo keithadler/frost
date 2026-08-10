@@ -191,12 +191,23 @@ def test_a_list_of_arguments_gets_the_plaintext():
     assert to_argument([Sealed("a", "t"), "b"]) == "a\nb"
 
 
-def test_a_command_receives_the_real_value():
-    assert out(TOKEN + 'run "echo" with token\nput it') == PLAINTEXT
+# These used to read the value back through `put it`. frost now re-seals a
+# secret a child prints back, so that route redacts — which is the leak being
+# closed, and would have turned these into tests of the redaction rather than
+# of the release. The child writes what it received to a file instead, which
+# is the one record frost does not edit on the way past.
+
+def test_a_command_receives_the_real_value(tmp_path):
+    seen = tmp_path / "seen.txt"
+    run(TOKEN + f'run "sh" with "-c", "printf %s \\"$1\\" > {seen}", '
+                f'"sh", token')
+    assert seen.read_text() == PLAINTEXT
 
 
-def test_a_command_receives_the_real_value_on_stdin():
-    assert out(TOKEN + 'run "cat" reading token\nput it') == PLAINTEXT
+def test_a_command_receives_the_real_value_on_stdin(tmp_path):
+    seen = tmp_path / "seen.txt"
+    run(TOKEN + f'run "sh" with "-c", "cat > {seen}" reading token')
+    assert seen.read_text().strip() == PLAINTEXT
 
 
 def test_a_file_write_receives_the_real_value(tmp_path):
@@ -205,10 +216,12 @@ def test_a_file_write_receives_the_real_value(tmp_path):
     assert target.read_text().strip() == PLAINTEXT
 
 
-def test_the_child_environment_receives_the_real_value():
-    src = (TOKEN + 'put token into the environment variable "FROST_CHILD_SECRET"\n'
-           'run "sh" with "-c", "printf %s \\"$FROST_CHILD_SECRET\\""\nput it')
-    assert out(src) == PLAINTEXT
+def test_the_child_environment_receives_the_real_value(tmp_path):
+    seen = tmp_path / "seen.txt"
+    run(TOKEN + 'put token into the environment variable "FROST_CHILD_SECRET"\n'
+        f'run "sh" with "-c", '
+        f'"printf %s \\"$FROST_CHILD_SECRET\\" > {seen}"')
+    assert seen.read_text() == PLAINTEXT
 
 
 # ------------------------------------------------------------ the sources
