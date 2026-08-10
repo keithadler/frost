@@ -15,6 +15,7 @@ import random
 import re
 import subprocess
 import sys
+import tempfile
 
 from . import ast as A
 
@@ -169,6 +170,8 @@ class Interpreter:
         self.argv = argv or []
         self.trace = trace
         self.cwd = cwd or os.getcwd()
+        self.env = dict(os.environ)
+        self.cleanups = []       # ensure blocks, run in reverse at exit
 
     @staticmethod
     def compile_pattern(pattern, line):
@@ -206,20 +209,69 @@ class Interpreter:
     def set_var(self, name, value):
         self.scope[name] = value
 
+    def read_target(self, target, line):
+        """Current value of an assignment target."""
+        if isinstance(target, A.GlobalTarget):
+            if target.name not in self.globals:
+                raise FrostError(
+                    f"there is no global named {target.name!r}", line,
+                    hint="a global is created by assigning to it at the top "
+                         "level, or with:  put ... into the global "
+                         + target.name)
+            return self.globals[target.name]
+        return self.get_var(target.name, line)
+
+    def write_target(self, target, value):
+        if isinstance(target, A.GlobalTarget):
+            self.globals[target.name] = value
+        else:
+            self.set_var(target.name, value)
+
     # -- entry points
 
     def run_program(self, stmts):
         for s in stmts:
             if isinstance(s, A.HandlerDef):
                 self.handlers[s.name] = s
+        body = [s for s in stmts if not isinstance(s, A.HandlerDef)]
+
+        status, failure = 0, None
         try:
-            self.exec_block([s for s in stmts
-                             if not isinstance(s, A.HandlerDef)])
+            self.exec_block(body)
         except QuitSignal as q:
-            return q.status
+            status = q.status
         except ReturnSignal:
-            return 0
-        return 0
+            status = 0
+        except FrostError as e:
+            failure = e
+        except KeyboardInterrupt:
+            # Cleanup has to survive Ctrl-C too, or the lock file it was
+            # written to release outlives the script that took it.
+            self.run_cleanups()
+            raise
+        self.run_cleanups()
+        if failure is not None:
+            raise failure
+        return status
+
+    def run_cleanups(self):
+        """Run every registered `ensure` block, most recent first.
+
+        A failure in one block is reported but does not stop the others, and
+        never replaces the error that ended the script — that error is what
+        the reader needs to see first.
+        """
+        pending, self.cleanups = self.cleanups, []
+        for block in reversed(pending):
+            try:
+                self.exec_block(block)
+            except (QuitSignal, ReturnSignal, ExitRepeatSignal,
+                    NextRepeatSignal):
+                pass
+            except FrostError as e:
+                where = f" at line {e.line}" if e.line else ""
+                sys.stderr.write(f"frost: cleanup failed{where}: {e.msg}\n")
+                sys.stderr.flush()
 
     def exec_block(self, stmts):
         for s in stmts:
@@ -269,16 +321,61 @@ class Interpreter:
                 fh.write(to_text(value) + "\n")
             return
 
-        name = target.name
-        if node.mode == "into":
-            self.set_var(name, value)
-        else:
-            current = to_text(self.get_var(name, node.line))
+        if isinstance(target, A.FolderTarget):
+            if node.mode != "into":
+                raise FrostError(
+                    f"the current folder can only be set with 'into', "
+                    f"not {node.mode!r}", node.line)
+            path = self.resolve_path(to_text(value))
+            if not os.path.isdir(path):
+                raise FrostError(f"there is no folder at {path!r}", node.line,
+                                 hint="the folder must already exist")
+            self.cwd = os.path.abspath(path)
+            return
+
+        if isinstance(target, A.EnvTarget):
+            name = to_text(self.eval(target.name))
+            if name == "" or "=" in name or "\0" in name:
+                raise FrostError(
+                    f"{name!r} is not a usable environment variable name",
+                    node.line)
             addition = to_text(value)
-            self.set_var(
-                name,
+            if node.mode == "into":
+                self.env[name] = addition
+            else:
+                current = self.env.get(name, "")
+                self.env[name] = (current + addition if node.mode == "after"
+                                  else addition + current)
+            return
+
+        if node.mode == "into":
+            self.write_target(target, value)
+        else:
+            current = to_text(self.read_target(target, node.line))
+            addition = to_text(value)
+            self.write_target(
+                target,
                 current + addition if node.mode == "after"
                 else addition + current)
+
+    def eval_timeout(self, node):
+        if node.timeout is None:
+            return None
+        seconds = to_number(self.eval(node.timeout), node.line)
+        if seconds <= 0:
+            raise FrostError("a timeout must be greater than zero", node.line)
+        return seconds
+
+    def child_folder(self, node):
+        """Where a child process should run: its own folder, or the script's."""
+        if node.folder is None:
+            return self.cwd
+        path = self.resolve_path(to_text(self.eval(node.folder)))
+        if not os.path.isdir(path):
+            raise FrostError(f"there is no folder at {path!r}", node.line,
+                             hint="the folder must exist before a command "
+                                  "can run in it")
+        return path
 
     def exec_Run(self, node):
         program = to_text(self.eval(node.program))
@@ -290,16 +387,18 @@ class Interpreter:
             else:
                 args.append(to_text(v))
 
-        seconds = None
-        if node.timeout is not None:
-            seconds = to_number(self.eval(node.timeout), node.line)
-            if seconds <= 0:
-                raise FrostError("a timeout must be greater than zero",
-                                 node.line)
+        seconds = self.eval_timeout(node)
+        stdin_text = None
+        if node.stdin is not None:
+            stdin_text = to_text(self.eval(node.stdin))
+            if not stdin_text.endswith("\n"):
+                stdin_text += "\n"
 
         try:
             proc = subprocess.run([program] + args, capture_output=True,
-                                  text=True, cwd=self.cwd, timeout=seconds)
+                                  text=True, cwd=self.child_folder(node),
+                                  env=self.env, input=stdin_text,
+                                  timeout=seconds)
         except subprocess.TimeoutExpired as e:
             partial = e.stdout or ""
             if isinstance(partial, bytes):
@@ -348,8 +447,24 @@ class Interpreter:
                     args.append(to_text(v))
             commands.append(([program] + args, stage.line))
 
+        folder = self.child_folder(node)
+        seconds = self.eval_timeout(node)
+
+        # `pipe reading X` feeds the first stage. The text goes through a
+        # temporary file rather than a pipe we write to ourselves: writing
+        # into stage one while waiting on the last stage's output is the
+        # classic way to deadlock a pipeline on a large input.
+        feed = None
+        if node.stdin is not None:
+            text = to_text(self.eval(node.stdin))
+            if not text.endswith("\n"):
+                text += "\n"
+            feed = tempfile.TemporaryFile(mode="w+")
+            feed.write(text)
+            feed.seek(0)
+
         procs = []
-        prev_stdout = None
+        prev_stdout = feed
         try:
             for idx, (cmd, line) in enumerate(commands):
                 last = idx == len(commands) - 1
@@ -360,7 +475,8 @@ class Interpreter:
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE if last else None,
                         text=True,
-                        cwd=self.cwd,
+                        cwd=folder,
+                        env=self.env,
                     )
                 except FileNotFoundError:
                     raise FrostError(
@@ -372,14 +488,9 @@ class Interpreter:
         except FrostError:
             for p, _, _ in procs:
                 p.kill()
+            if feed is not None and not feed.closed:
+                feed.close()
             raise
-
-        seconds = None
-        if node.timeout is not None:
-            seconds = to_number(self.eval(node.timeout), node.line)
-            if seconds <= 0:
-                raise FrostError("a timeout must be greater than zero",
-                                 node.line)
 
         final = procs[-1][0]
         try:
@@ -513,9 +624,13 @@ class Interpreter:
     def exec_Return(self, node):
         raise ReturnSignal(self.eval(node.expr) if node.expr else "")
 
+    def exec_Ensure(self, node):
+        self.cleanups.append(node.block)
+
     def exec_Arith(self, node):
         amount = to_number(self.eval(node.amount), node.line)
-        current = to_number(self.get_var(node.target, node.line), node.line)
+        current = to_number(self.read_target(node.target, node.line),
+                            node.line)
         if node.op == "add":
             current += amount
         elif node.op == "subtract":
@@ -526,7 +641,7 @@ class Interpreter:
             if amount == 0:
                 raise FrostError("cannot divide by zero", node.line)
             current /= amount
-        self.set_var(node.target, current)
+        self.write_target(node.target, current)
 
     def exec_DeleteFile(self, node):
         path = self.resolve_path(to_text(self.eval(node.path)))
@@ -585,7 +700,15 @@ class Interpreter:
         return self.cwd
 
     def eval_EnvRef(self, node):
-        return os.environ.get(to_text(self.eval(node.name)), "")
+        return self.env.get(to_text(self.eval(node.name)), "")
+
+    def eval_GlobalRef(self, node):
+        if node.name not in self.globals:
+            raise FrostError(
+                f"there is no global named {node.name!r}", node.line,
+                hint="assign it first with:  put ... into the global "
+                     + node.name)
+        return self.globals[node.name]
 
     def eval_FileRef(self, node):
         path = self.resolve_path(to_text(self.eval(node.path)))
@@ -707,10 +830,10 @@ class Interpreter:
     def exec_Replace(self, node):
         pattern = to_text(self.eval(node.pattern))
         replacement = to_text(self.eval(node.replacement))
-        current = to_text(self.get_var(node.target, node.line))
+        current = to_text(self.read_target(node.target, node.line))
         rx = self.compile_pattern(pattern, node.line)
         try:
-            self.set_var(node.target, rx.sub(replacement, current))
+            self.write_target(node.target, rx.sub(replacement, current))
         except re.error as e:
             raise FrostError(f"that replacement is not valid: {e}", node.line)
 

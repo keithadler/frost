@@ -107,6 +107,13 @@ class CurrentFolder:
 
 
 @dataclass
+class GlobalRef:
+    """`the global total` — reads past a handler's local of the same name."""
+    name: str
+    line: int = 0
+
+
+@dataclass
 class ArgList:
     """`the arguments` — command line arguments as a list value."""
     line: int = 0
@@ -130,9 +137,28 @@ class FileTarget:
 
 
 @dataclass
+class GlobalTarget:
+    """`the global total` in target position — writes past the local scope."""
+    name: str
+
+
+@dataclass
+class EnvTarget:
+    """`the environment variable "NAME"` in target position."""
+    name: Any
+
+
+@dataclass
+class FolderTarget:
+    """`the current folder` in target position."""
+
+
+@dataclass
 class Put:
     expr: Any
-    target: Any                # VarTarget | StreamTarget | FileTarget | None
+    # VarTarget | GlobalTarget | StreamTarget | FileTarget | EnvTarget
+    # | FolderTarget | None
+    target: Any
     mode: str = "into"         # into | before | after
     line: int = 0
 
@@ -143,6 +169,8 @@ class Run:
     args: List[Any] = field(default_factory=list)
     checked: bool = True
     timeout: Optional[Any] = None
+    stdin: Optional[Any] = None     # `reading EXPR` — text on the child's stdin
+    folder: Optional[Any] = None    # `in folder EXPR` — the child's cwd
     line: int = 0
 
 
@@ -151,6 +179,20 @@ class Pipe:
     stages: List[Run] = field(default_factory=list)
     checked: bool = True
     timeout: Optional[Any] = None
+    stdin: Optional[Any] = None     # feeds the first stage
+    folder: Optional[Any] = None    # applies to every stage
+    line: int = 0
+
+
+@dataclass
+class Ensure:
+    """A cleanup block, registered when reached and run when the script ends.
+
+    Registered blocks run in reverse order, whether the script finished, hit
+    an error, quit, or was interrupted. This is what makes abort-on-failure
+    survivable: a lock file taken on line 3 is still released.
+    """
+    block: List[Any] = field(default_factory=list)
     line: int = 0
 
 
@@ -241,10 +283,10 @@ class Return:
 
 @dataclass
 class Arith:
-    """`add 1 to counter`, `subtract 2 from counter`."""
+    """`add 1 to counter`, `subtract 2 from the global counter`."""
     op: str
     amount: Any
-    target: str
+    target: Any                # VarTarget | GlobalTarget
     line: int = 0
 
 
@@ -294,5 +336,5 @@ class EveryMatch:
 class Replace:
     pattern: Any
     replacement: Any
-    target: str
+    target: Any                # VarTarget | GlobalTarget
     line: int = 0

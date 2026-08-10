@@ -437,7 +437,7 @@ frostlang/
     interp.py         tree-walking evaluator
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                566 tests — python3 -m pytest tests/ -q
+tests/                657 tests — python3 -m pytest tests/ -q
 LANGUAGE.md           full reference and grammar
 docs.html             browsable docs (tools/build_docs.py)
 audit.html            visual audit report (tools/build_audit.py)
@@ -448,7 +448,7 @@ web/chunks.js         browser evaluator, verified against frostlang/
 
 ## Status
 
-Version 0.3.0. The language runs, the examples are real, and 566 tests cover
+Version 0.3.0. The language runs, the examples are real, and 657 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

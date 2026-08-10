@@ -28,7 +28,8 @@ INDENT_AFTER = re.compile(
     r"|to\b"
     r"|else\s*$"
     r"|else\s+if\b.*\bthen\s*$"
-    r"|pipe\b(?!.*\bend\s+pipe\b))",
+    r"|ensure\s*$"
+    r"|(?:try\s+to\s+)?pipe\b(?!.*\bend\s+pipe\b))",
     re.I)
 
 

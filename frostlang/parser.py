@@ -33,6 +33,7 @@ HARD_WORDS = {
     "matches", "like", "every", "replace", "within", "whole",
     "standard", "exists", "empty", "true", "false", "forever", "step",
     "delete", "greater", "less", "than", "least", "most",
+    "global", "ensure", "reading",
 }
 
 CHUNK_SINGULAR = {
@@ -58,6 +59,7 @@ ORDINALS = {
 STATEMENT_STARTERS = {
     "put", "run", "try", "pipe", "if", "repeat", "quit", "to", "return",
     "add", "subtract", "multiply", "divide", "exit", "next", "delete",
+    "ensure",
 }
 
 
@@ -192,6 +194,8 @@ class Parser:
             return self.parse_delete()
         if w == "replace":
             return self.parse_replace()
+        if w == "ensure":
+            return self.parse_ensure()
         return self.parse_call()
 
     # put ------------------------------------------------------------------
@@ -218,8 +222,37 @@ class Parser:
         if self.at_word("file"):
             self.advance()
             return A.FileTarget(self.parse_expression())
-        name = self.parse_identifier(target_position=True)
-        return A.VarTarget(name)
+        if self.at_word("the"):
+            # `the global x`, `the environment variable "N"`, `the current
+            # folder` — each the writable counterpart of a readable form.
+            line = self.advance().line
+            if self.at_word("global"):
+                self.advance()
+                return A.GlobalTarget(
+                    self.parse_identifier(target_position=True))
+            if self.at_word("environment"):
+                self.advance()
+                self.expect_word("variable")
+                return A.EnvTarget(self.parse_primary())
+            if self.at_word("current"):
+                self.advance()
+                self.expect_word("folder")
+                return A.FolderTarget()
+            raise ParseError(
+                f"cannot assign to 'the {self.describe(self.cur)[1:-1]}'"
+                if self.cur.kind == "WORD" else "expected something writable",
+                line,
+                hint="the writable ones are: the global <name> / "
+                     'the environment variable "NAME" / the current folder')
+        return A.VarTarget(self.parse_identifier(target_position=True))
+
+    def parse_assign_target(self):
+        """A variable or an explicit global, for `add`/`subtract`/`replace`."""
+        if self.at_word("the") and self.at_word("global", offset=1):
+            self.advance()
+            self.advance()
+            return A.GlobalTarget(self.parse_identifier(target_position=True))
+        return A.VarTarget(self.parse_identifier(target_position=True))
 
     def parse_identifier(self, target_position=False):
         """A run of non-keyword words joined by single spaces.
@@ -244,6 +277,11 @@ class Parser:
                         break
             words.append(self.advance().value)
             first = False
+        if not words and self.at_word("global"):
+            raise ParseError(
+                "'global' is a reserved word", self.cur.line,
+                hint="to reach a global from inside a handler, write "
+                     "'the global <name>'")
         if (target_position and words and self.cur.kind == "WORD"
                 and self.cur.value in HARD_WORDS):
             # e.g. `put "" into error times` — `times` belongs to `repeat`.
@@ -271,10 +309,42 @@ class Parser:
                 self.advance()
                 self.skip_continuation()
                 args.append(self.parse_expression())
-        timeout = self.parse_optional_timeout()
+        stdin, folder, timeout = self.parse_command_tail()
         self.check_command_line_mistake(program, args, line)
         self.expect_end_of_statement()
-        return A.Run(program, args, checked, timeout, line)
+        return A.Run(program, args, checked, timeout, stdin, folder, line)
+
+    def parse_command_tail(self):
+        """The optional clauses that may follow a run or a pipe.
+
+        `reading EXPR` puts text on the child's standard input, `in folder
+        EXPR` chooses its working directory, and `within N seconds` gives it a
+        deadline. Any order is accepted; each may appear once.
+        """
+        stdin = folder = timeout = None
+        while True:
+            if self.at_word("reading"):
+                line = self.advance().line
+                if stdin is not None:
+                    raise ParseError("only one 'reading' clause is allowed",
+                                     line)
+                stdin = self.parse_expression()
+                continue
+            if self.at_word("in") and self.at_word("folder", offset=1):
+                line = self.advance().line
+                self.advance()
+                if folder is not None:
+                    raise ParseError("only one 'in folder' clause is allowed",
+                                     line)
+                folder = self.parse_expression()
+                continue
+            if self.at_word("within"):
+                if timeout is not None:
+                    raise ParseError("only one timeout is allowed",
+                                     self.cur.line)
+                timeout = self.parse_optional_timeout()
+                continue
+            return stdin, folder, timeout
 
     TIME_UNITS = {
         "millisecond": 0.001, "milliseconds": 0.001, "ms": 0.001,
@@ -335,7 +405,7 @@ class Parser:
 
     def parse_pipe(self, checked=True):
         line = self.expect_word("pipe").line
-        timeout = self.parse_optional_timeout()
+        stdin, folder, timeout = self.parse_command_tail()
         self.expect_end_of_statement()
         stages = []
         self.skip_newlines()
@@ -358,7 +428,16 @@ class Parser:
                 raise ParseError(
                     "put the timeout on the pipe, not on a stage", st.line,
                     hint="write 'pipe within 30 seconds'")
-        return A.Pipe(stages, checked, timeout, line)
+            if st.stdin is not None:
+                raise ParseError(
+                    "only the pipe itself can read input; a stage reads from "
+                    "the stage before it", st.line,
+                    hint="write 'pipe reading <text>'")
+            if st.folder is not None:
+                raise ParseError(
+                    "put the folder on the pipe, not on a stage", st.line,
+                    hint="write 'pipe in folder <path>'")
+        return A.Pipe(stages, checked, timeout, stdin, folder, line)
 
     # if -------------------------------------------------------------------
 
@@ -511,9 +590,20 @@ class Parser:
             self.expect_word("into")
         else:
             self.expect_word("to")
-        target = self.parse_identifier(target_position=True)
+        target = self.parse_assign_target()
         self.expect_end_of_statement()
         return A.Arith(op, amount, target, tok.line)
+
+    def parse_ensure(self):
+        line = self.expect_word("ensure").line
+        self.expect_end_of_statement()
+        block = self.parse_block("ensure")
+        self.expect_word("end")
+        self.expect_word("ensure")
+        self.expect_end_of_statement()
+        if not block:
+            raise ParseError("an empty 'ensure' block cleans nothing up", line)
+        return A.Ensure(block, line)
 
     def parse_delete(self):
         line = self.advance().line
@@ -528,7 +618,7 @@ class Parser:
         self.expect_word("with", hint='replace "old" with "new" in <name>')
         replacement = self.parse_expression()
         self.expect_word("in")
-        target = self.parse_identifier(target_position=True)
+        target = self.parse_assign_target()
         self.expect_end_of_statement()
         return A.Replace(pattern, replacement, target, line)
 
@@ -838,6 +928,10 @@ class Parser:
             self.advance()
             self.expect_word("folder")
             return A.CurrentFolder(line)
+
+        if self.at_word("global"):
+            self.advance()
+            return A.GlobalRef(self.parse_identifier(), line)
 
         if self.at_word("environment"):
             self.advance()

@@ -30,6 +30,8 @@ class Command:
     timeout: bool
     in_pipe: bool = False
     result_examined: bool = False
+    stdin: bool = False           # text is fed to it with `reading`
+    folder: Optional[str] = None  # `in folder`; None means the script's own
 
 
 @dataclass
@@ -39,6 +41,9 @@ class Capabilities:
     writes: List[tuple] = field(default_factory=list)
     deletes: List[tuple] = field(default_factory=list)
     env_reads: List[tuple] = field(default_factory=list)
+    env_writes: List[tuple] = field(default_factory=list)   # (name, line)
+    folder_changes: List[tuple] = field(default_factory=list)  # (path, line)
+    cleanups: List[int] = field(default_factory=list)       # ensure block lines
     exit_codes: List[tuple] = field(default_factory=list)
     handlers: List[str] = field(default_factory=list)
     dynamic: int = 0              # count of runtime-built names
@@ -152,13 +157,15 @@ class Auditor:
 
     # -- collectors
 
-    def record_run(self, node, in_pipe=False):
+    def record_run(self, node, in_pipe=False, stdin=None, folder=None):
         if id(node) in self.seen:
             return
         self.seen.add(id(node))
         program = literal(node.program)
         if program is None:
             self.caps.dynamic += 1
+        stdin = node.stdin if node.stdin is not None else stdin
+        folder = node.folder if node.folder is not None else folder
         self.caps.commands.append(Command(
             program=program,
             args=[literal(a) for a in node.args],
@@ -166,14 +173,21 @@ class Auditor:
             checked=node.checked,
             timeout=node.timeout is not None,
             in_pipe=in_pipe,
+            stdin=stdin is not None,
+            folder=literal(folder) if folder is not None else None,
         ))
 
     def on_Run(self, node):
         self.record_run(node)
 
     def on_Pipe(self, node):
-        for stage in node.stages:
-            self.record_run(stage, in_pipe=True)
+        # A pipe's own clauses belong to its stages: the input reaches the
+        # first, the folder applies to all of them. Passed down rather than
+        # written onto the stages, because this pass must not touch the tree.
+        for idx, stage in enumerate(node.stages):
+            self.record_run(stage, in_pipe=True,
+                            stdin=node.stdin if idx == 0 else None,
+                            folder=node.folder)
 
     def on_FileRef(self, node):
         path = literal(node.path)
@@ -199,6 +213,19 @@ class Auditor:
                 (node.line, literal_fragments(node.target.path)))
             if path is None:
                 self.caps.dynamic += 1
+        elif isinstance(node.target, A.EnvTarget):
+            name = literal(node.target.name)
+            self.caps.env_writes.append((name, node.line))
+            if name is None:
+                self.caps.dynamic += 1
+        elif isinstance(node.target, A.FolderTarget):
+            path = literal(node.expr)
+            self.caps.folder_changes.append((path, node.line))
+            if path is None:
+                self.caps.dynamic += 1
+
+    def on_Ensure(self, node):
+        self.caps.cleanups.append(node.line)
 
     def on_DeleteFile(self, node):
         path = literal(node.path)
@@ -262,6 +289,11 @@ def describe(caps):
             detail.append(f"{unchecked} allowed to fail")
         if untimed == len(uses):
             detail.append("no timeout")
+        if any(u.stdin for u in uses):
+            detail.append("given input")
+        folders = sorted({u.folder for u in uses if u.folder})
+        if folders:
+            detail.append("in " + ", ".join(folders))
         note = f"  ({', '.join(detail)})" if detail else ""
         at = ", ".join(str(u.line) for u in uses)
         rows.append((name, f"— line {at}{note}"))
@@ -274,7 +306,15 @@ def describe(caps):
     section("Deletes these files:",
             [where(p, ln) for p, ln in caps.deletes])
     section("Reads these environment variables:",
-            [(n, f"— line {ln}") for n, ln in caps.env_reads])
+            [(n or "(name built at runtime)", f"— line {ln}")
+             for n, ln in caps.env_reads])
+    section("Sets these environment variables:",
+            [(n or "(name built at runtime)", f"— line {ln}")
+             for n, ln in caps.env_writes])
+    section("Changes the working folder to:",
+            [where(p, ln) for p, ln in caps.folder_changes])
+    section("Cleans up on exit:",
+            [(f"ensure block", f"— line {ln}") for ln in caps.cleanups])
     section("Can exit with:",
             [(f"status {c}", "") for c in sorted({c for c, _ in
                                                   caps.exit_codes})])
@@ -295,6 +335,8 @@ RULE_PATTERNS = [
     (re.compile(r'^(forbid|warn)\s+writing\s+to\s+"([^"]+)"\s*$'), "write"),
     (re.compile(r'^(forbid|warn)\s+reading\s+"([^"]+)"\s*$'), "read"),
     (re.compile(r'^(forbid|warn)\s+deleting\s+"([^"]+)"\s*$'), "delete"),
+    (re.compile(r'^(forbid|warn)\s+setting\s+"([^"]+)"\s*$'), "setenv"),
+    (re.compile(r'^(forbid|warn)\s+changing\s+folder\s*$'), "chfolder"),
     (re.compile(r'^require\s+timeout\s+on\s+"([^"]+)"\s*$'), "timeout"),
     (re.compile(r'^require\s+every\s+command\s+to\s+be\s+checked\s*$'),
      "checked"),
@@ -331,6 +373,8 @@ def parse_policy(text):
                 rules.append(Rule(kind, "forbid", groups[0], None, n))
             elif kind == "run":
                 rules.append(Rule(kind, groups[0], groups[1], groups[2], n))
+            elif kind == "chfolder":
+                rules.append(Rule(kind, groups[0], "*", None, n))
             else:
                 rules.append(Rule(kind, groups[0], groups[1], None, n))
             break
@@ -370,6 +414,24 @@ def check(caps, rules):
                     continue
                 if fnmatch.fnmatchcase(path, rule.subject):
                     findings.append((rule.severity, f"{verb} {path}", line))
+
+        elif rule.kind == "setenv":
+            for name, line in caps.env_writes:
+                if name is None:
+                    findings.append(
+                        (rule.severity,
+                         "setting an environment variable named at runtime",
+                         line))
+                elif fnmatch.fnmatchcase(name, rule.subject):
+                    findings.append(
+                        (rule.severity, f'setting "{name}"', line))
+
+        elif rule.kind == "chfolder":
+            for path, line in caps.folder_changes:
+                findings.append(
+                    (rule.severity,
+                     f"changing the working folder to {path or '(runtime)'}",
+                     line))
 
         elif rule.kind == "timeout":
             for c in caps.commands:
@@ -413,6 +475,13 @@ SECRET_ENV = {"GITHUB_TOKEN", "GH_TOKEN", "AWS_SECRET_ACCESS_KEY",
               "AWS_SESSION_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
               "NPM_TOKEN", "SLACK_TOKEN", "STRIPE_SECRET_KEY",
               "DATABASE_URL", "SECRET_KEY", "PRIVATE_KEY"}
+
+# Variables that decide which binary or library a later command actually gets.
+# Setting one of these turns every subsequent `run` into something the reader
+# cannot resolve by reading the program name.
+LOADER_ENV = {"PATH", "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES",
+              "DYLD_LIBRARY_PATH", "PYTHONPATH", "NODE_OPTIONS", "PERL5LIB",
+              "RUBYOPT", "GEM_PATH", "CLASSPATH", "IFS", "BASH_ENV", "ENV"}
 
 
 @dataclass
@@ -555,6 +624,30 @@ def find_dangers(caps):
                 "This environment variable normally holds a token or key.",
                 line))
 
+    for name, line in caps.env_writes:
+        if name in LOADER_ENV:
+            out.append(Finding(
+                "danger", f"Changes how programs are found or loaded ({name})",
+                "Every command run after this resolves through the new value, "
+                "so a program named later in the script need not be the one "
+                "the reader expects.", line))
+        elif name is None:
+            out.append(Finding(
+                "caution", "Sets an environment variable named at runtime",
+                "Which variable is set cannot be determined before the "
+                "script runs.", line))
+        elif name in SECRET_ENV:
+            out.append(Finding(
+                "caution", f"Sets a credential in the environment ({name})",
+                "Every child process started afterwards inherits it.", line))
+
+    for path, line in caps.folder_changes:
+        if path is None:
+            out.append(Finding(
+                "caution", "Changes the working folder to a runtime path",
+                "Every relative path after this points somewhere that cannot "
+                "be determined ahead of time.", line))
+
     flagged_secret_lines = set()
     for line, fragments in caps.read_fragments:
         joined = "".join(fragments)
@@ -620,6 +713,13 @@ def summarise(caps):
         parts.append(f"deletes {_count(caps.deletes, 'file')}")
     if caps.env_reads:
         parts.append(f"reads {_count(caps.env_reads, 'environment variable')}")
+    if caps.env_writes:
+        names = sorted({n for n, _ in caps.env_writes if n})
+        shown = f" ({', '.join(names)})" if names else ""
+        parts.append(
+            f"sets {_count(caps.env_writes, 'environment variable')}{shown}")
+    if caps.folder_changes:
+        parts.append("changes the working folder")
 
     if not parts:
         return "This script does nothing observable outside itself."
