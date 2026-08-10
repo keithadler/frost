@@ -248,3 +248,94 @@ def test_the_rule_parses_and_produces_no_findings_of_its_own():
     rules = parse_policy("require an approval\n")
     assert rules and rules[0].kind == "approval"
     assert check(audit(parse('put "x"\n')), rules) == []
+
+
+# ------------------------- the scaffold's own branches, measured in process
+#
+# The tests above drive `--policy-from` through a subprocess, which proves the
+# entry point and contributes nothing to coverage: the module read 8% while
+# every one of its branches was exercised. These call it directly.
+
+def caps_for(source):
+    return audit(parse(source))
+
+
+def test_the_scaffold_lists_programs_and_marks_the_networked_ones():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'run "git" with "status"\n'
+        'run "curl" with "https://x.example" within 30 seconds\n'))
+    assert 'warn running "git"' in text
+    assert 'warn running "curl"  -- reaches the network' in text
+
+
+def test_the_scaffold_flags_a_program_chosen_at_runtime():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'put the standard input into tool\nrun tool with "x"\n'))
+    assert "build the program name at runtime" in text
+    assert 'forbid running "*"' in text
+
+
+def test_the_scaffold_names_the_hosts():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'run "curl" with "https://api.example/x" within 30 seconds\n'))
+    assert 'require reaching only "api.example"' in text
+
+
+def test_the_scaffold_says_when_a_destination_cannot_be_read():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'put the standard input into t\n'
+        'run "curl" with t within 30 seconds\n'))
+    assert "built at runtime" in text
+
+
+def test_the_scaffold_lists_writes_and_marks_the_ones_outside_the_project():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'put "a" into file "build/out.txt"\n'
+        'put "b" into file "/etc/thing.conf"\n'))
+    assert 'warn writing to "build/out.txt"' in text
+    assert "outside the project" in text
+
+
+def test_the_scaffold_lists_deletes_and_secrets():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'delete file "build/old.txt"\n'
+        'put the secret "db password" into pw\n'
+        'run "psql" reading pw\n'))
+    assert 'warn deleting "build/old.txt"' in text
+    assert 'warn reading secret "db password"' in text
+
+
+def test_the_scaffold_sizes_limits_to_what_the_script_does():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'try to run "echo" with "a"\nput the result\n'
+        'try to run "echo" with "b"\nput the result\n'))
+    assert "require at most 2 commands" in text
+
+
+def test_the_scaffold_notes_a_cleanup_block():
+    text = scaffold.policy_for("s.frost", caps_for(
+        'ensure\n    try to run "echo" with "bye"\nend ensure\n'
+        'try to run "echo" with "hi"\nput the result\n'))
+    assert "require at least 1 cleanup" in text
+
+
+def test_a_script_that_does_nothing_still_produces_a_usable_policy():
+    text = scaffold.policy_for("s.frost", caps_for('put "hello"\n'))
+    assert parse_policy(text)
+    assert "require at most 1 commands" in text
+
+
+def test_the_header_names_the_script_and_says_what_it_is():
+    text = scaffold.policy_for("deploy.frost", caps_for('put "x"\n'))
+    assert "deploy.frost" in text
+    assert "not the same as" in text, "the header must not read as a blessing"
+
+
+def test_would_refuse_is_wrong_side_up_safe():
+    """If the check itself breaks, a rule must stay commented out rather than
+    be suggested live: the failure that costs someone a red build on their
+    first contact with the policy engine."""
+    assert scaffold._would_refuse('forbid running "rm" with "-rf"',
+                                  caps_for('try to run "rm" with "-rf", "/x"\n'))
+    assert not scaffold._would_refuse('forbid running "sudo"',
+                                      caps_for('put "x"\n'))
