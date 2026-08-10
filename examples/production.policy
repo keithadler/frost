@@ -1,17 +1,17 @@
 -- A policy is a readable contract about what a script may do.
 -- Checked against the parse tree, before anything runs.
 
-forbid running "rm" with "-rf"
-forbid running "dd"
-forbid running "chmod" with "777"
-forbid running "sudo"
+forbid running "rm" with "-rf"      -- delete named paths, or use a scratch folder the job owns
+forbid running "dd"                 -- nothing here should be writing raw devices
+forbid running "chmod" with "777"   -- grant the group that needs it, not everyone
+forbid running "sudo"               -- the deploy role already has the permissions it needs
 
-forbid writing to "/etc/*"
-forbid writing to "/usr/*"
-forbid deleting "/*"
+forbid writing to "/etc/*"          -- machine configuration is managed elsewhere
+forbid writing to "/usr/*"          -- installed software comes from packages
+forbid deleting "/*"                -- a path that broad is never what was meant
 
-warn running "curl"
-warn writing to "/tmp/*"
+warn running "curl"                 -- fine, but say in review what it talks to
+warn writing to "/tmp/*"            -- fine, but /tmp is world-readable
 
-require timeout on "curl"
-require every command to be checked
+require timeout on "curl"           -- an unbounded fetch wedges the whole pipeline
+require every command to be checked -- a failure nobody reads is a failure nobody fixes

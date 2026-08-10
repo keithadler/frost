@@ -19,7 +19,7 @@ require every command to be checked
 def test_policy_blocks_dangerous_command():
     rules = parse_policy(POLICY)
     f = check(caps_for('run "rm" with "-rf", "/tmp/x"'), rules)
-    assert any(sev == "forbid" and "rm" in what for sev, what, _ in f)
+    assert any(x.severity == "forbid" and "rm" in x.what for x in f)
 
 
 def test_policy_allows_the_same_program_with_other_arguments():
@@ -31,7 +31,7 @@ def test_policy_allows_the_same_program_with_other_arguments():
 def test_policy_blocks_protected_paths():
     rules = parse_policy(POLICY)
     f = check(caps_for('put "x" into file "/etc/passwd"'), rules)
-    assert any("writing to /etc/passwd" in what for _, what, _ in f)
+    assert any("writing to /etc/passwd" in x.what for x in f)
 
 
 def test_policy_warning_does_not_block():
@@ -45,7 +45,7 @@ def test_policy_warning_does_not_block():
 def test_missing_timeout_is_caught():
     rules = parse_policy('require timeout on "curl"')
     f = check(caps_for('run "curl" with "http://x"'), rules)
-    assert any("no timeout" in what for _, what, _ in f)
+    assert any("no timeout" in x.what for x in f)
 
 
 def test_checked_rule_understands_a_result_check():
@@ -67,7 +67,7 @@ def test_checked_rule_catches_a_genuinely_ignored_failure():
     put "carrying on regardless"
     '''
     f = check(caps_for(src), rules)
-    assert any("without being checked" in what for _, what, _ in f)
+    assert any("without being checked" in x.what for x in f)
 
 
 def test_policy_line_numbers_point_at_the_script():

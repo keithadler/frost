@@ -63,16 +63,17 @@ def build():
             "blurb": blurb,
             "source": source,
             "policy": [
-                {"severity": sev, "what": what, "line": line,
-                 "source": lines[line - 1].strip() if 0 < line <= len(lines)
-                 else ""}
-                for sev, what, line in policy_hits],
+                {"severity": hit.severity, "what": hit.what, "line": hit.line,
+                 "hint": hit.hint,
+                 "source": lines[hit.line - 1].strip()
+                 if 0 < hit.line <= len(lines) else ""}
+                for hit in policy_hits],
             "verdict": verdict(findings, policy_hits),
             "counts": {
                 "danger": sum(1 for f in findings if f.severity == "danger"),
                 "caution": sum(1 for f in findings if f.severity == "caution"),
                 "note": sum(1 for f in findings if f.severity == "note"),
-                "refused": sum(1 for s, _, _ in policy_hits if s == "forbid"),
+                "refused": sum(1 for hit in policy_hits if hit.severity == "forbid"),
             },
         })
         reports.append(data)

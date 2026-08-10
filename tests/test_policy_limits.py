@@ -22,7 +22,7 @@ def hits(src, policy):
 
 
 def blocked(src, policy):
-    return [what for sev, what, _ in hits(src, policy) if sev == "forbid"]
+    return [f.what for f in hits(src, policy) if f.severity == "forbid"]
 
 
 TWO_COMMANDS = 'run "git" with "status"\nrun "make"'
@@ -50,7 +50,8 @@ def test_the_message_names_the_actual_and_allowed_counts():
 
 def test_the_violation_points_at_the_command_that_crossed_the_limit():
     src = 'run "a"\nrun "b"\nrun "c"\nrun "d"'
-    [(_, _, line)] = hits(src, "forbid more than 2 commands")
+    [found] = hits(src, "forbid more than 2 commands")
+    line = found.line
     assert line == 3, "should point at the third command, not the script"
 
 
@@ -81,7 +82,8 @@ def test_a_shortfall_message_names_what_is_required():
 
 
 def test_a_shortfall_has_no_line_because_it_is_about_the_whole_script():
-    [(_, _, line)] = hits('put "x"', "require at least 1 cleanup")
+    [found] = hits('put "x"', "require at least 1 cleanup")
+    line = found.line
     assert line == 0
 
 
