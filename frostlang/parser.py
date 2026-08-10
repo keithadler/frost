@@ -791,12 +791,19 @@ class Parser:
         ceiling = Ceiling()
         while True:
             if self.cur.kind != "WORD" or self.cur.value not in CEILING_VERBS:
+                # The vocabulary is small and closed, so a near miss can be
+                # named. It was listed as underivable when the only thing to
+                # compare against was the author's intent; comparing against
+                # five known verbs is the same job `no-handler-named` does.
                 raise ParseError(
                     f"expected something a module may do, found "
                     f"{self.describe(self.cur)}", self.cur.line,
                     hint='try: which may run "psql" / read "*.sql" / '
                          'write "/tmp/*" / set "PGHOST" / change folder',
-                    code="unknown-capability")
+                    code="unknown-capability",
+                    subject=(self.cur.value if self.cur.kind == "WORD"
+                             else None),
+                    candidates=sorted(CEILING_VERBS))
             verb = self.advance().value
 
             if verb == "change":

@@ -958,6 +958,7 @@ frost --trace-to-file F s.frost  write that trace to a file instead
 frost --run-id ID s.frost        name this execution (else FROST_RUN_ID)
 frost --automated s.frost        unattended: refuse anything that widens
 frost --events F s.frost         one JSON object per event (- for stderr)
+frost --events-format otel s.frost   OTLP/JSON traces instead of NDJSON
 frost --enforce-hosts s.frost    check a command's real destination at spawn
 frost --egress-rules squid s.frost   the allow-list, as proxy configuration
 frost --new-approver-key F       a signing key for approvals
@@ -1033,7 +1034,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                1883 tests — python3 -m pytest tests/ -q
+tests/                1901 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1052,7 +1053,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.7.0. The language runs, the examples are real, and 1883 tests cover
+Version 0.7.0. The language runs, the examples are real, and 1901 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
@@ -1116,11 +1117,10 @@ Remaining, honestly:
 - **A declared shape is one level deep.** `with fields "a", "b"` checks the
   top level of a record. A nested shape has to be declared by pulling the
   inner record out into its own name first.
-- **No native OTLP exporter.** `--events` is NDJSON, which Splunk, Vector and
-  Fluent Bit read directly and which a collector can forward anywhere. New
-  Relic and Datadog would rather have spans, and `command.start` and
-  `command.finish` are already span-shaped, so that is a format adapter rather
-  than new instrumentation. It is not written yet.
+- **OTLP is a batch format, so a killed run leaves no trace.**
+  `--events-format otel` writes its document when the run ends. NDJSON is the
+  default because it streams, and a run killed halfway still leaves every line
+  up to the moment it died.
 - **No compile-to-bash mode** for machines without frost installed. The
   interpreter is a tree walker; a bytecode pass would be straightforward if
   process spawn ever stopped dominating the runtime, which it will not.

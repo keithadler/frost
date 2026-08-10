@@ -356,9 +356,6 @@ UNDERIVABLE = {
     "module-path-must-be-literal",
     # Which handlers to import is the author's intent, not a fact about text.
     "import-needs-a-name-list",
-    # A misspelled capability could be any of the verbs; suggesting one would
-    # be a guess dressed as a fix.
-    "unknown-capability",
     # Which field was meant is the author's intent. The declaration is where
     # the names come from, so there is nothing yet to compare against.
     "field-must-be-literal",

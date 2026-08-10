@@ -451,6 +451,10 @@ def build_parser():
                     help="write one JSON object per event, for Splunk, New "
                          "Relic and anything else that reads NDJSON; - for "
                          "standard error")
+    ap.add_argument("--events-format", metavar="FORMAT", dest="events_format",
+                    choices=["ndjson", "otel"], default="ndjson",
+                    help="ndjson (default, streamed) or otel (OTLP/JSON "
+                         "traces, written when the run ends)")
     ap.add_argument("--egress-rules", metavar="FORMAT", dest="egress_rules",
                     choices=["squid", "list"],
                     help="write the host allow-list as configuration for the "
@@ -771,7 +775,10 @@ def main(argv=None):
         except OSError as e:
             sys.stderr.write(f"frost: cannot write the event log: {e}\n")
             return 2
-        events = T.Sink(stream, run_id=run_id, script=opts.script)
+        events = (T.OtelSink(stream, run_id=run_id, script=opts.script,
+                             version=__version__)
+                  if opts.events_format == "otel"
+                  else T.Sink(stream, run_id=run_id, script=opts.script))
         caps_now = audit_program(program).merged
         events.emit("run.start",
                     frost=__version__,
