@@ -44,6 +44,19 @@ replace "regex" with "text" in NAME
 delete file EXPR
 quit with status N
 to NAME with A, B ... end NAME    handler; `return X` lands in `it`
+ensure / end ensure               cleanup; runs at exit however the script ends
+put EXPR into the global NAME     write a global from inside a handler
+put EXPR into the environment variable "N"   what children inherit
+put EXPR into the current folder
+```
+
+Clauses that may follow `run` (and `pipe`), in any order:
+
+```text
+reading EXPR                      text on the child's standard input
+in folder EXPR                    the child's working directory
+within N seconds                  a deadline; the unit is required
+showing output                    write straight to the terminal; `it` stays empty
 ```
 
 ## Chunk expressions — prefer these over cut/awk/sed
@@ -59,6 +72,30 @@ Chunk nouns: `character`, `word` (whitespace), `line`, `item` (comma).
 Ordinals: `first`..`tenth`, `last`, `middle`, `any`.
 Out-of-range yields empty text, not an error.
 
+A plural noun with no index is the whole set, as a list:
+
+```text
+the words of X    the lines of X    the items of X    the characters of X
+X split by "|"               a list, on any delimiter
+X joined by ", "             back to text
+the empty list               something to append to
+put "c" after names          appends an element when `names` is a list
+```
+
+## Functions
+
+```text
+the uppercase X   the lowercase X   the trimmed X
+the sorted X      the reversed X    the unique X
+the rounded X     the absolute X
+the sum of X   the largest of X   the smallest of X   the average of X
+the NAME of A, B             calls the handler `to NAME with a, b`
+```
+
+`the sorted X` orders numerically when every value is a number. An argument
+binds tightly: `the double of n - 1` means `(the double of n) - 1`, so
+parenthesise when you mean otherwise.
+
 ## Comparisons and patterns
 
 ```text
@@ -73,7 +110,8 @@ every match of "\d+" in X    list of matches
 ## Special values
 
 `it` (last output), `the result` (last exit status), `the arguments`,
-`the environment variable "NAME"`, `the current folder`, `empty`.
+`the environment variable "NAME"`, `the current folder`, `the standard input`,
+`the global NAME`, `empty`.
 
 ## Reading a file
 
@@ -117,12 +155,13 @@ if error count is greater than 2 then quit with status 1
 
   add         after       and         are         as          at        
   before      by          contains    delete      divide      each      
-  else        empty       end         ends        every       exists    
-  exit        false       for         forever     from        greater   
-  if          in          into        is          it          least     
-  less        like        matches     most        multiply    next      
-  not         of          or          pipe        put         quit      
-  repeat      replace     return      run         standard    starts    
+  else        empty       end         ends        ensure      every     
+  exists      exit        false       for         forever     from      
+  global      greater     if          in          into        is        
+  it          joined      least       less        like        matches   
+  most        multiply    next        not         of          or        
+  pipe        put         quit        reading     repeat      replace   
+  return      run         showing     split       standard    starts    
   step        subtract    than        the         then        times     
   to          true        try         until       while       whole     
   with        within    
@@ -136,6 +175,8 @@ so `line count` and `error count` are valid variables.
 - Every `run` has a bare program name and a `with` list, never a command line.
 - Every `try to run` is followed by a check of `the result`.
 - Every network command has a `within` clause.
+- Anything that takes a lock or a temporary file releases it in an `ensure`
+  block, because a failure aborts the script immediately.
 - No interpolation, no `sh -c`, no globs in arguments.
 - `end if` / `end repeat` / `end <handler name>` all present and matched.
 - It would read clearly to someone seeing it for the first time at 3am.

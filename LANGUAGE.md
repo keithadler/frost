@@ -26,11 +26,14 @@ day, there is no pressure anywhere in the design to shorten anything.
 3. [Values](#3-values)
 4. [Variables and names](#4-variables-and-names)
 5. [Chunk expressions](#5-chunk-expressions)
+5a. [Lists](#5a-lists)
+5b. [Functions](#5b-functions)
 6. [Operators](#6-operators)
 7. [Statements](#7-statements)
 8. [Running programs](#8-running-programs)
 9. [Pipes](#9-pipes)
 10. [Failure handling](#10-failure-handling)
+10a. [Cleanup](#10a-cleanup)
 11. [Files](#11-files)
 12. [Handlers](#12-handlers)
 13. [Special values](#13-special-values)
@@ -217,6 +220,102 @@ matches HyperTalk and avoids a class of defensive length checks.
 ```
 put word 99 of "short phrase"      -- empty, not a crash
 ```
+
+---
+
+## 5a. Lists
+
+A plural chunk noun with no index is the whole set, as a list. Splitting is
+therefore not a new feature; it is the grammar already in section 5, read the
+other way.
+
+```
+put the words of "alpha beta gamma" into names
+put the lines of report into rows
+put the items of "a,b,c" into fields
+put the characters of "abc" into letters
+```
+
+A list keeps its elements separate, which comma-delimited text cannot: an
+element may itself contain a comma.
+
+```
+put the empty list into people
+put "Smith, John" after people
+put "Doe, Jane" after people
+put the number of items in people        -- 2
+put item 1 of people                     -- Smith, John
+```
+
+`after` appends and `before` prepends when the target is a list; on text they
+still join, as in section 7.
+
+### Any delimiter
+
+The chunk nouns cover whitespace, newlines and commas. For anything else:
+
+```
+put "root:x:0:0:root:/root:/bin/bash" into entry
+put item 1 of (entry split by ":")       -- root
+```
+
+and back again:
+
+```
+put the words of "a b c" joined by ", "  -- a, b, c
+```
+
+`split by ""` is an error rather than a silent character split, because
+`the characters of X` already says that and says it more clearly.
+
+### Ordering
+
+```
+put the sorted names into ordered
+put the reversed names into backwards
+put the unique names into distinct
+```
+
+`the sorted X` compares numerically when every element is a number, and
+alphabetically otherwise. Sorting `10` before `9` is never what a counter
+meant. None of the three modifies the original.
+
+---
+
+## 5b. Functions
+
+Text, applied with the article:
+
+| Expression | Result |
+|---|---|
+| `the uppercase X` | `X` in capitals |
+| `the lowercase X` | `X` in lower case |
+| `the trimmed X` | `X` without surrounding whitespace |
+
+Numbers:
+
+| Expression | Result |
+|---|---|
+| `the rounded X` | nearest whole number |
+| `the absolute X` | magnitude, without the sign |
+| `the sum of X` | total of a list of numbers |
+| `the largest of X` / `the smallest of X` | extremes |
+| `the average of X` | mean |
+
+```
+if the lowercase target is "production" then
+    put "deploying to production"
+end if
+
+put the sum of the words of "1 2 3 4"    -- 10
+```
+
+An aggregate of an empty list is an error, not zero: the sum of nothing is a
+question with no answer, and returning one would hide the empty list.
+
+These are recognised only after `the`, so they cost nothing from the name
+vocabulary. `sorted count` and `average total` remain perfectly good variable
+names.
 
 ---
 
@@ -517,6 +616,44 @@ run "df" with "-h"
 put it
 ```
 
+### Input
+
+`reading` places text on a program's standard input. It is the heredoc, without
+a quoting dialect.
+
+```
+run "sort" reading names
+run "wc" with "-l" reading log text
+```
+
+The text is data all the way down, exactly as arguments are: it is written to
+the child's stdin and never re-parsed as anything.
+
+### Where a program runs
+
+```
+run "make" with "all" in folder build path
+```
+
+The folder applies to that command only, so a reader need not track a mutable
+working directory while reading the rest of the script. To move the script
+itself, assign to `the current folder` — see section 11.
+
+### Watching a program work
+
+`run` captures output, which means a ten-minute build shows nothing until it
+finishes and an interactive program cannot work at all. `showing output` hands
+the terminal to the child instead:
+
+```
+run "make" with "all" showing output within 30 minutes
+```
+
+Nothing is captured, so `it` is empty afterwards rather than stale. `the
+result` still reports the exit status, and failure still aborts.
+
+These clauses may appear in any order, and each may appear once.
+
 ---
 
 ## 9. Pipes
@@ -584,6 +721,37 @@ for `try to`.
 
 ---
 
+## 10a. Cleanup
+
+Failure aborts the script. That is the right default, and on its own it leaks
+every lock file and temporary directory the script had taken.
+
+`ensure` registers a block when execution reaches it. Registered blocks run
+when the script ends — normally, on error, on `quit`, or on interrupt — most
+recent first, so cleanup unwinds in the reverse of the order things were
+acquired.
+
+```
+put "/tmp/deploy.lock" into lock path
+put "held" into file (lock path)
+
+ensure
+    delete file (lock path)
+end ensure
+
+run "make" with "deploy"
+```
+
+The lock is released whether `make` succeeds or not.
+
+A block that is never reached is never registered, so a lock taken inside a
+branch is only released if it was actually taken. A failure inside a cleanup
+block is reported on standard error and does not stop the other blocks, and it
+never replaces the error that ended the script — that error is the one the
+reader needs first.
+
+---
+
 ## 11. Files
 
 Reading a file is an expression:
@@ -622,6 +790,24 @@ Missing files are a clear error, never silent empty text.
 
 Relative paths resolve against the working directory. `~` expands.
 
+### The working folder and the environment
+
+`the current folder` and `the environment variable "NAME"` are readable, and
+they are writable by the same `put ... into` that writes everything else. There
+is no separate `set` keyword.
+
+```
+put "/tmp/build" into the current folder
+put "clang" into the environment variable "CC"
+put ":/opt/bin" after the environment variable "PATH"
+```
+
+The environment is the script's own copy. A frost script cannot quietly rewrite
+the environment of whatever ran it, but every program it starts inherits the
+changes. `--explain` lists both, and a policy can forbid them, because
+otherwise setting `PATH` would be a way around every rule about which programs
+may run.
+
 ---
 
 ## 12. Handlers
@@ -655,6 +841,64 @@ Parameters are local. Handlers do not see the caller's variables, and variables
 assigned inside a handler do not leak out. Argument count is checked at the
 call.
 
+### Reaching a global
+
+A handler can read a global directly, but a plain `put` inside one creates a
+local — even when a global of that name exists. To write through, say so:
+
+```
+put 0 into error total
+
+to record with status code
+    if status code is not "200" then
+        add 1 to the global error total
+    end if
+end record
+```
+
+`the global NAME` works for `put`, `before`, `after`, the arithmetic
+statements, and `replace`. It also reads past a local of the same name. Writing
+it at the point of the write, rather than declaring it at the top of the
+handler, means a reader never has to carry the declaration in their head.
+
+`global` is a reserved word, so `put 5 into global total` is an error rather
+than a local named `global total`.
+
+### Calling a handler in an expression
+
+A handler used with `the ... of ...` returns its value into the expression:
+
+```
+to double with n
+    return n * 2
+end double
+
+put the double of 5 + the double of 10       -- 30
+```
+
+An argument binds tightly, exactly as a chunk source does: `the double of n - 1`
+is `(the double of n) - 1`. Parenthesise when you mean otherwise.
+
+A handler taking no arguments is called without `of`:
+
+```
+to short revision
+    run "git" with "rev-parse", "--short", "HEAD"
+    return it
+end short revision
+
+put "at revision" && the short revision
+```
+
+The expression form does not touch `it`; the statement form still lands there.
+An expression buried inside another expression must not quietly replace the
+last command's output.
+
+A built-in property always wins: a handler named `length` does not shadow
+`the length of X`. An unknown name is reported when the script is parsed, not
+when the line runs, so `--check` catches a typo in a branch that rarely
+executes.
+
 ---
 
 ## 13. Special values
@@ -665,7 +909,10 @@ call.
 | `the result` | Exit status of the last `run` or `pipe` |
 | `the arguments` | Command-line arguments, as a list |
 | `the environment variable "NAME"` | Environment lookup; empty if unset |
-| `the current folder` | Working directory |
+| `the current folder` | Working directory; writable |
+| `the standard input` | Everything piped into the script, read once |
+| `the global NAME` | A global, from inside a handler |
+| `the empty list` | A list with no items |
 | `empty` | The empty string |
 
 ```
@@ -683,15 +930,22 @@ EBNF. `{ }` is zero or more, `[ ]` optional, `|` alternation.
 ```ebnf
 program      = { statement NEWLINE } ;
 
-statement    = put | run | try | pipe | if | repeat | quit
+statement    = put | run | try | pipe | if | repeat | quit | ensure
              | handler | return | arith | loopctl | delete | call ;
 
 put          = "put" expression [ ("into" | "before" | "after") target ] ;
 target       = "standard" ("output" | "error")
              | "file" expression
+             | "the" "global" identifier
+             | "the" "environment" "variable" primary
+             | "the" "current" "folder"
              | identifier ;
 
-run          = "run" expression [ "with" arglist ] [ timeout ] ;
+run          = "run" expression [ "with" arglist ] { runclause } ;
+runclause    = timeout
+             | "reading" expression
+             | "in" "folder" expression
+             | "showing" "output" ;
 timeout      = "within" expression timeunit ;
 timeunit     = "millisecond" | "milliseconds" | "ms"
              | "second" | "seconds" | "minute" | "minutes"
@@ -699,8 +953,11 @@ timeunit     = "millisecond" | "milliseconds" | "ms"
 arglist      = expression { "," expression } ;
 try          = "try" "to" ( run | pipe ) ;
 
-pipe         = "pipe" [ timeout ] NEWLINE run NEWLINE run { NEWLINE run }
+pipe         = "pipe" { pipeclause } NEWLINE run NEWLINE run { NEWLINE run }
                NEWLINE "end" "pipe" ;
+pipeclause   = timeout | "reading" expression | "in" "folder" expression ;
+
+ensure       = "ensure" NEWLINE block "end" "ensure" ;
 
 if           = "if" expression "then"
                ( statement
@@ -720,11 +977,12 @@ quit         = "quit" [ "with" "status" expression ] ;
 handler      = "to" identifier [ "with" identifier { "," identifier } ]
                NEWLINE block "end" identifier ;
 return       = "return" [ expression ] ;
-arith        = "add" expression "to" identifier
-             | "subtract" expression "from" identifier
-             | ("multiply" | "divide") expression "into" identifier ;
+arith        = "add" expression "to" assigntarget
+             | "subtract" expression "from" assigntarget
+             | ("multiply" | "divide") expression "into" assigntarget ;
+assigntarget = [ "the" "global" ] identifier ;
 delete       = "delete" "file" expression ;
-replace      = "replace" expression "with" expression "in" identifier ;
+replace      = "replace" expression "with" expression "in" assigntarget ;
 call         = identifier [ "with" arglist ] ;
 
 block        = { statement NEWLINE } ;
@@ -740,7 +998,8 @@ compop       = "is" [ "not" ] [ "greater" "than" | "less" "than"
              | "contains" | "matches" | "is" "like"
              | "starts" "with" | "ends" "with"
              | "=" | "!=" | "<" | ">" | "<=" | ">=" ;
-concat       = additive { ("&" | "&&") additive } ;
+concat       = postfix { ("&" | "&&") postfix } ;
+postfix      = additive { ("split" | "joined") "by" additive } ;
 additive     = multiplicative { ("+" | "-") multiplicative } ;
 multiplicative = unary { ("*" | "/" | "^") unary } ;
 unary        = [ "-" ] primary ;
@@ -754,12 +1013,26 @@ primary      = NUMBER | STRING | "it" | "empty" | "true" | "false"
              | identifier ;
 
 thephrase    = "the" ( "result" | "arguments" | "current" "folder"
+                     | "standard" "input" | "empty" "list"
+                     | "global" identifier
                      | "whole" "match" | "matches"
                      | "environment" "variable" primary
                      | "length" "of" primary
                      | "number" "of" chunknoun ("in" | "of") primary
+                     | transform [ "of" ] unary
+                     | aggregate "of" unary
+                     | chunkplural "of" primary
                      | ordinal chunknoun "of" primary
-                     | chunknoun index [ "to" index ] "of" primary ) ;
+                     | chunknoun index [ "to" index ] "of" primary
+                     | identifier [ "of" unary { "," unary } ] ) ;
+
+transform    = "uppercase" | "lowercase" | "trimmed" | "sorted"
+             | "reversed" | "unique" | "rounded" | "absolute" ;
+aggregate    = "sum" | "largest" | "smallest" | "average" ;
+
+(* The last thephrase alternative is a handler called in an expression.
+   Every form above it wins the name, so a handler cannot shadow a
+   built-in property. An unknown name is rejected after parsing. *)
 
 chunk        = chunknoun index [ "to" index ] "of" primary ;
 index        = ordinal | [ "-" ] NUMBER | additive ;
@@ -779,15 +1052,16 @@ These cannot appear inside a name:
 ```text
 add        after      and        are        as         at
 before     by         contains   delete     divide     each
-else       empty      end        ends       every      exists
-exit       false      for        forever    from       greater
-if         in         into       is         it         least
-less       like       matches    most       multiply   next
-not        of         or         pipe       put        repeat
-replace    return     run        standard   starts     step
-subtract   than       the        then       times      to
-true       try        until      while      whole      with
-within
+else       empty      end        ends       ensure     every
+exists     exit       false      for        forever    from
+global     greater    if         in         into       is
+it         joined     least      less       like       matches
+most       multiply   next       not        of         or
+pipe       put        quit       reading    repeat     replace
+return     run        showing    split      standard   starts
+step       subtract   than       the        then       times
+to         true       try        until      while      whole
+with       within
 ```
 
 Notably absent: `line`, `word`, `item`, `character`, `match`, `file`, `status`,

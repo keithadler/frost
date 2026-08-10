@@ -101,10 +101,38 @@ def test_every_file_named_in_the_readme_layout_exists():
     for match in re.finditer(r"^\s*(\S+\.(?:py|md|html|js))\s{2,}", layout,
                              re.M):
         rel = match.group(1)
-        candidates = [rel, os.path.join("frostlang", rel),
-                      os.path.join("tools", rel), os.path.join("web", rel)]
+        candidates = [rel] + [os.path.join(d, rel) for d in
+                              ("frostlang", "tools", "web", "tests")]
         assert any(os.path.exists(os.path.join(REPO, c)) for c in candidates), \
             f"README Layout names {rel}, which does not exist"
+
+
+def test_the_documented_reserved_words_are_the_real_ones():
+    """The list of reserved words is the one thing a reader will trust
+    absolutely when picking a variable name, and it had already drifted."""
+    from frostlang.parser import HARD_WORDS
+    with open(os.path.join(REPO, "LANGUAGE.md")) as fh:
+        text = fh.read()
+    block = re.search(
+        r"### Reserved words\n\nThese cannot appear inside a name:\n\n"
+        r"```text\n(.*?)\n```", text, re.S)
+    assert block, "the reserved words section is missing"
+    documented = set(block.group(1).split())
+    assert documented == HARD_WORDS, (
+        f"documented but not reserved: {sorted(documented - HARD_WORDS)}; "
+        f"reserved but not documented: {sorted(HARD_WORDS - documented)}")
+
+
+def test_the_words_said_to_be_available_really_are():
+    """The section promises `line count` and friends still work. If one of
+    them ever became reserved, that promise would silently be a lie."""
+    from frostlang.parser import HARD_WORDS
+    with open(os.path.join(REPO, "LANGUAGE.md")) as fh:
+        text = fh.read()
+    claim = text.split("Notably absent:", 1)[1].split("These are recognised")[0]
+    for word in re.findall(r"`([a-z]+)`", claim):
+        assert word not in HARD_WORDS, \
+            f"LANGUAGE.md says {word!r} is available for names, but it is reserved"
 
 
 def test_every_usage_flag_is_a_real_flag():

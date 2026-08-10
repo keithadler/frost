@@ -82,6 +82,67 @@ def test_unreadable_policy_line_is_reported():
         parse_policy("please do not delete anything")
 
 
+def test_a_result_check_inside_a_handler_counts_as_checking_it():
+    """Factoring the check into a helper is good practice; flagging it as an
+    ignored failure would punish exactly that."""
+    rules = parse_policy("require every command to be checked")
+    src = '''
+    to check outcome with label
+        if the result is 0 then return "ok"
+        return "failed"
+    end check outcome
+
+    try to run "make" with "build"
+    check outcome with "build"
+    '''
+    assert check(caps_for(src), rules) == []
+
+
+def test_the_same_holds_for_the_expression_form():
+    rules = parse_policy("require every command to be checked")
+    src = '''
+    to check outcome with label
+        if the result is 0 then return "ok"
+        return "failed"
+    end check outcome
+
+    try to run "make" with "build"
+    put the check outcome of "build" into outcome
+    '''
+    assert check(caps_for(src), rules) == []
+
+
+def test_a_handler_that_ignores_the_result_is_still_caught():
+    """The check must follow the call, not merely notice that one happened."""
+    rules = parse_policy("require every command to be checked")
+    src = '''
+    to announce with label
+        put label
+    end announce
+
+    try to run "make" with "build"
+    announce with "build"
+    '''
+    assert [f for f in check(caps_for(src), rules) if f[0] == "forbid"]
+
+
+def test_a_mutually_recursive_pair_does_not_hang_the_check():
+    rules = parse_policy("require every command to be checked")
+    src = '''
+    to ping with n
+        pong with n
+    end ping
+
+    to pong with n
+        ping with n
+    end pong
+
+    try to run "make"
+    ping with 1
+    '''
+    assert [f for f in check(caps_for(src), rules) if f[0] == "forbid"]
+
+
 def test_policy_comments_are_ignored():
     rules = parse_policy('-- a note\n# another\nforbid running "dd"')
     assert len(rules) == 1

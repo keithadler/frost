@@ -63,6 +63,28 @@ EXAMPLES = [
         ("the first word of it && the last word of it", "&& joins with a space."),
         ("the number of lines in it * 2", "Arithmetic works as expected."),
     ]),
+    ("Lists", [
+        ("the words of the first line of it",
+         "A plural noun with no index is the whole set."),
+        ('the lines of it joined by " | "', "Back to text, any separator."),
+        ('the first line of it split by "."',
+         "For delimiters the chunk nouns do not cover."),
+        ("the number of items in the words of it", "Lists count like anything else."),
+    ]),
+    ("Sorting", [
+        ("the sorted the words of the last line of it", "Leaves the original alone."),
+        ('the unique (the words of "b a b c a") joined by ","',
+         "Duplicates dropped, order kept."),
+        ('the sorted (the words of "10 9 100 2") joined by ","',
+         "Numeric when every value is a number."),
+        ("the reversed the lines of it", "The other direction."),
+    ]),
+    ("Text and numbers", [
+        ("the uppercase the third word of it", "Also lowercase and trimmed."),
+        ('the trimmed "   ragged   "', "Surrounding whitespace only."),
+        ('the sum of the words of "1 2 3 4"', "Also largest, smallest, average."),
+        ("the rounded 2.6", "And the absolute of a negative."),
+    ]),
 ]
 
 
@@ -168,7 +190,9 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(1.9rem,4.4vw,2.7re
 .ex:hover{background:var(--ice-soft);border-left-color:var(--frost)}
 .ex code{font-family:var(--mono);font-size:.76rem;color:var(--frost-deep);
   display:block}
-.ex span{font-size:.82rem;color:var(--muted);display:block;margin-top:.1rem}
+/* The direct child only: the highlight spans live inside <code>, and a bare
+   `.ex span` made every token in the example its own line. */
+.ex > span{font-size:.82rem;color:var(--muted);display:block;margin-top:.1rem}
 
 .tk-kw{color:var(--frost);font-weight:600}
 .tk-noun{color:var(--frost-deep)}

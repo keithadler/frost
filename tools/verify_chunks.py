@@ -100,6 +100,59 @@ def corpus():
         "not false",
         "empty is empty",
     ]
+
+    # Lists, transformations and aggregates.
+    for n in NOUNS:
+        out.append(f"the {PLURALS[n]} of it")
+        out.append(f"the number of items in the {PLURALS[n]} of it")
+        out.append(f"the sorted the {PLURALS[n]} of it")
+        out.append(f"the reversed the {PLURALS[n]} of it")
+        out.append(f"the unique the {PLURALS[n]} of it")
+        out.append(f'the {PLURALS[n]} of it joined by "|"')
+
+    for op in ("uppercase", "lowercase", "trimmed"):
+        out.append(f"the {op} it")
+        out.append(f"the {op} of it")
+        out.append(f"the {op} the first word of it")
+        out.append(f'the {op} "  Mixed Case  "')
+
+    out += [
+        "the empty list",
+        "the number of items in the empty list",
+        "the sorted the words of it joined by \",\"",
+        'the sorted (the words of "10 9 100 2") joined by ","',
+        'the sorted (the words of "pear Apple fig") joined by ","',
+        'the unique (the words of "b a b c a") joined by ","',
+        'the reversed (the words of "a b c") joined by ","',
+        'the sum of the words of "1 2 3 4"',
+        'the largest of the words of "5 3 9 1"',
+        'the smallest of the words of "5 3 9 1"',
+        'the average of the words of "2 4 6"',
+        'the sum of the empty list',
+        'the sum of the words of "a b"',
+        "the rounded 2.4", "the rounded 2.6", "the rounded -2.6",
+        "the rounded 7", "the absolute -5", "the absolute 5",
+        "the absolute -2.5", "the rounded the absolute -3.7",
+        '"a|b|c" split by "|"',
+        '"a:b:c" split by ":"',
+        '"a||c" split by "|"',
+        '"a b c" split by " "',
+        '"abc" split by ""',
+        'the number of items in ("a|b|c" split by "|")',
+        'item 2 of ("a :: b :: c" split by " :: ")',
+        '("a:b:c" split by ":") joined by " | "',
+        'the words of it joined by ""',
+        'it split by "\\n"',
+        'the uppercase (the first word of it)',
+        'the trimmed the last line of it',
+        'the length of the words of it',
+        'the first item of the words of it',
+        'the sorted it',
+        'the reversed it',
+        'the unique it',
+        'the uppercase it & "!"',
+        'the number of words in the uppercase it',
+    ]
     return out
 
 

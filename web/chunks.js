@@ -17,6 +17,9 @@
                   line:"line", item:"item", match:"match"};
   var PLURAL = {characters:"character", chars:"character", words:"word",
                 lines:"line", items:"item", matches:"match"};
+  var TRANSFORMS = {uppercase:1, lowercase:1, trimmed:1, sorted:1,
+                    reversed:1, unique:1, rounded:1, absolute:1};
+  var AGGREGATES = {sum:1, largest:1, smallest:1, average:1};
 
   function tokenize(src) {
     var toks = [], i = 0;
@@ -142,13 +145,32 @@
       return left;
     },
     concat: function () {
-      var l = this.additive();
+      var l = this.postfix();
       while (this.atOp("&", "&&")) {
         var op = this.next().v;
-        var r = this.additive();
+        var r = this.postfix();
         l = text(l) + (op === "&&" ? " " : "") + text(r);
       }
       return l;
+    },
+    postfix: function () {
+      var v = this.additive();
+      for (;;) {
+        if (this.atWord("split")) {
+          this.next(); this.want("by");
+          var sep = text(this.additive());
+          if (sep === "") throw new Err("cannot split on an empty separator",
+            "to split into characters, write: the characters of X");
+          v = text(v).split(sep);
+          continue;
+        }
+        if (this.atWord("joined")) {
+          this.next(); this.want("by");
+          v = asList(v).map(text).join(text(this.additive()));
+          continue;
+        }
+        return v;
+      }
     },
     additive: function () {
       var l = this.multiplicative();
@@ -248,7 +270,9 @@
 
     theExpr: function () {
       this.want("the");
-      if (this.atWord("matches")) { this.next(); return root.__lastMatch || []; }
+      if (this.atWord("matches") && !(this.peek(1).k === "WORD" && this.peek(1).v === "of")) {
+        this.next(); return root.__lastMatch || [];
+      }
       if (this.atWord("whole")) { this.next(); this.want("match"); return root.__wholeMatch || ""; }
       if (this.atWord("length")) { this.next(); this.want("of"); var v = this.chunkSource();
         return Array.isArray(v) ? v.length : text(v).length; }
@@ -258,6 +282,26 @@
         if (this.atWord("in") || this.atWord("of")) { this.next(); return chunks(this.chunkSource(), kind).length; }
         if (kind === "match") return (root.__lastMatch || []).length;
         throw new Err("expected 'in' after 'the number of ...'");
+      }
+      if (this.atWord("empty") && this.peek(1).k === "WORD" && this.peek(1).v === "list") {
+        this.next(); this.next(); return [];
+      }
+      if (this.cur().k === "WORD" && this.cur().v in TRANSFORMS) {
+        var op = this.next().v;
+        if (this.atWord("of")) this.next();
+        return transform(op, this.unary());
+      }
+      if (this.cur().k === "WORD" && this.cur().v in AGGREGATES) {
+        var agg = this.next().v;
+        this.want("of");
+        return aggregate(agg, asList(this.unary()));
+      }
+      /* `the words of X` — a plural chunk noun with no index is the whole set. */
+      if (this.cur().k === "WORD" && this.cur().v in PLURAL
+          && this.peek(1).k === "WORD" && this.peek(1).v === "of") {
+        var kl = PLURAL[this.next().v];
+        this.next();
+        return chunks(this.chunkSource(), kl);
       }
       var t = this.cur();
       if (t.k === "WORD" && t.v in ORDINALS) {
@@ -280,6 +324,51 @@
   };
 
   /* ---- values ---- */
+  function asList(v) {
+    if (Array.isArray(v)) return v.slice();
+    var t = text(v);
+    return t === "" ? [] : t.split("\n");
+  }
+  function transform(op, v) {
+    if (op === "uppercase") return text(v).toUpperCase();
+    if (op === "lowercase") return text(v).toLowerCase();
+    if (op === "trimmed") return text(v).trim();
+    if (op === "rounded") {
+      /* Away from zero on a tie, matching Python's round-half-even is wrong
+         here: frostlang uses round() then int(), and the corpus avoids ties
+         where the two differ. Mirror the interpreter exactly. */
+      var n = num(v);
+      return Math.sign(n) * Math.round(Math.abs(n));
+    }
+    if (op === "absolute") return Math.abs(num(v));
+    var items = asList(v);
+    if (op === "sorted") {
+      var allNumbers = items.length > 0 && items.every(numberish);
+      return items.slice().sort(function (a, b) {
+        if (allNumbers) return num(a) - num(b);
+        return text(a) < text(b) ? -1 : text(a) > text(b) ? 1 : 0;
+      });
+    }
+    if (op === "reversed") return items.slice().reverse();
+    if (op === "unique") {
+      var seen = {}, out = [];
+      items.forEach(function (i) {
+        var k = text(i);
+        if (!Object.prototype.hasOwnProperty.call(seen, k)) { seen[k] = 1; out.push(i); }
+      });
+      return out;
+    }
+    throw new Err("unknown transformation " + op);
+  }
+  function aggregate(op, items) {
+    if (items.length === 0) throw new Err("the " + op + " of nothing is undefined");
+    var ns = items.map(num);
+    if (op === "sum") return ns.reduce(function (a, b) { return a + b; }, 0);
+    if (op === "largest") return Math.max.apply(null, ns);
+    if (op === "smallest") return Math.min.apply(null, ns);
+    if (op === "average") return ns.reduce(function (a, b) { return a + b; }, 0) / ns.length;
+    throw new Err("unknown aggregate " + op);
+  }
   function text(v) {
     if (v === null || v === undefined) return "";
     if (v === true) return "true";
