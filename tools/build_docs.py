@@ -94,7 +94,7 @@ TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost {version} — language documentation</title>
+<title>frost {version}, language documentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -282,18 +282,18 @@ tbody tr:last-child td{{border-bottom:none}}
     <p class="eyebrow">A scripting language for readable shell scripts</p>
     <h1>Scripts are written once<br>and read at 3am.</h1>
     <p class="lede">A shell scripting language for the era when machines write
-    the scripts and humans only get to review them — readable by default,
+    the scripts and humans only get to review them: readable by default,
     structurally immune to injection, and auditable before a single process
     starts.</p>
     <p class="lede" style="font-size:1rem"><a href="audit.html">See a live audit report &rarr;</a></p>
 
     <div class="thesis">
-      <p class="thesis-label">Chunk expressions — hover a layer</p>
+      <p class="thesis-label">Chunk expressions, hover a layer</p>
       <div class="expr" id="expr">
         <span class="layer" data-depth="1">the third word of<span class="layer" data-depth="2"> line 7 of<span class="layer" data-depth="3"> file "access.log"</span></span></span>
       </div>
       <div class="sample" id="sample"></div>
-      <p class="thesis-note">In bash: <code>sed -n '7p' access.log | awk '{{print $3}}'</code> — two tool dialects instead of one grammar.</p>
+      <p class="thesis-note">In bash: <code>sed -n '7p' access.log | awk '{{print $3}}'</code>, two tool dialects instead of one grammar.</p>
     </div>
   </header>
 

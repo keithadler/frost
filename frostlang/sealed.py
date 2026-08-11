@@ -1,15 +1,15 @@
-"""Sealed values — secrets that cannot be printed by accident.
+"""Sealed values, secrets that cannot be printed by accident.
 
 The failure this exists to prevent is not a malicious script. It is
 `put "connecting as" && token` in a script somebody generated, running in CI,
 writing a credential into a log that is retained for a year and readable by
 everyone in the organisation. That mistake is made by being ordinary, not by
 being careless, so the fix has to be structural rather than a rule to
-remember — the same argument frost makes about injection.
+remember, the same argument frost makes about injection.
 
 A sealed value carries its plaintext but refuses to hand it to `to_text`. The
 whole language converts to text through that one function, so every printing
-path — `put`, string joining, `--trace`, an error message, the scratchpad —
+path: `put`, string joining, `--trace`, an error message, the scratchpad,
 redacts without knowing anything about secrets.
 
 Taint is contagious, so `"postgres://user:" & password` is still sealed: a
@@ -29,7 +29,7 @@ genuinely needs it:
 
     streams redact           put, put into standard error, --trace, errors
     boundaries release       run arguments, `reading`, the child environment
-    deliberate acts release  writing to a file — allowed, and reported
+    deliberate acts release  writing to a file: allowed, and reported
 
 What this does not do: it does not stop a script from handing a secret to a
 program it was already allowed to run. Nothing at this layer can. What it
@@ -150,7 +150,7 @@ class Sealed:
                       + self._segments)
 
     def rewrap(self, plaintext):
-        """A value derived from this one — a chunk of it, a transform of it.
+        """A value derived from this one: a chunk of it, a transform of it.
 
         The derived text no longer lines up with the original spans, so it is
         treated as wholly secret under this value's first origin. Erring

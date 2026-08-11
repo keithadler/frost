@@ -3,8 +3,8 @@ examples/tour.frost
 This script runs head, printf, sort.
 
 Runs these programs:
-  head    — line 35  (no timeout)
-  printf  — line 8, 33  (no timeout)
-  sort    — line 34  (no timeout)
+  head    at line 35  (no timeout)
+  printf  at line 8, 33  (no timeout)
+  sort    at line 34  (no timeout)
 
 Verdict: clean

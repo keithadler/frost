@@ -370,7 +370,7 @@ def test_a_wrong_passphrase_is_reported(run_cli, script, keystore,
 def test_a_runtime_secret_name_cannot_be_pre_checked(run_cli, script,
                                                      keystore):
     """It is unknowable before the script runs, so it is allowed to start and
-    fails at the line that reads it — the same rule the manifest follows."""
+    fails at the line that reads it, the same rule the manifest follows."""
     path = script('put "db" & " password" into name\n'
                   'put the secret name into pw\nput "got" && pw')
     status, out, err = run_cli("--keystore", keystore, "--role", "deploy",
@@ -607,7 +607,7 @@ def test_policy_from_writes_a_starter(run_cli, script):
     status, out, _ = run_cli("--policy-from",
                              script('run "git" with "status"\n'))
     assert status == 0
-    assert 'warn running "git"' in out
+    assert 'require running only "git"' in out
 
 
 def test_against_an_approval(run_cli, script, tmp_path):

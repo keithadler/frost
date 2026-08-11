@@ -32,7 +32,7 @@ def repair_script(opts, source):
 
     The loop this exists for is: generate, check, repair, re-check. That is
     only safe if a repair can never make things worse, which is what
-    `repair_until_stuck` guarantees — a pass that does not move the first
+    `repair_until_stuck` guarantees, a pass that does not move the first
     error later is thrown away rather than left on disk for a human to
     unpick.
     """
@@ -188,7 +188,7 @@ def value_options(parser):
 
     Read off the parser rather than kept in a list beside it. The list version
     was missing `--trace-to-file` the moment it was added, which made
-    `frost --trace-to-file out.log s.frost` treat out.log as the script — a
+    `frost --trace-to-file out.log s.frost` treat out.log as the script, a
     silent misparse, since argparse then complained about something else
     entirely.
     """
@@ -279,7 +279,7 @@ def check_secret_access(tree, store, role):
     """Which secrets this script names that the role cannot read.
 
     Answerable from the tree and the keystore's plaintext metadata, with no
-    passphrase — which is what lets the script be refused before it runs
+    passphrase, which is what lets the script be refused before it runs
     rather than failing part way through, having already done something.
     """
     from . import ast as A
@@ -806,7 +806,7 @@ def main(argv=None):
             print(f"narrower: {item}")
         if not gained and not lost:
             print("unchanged: it can do exactly what it was approved to do.")
-        # Reviewing is reading, so this reports rather than refuses — except
+        # Reviewing is reading, so this reports rather than refuses, except
         # when something widened, which is the answer CI needs to act on.
         return 3 if gained else 0
 
@@ -954,7 +954,7 @@ def main(argv=None):
                 sys.stderr.write(f"  {opts.script}:{line}  "
                                  f"{source_lines[line - 1].strip()}\n")
             else:
-                # A shortfall — "at least one cleanup" — is about the script
+                # A shortfall, "at least one cleanup": is about the script
                 # as a whole, so there is no line to point at.
                 sys.stderr.write(f"  {opts.script}\n")
             # The rule's own comment. A refusal that says only "no" leaves
@@ -1091,8 +1091,8 @@ def main(argv=None):
                     f"with --approve.\n")
                 return done(3, refused="approval", widenings=gained)
 
-    # Secrets are a capability like any other, so the refusal happens here —
-    # before anything runs — rather than at the line that reads one, by which
+    # Secrets are a capability like any other, so the refusal happens here,
+    # before anything runs: rather than at the line that reads one, by which
     # point the script may already have done half its work.
     store = None
     if find_secret_names(tree) or opts.keystore:
@@ -1102,7 +1102,7 @@ def main(argv=None):
             return 2
         denials = check_secret_access(tree, store, opts.role)
         for name, line, why in denials:
-            sys.stderr.write(f"REFUSED: the secret {name!r} — {why}\n")
+            sys.stderr.write(f"REFUSED: the secret {name!r}: {why}\n")
             if 0 < line <= len(source_lines):
                 sys.stderr.write(f"  {opts.script}:{line}  "
                                  f"{source_lines[line - 1].strip()}\n")

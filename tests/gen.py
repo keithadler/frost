@@ -3,8 +3,8 @@
 Random *characters* almost never parse, so a character fuzzer only ever
 exercises the rejection path. This walks the grammar instead and emits source
 that is valid by construction, which is what makes the interesting properties
-testable at all: the formatter round-trip, the totality of the auditor, and —
-for the subset that touches nothing outside the process — the interpreter.
+testable at all: the formatter round-trip, the totality of the auditor, and,
+for the subset that touches nothing outside the process, the interpreter.
 
 Every generator takes an explicit `rng`, so a failing seed reproduces exactly.
 """
@@ -44,8 +44,8 @@ class Gen:
     """Generates valid frost.
 
     `safe=True` restricts output to statements with no effect outside the
-    interpreter — no subprocesses, no file or stream writes, no deletes, no
-    unbounded loops — so the result can actually be run in a test.
+    interpreter: no subprocesses, no file or stream writes, no deletes, no
+    unbounded loops, so the result can actually be run in a test.
     """
 
     def __init__(self, rng=None, safe=False):

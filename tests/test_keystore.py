@@ -212,7 +212,7 @@ def test_modifying_the_file_is_detected(stocked, path):
 
 
 def test_a_secret_cannot_be_moved_to_another_name(stocked):
-    """The name is authenticated data, so renaming an entry breaks it —
+    """The name is authenticated data, so renaming an entry breaks it,
     otherwise a low-value secret could be swapped for a high-value one."""
     with open(stocked.path) as fh:
         data = json.load(fh)
@@ -404,8 +404,8 @@ def test_cli_list_on_an_empty_keystore(store):
 
 def test_cli_roles_counts_what_each_can_read(stocked):
     status, out = keystore_cmd("roles", stocked.path)
-    assert "deploy  — may read 1 secret(s)" in out
-    assert "readonly  — may read 0 secret(s)" in out
+    assert "deploy  may read 1 secret(s)" in out
+    assert "readonly  may read 0 secret(s)" in out
 
 
 def test_cli_grant_and_revoke(stocked):

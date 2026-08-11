@@ -19,7 +19,7 @@ rather than by remembering. If you are changing the language, these are the
 ones to know about.
 
 **The front end never crashes.** Whatever is fed to it, the answer is a
-`LexError` or a `ParseError` with a line number — never a Python traceback.
+`LexError` or a `ParseError` with a line number, never a Python traceback.
 `tests/test_fuzz.py` asserts this over random text, over mutations of valid
 programs, and over every truncation of a handful of scripts.
 
@@ -46,23 +46,23 @@ disagree. Adding an expression form means adding it in both places.
 
 Roughly in order:
 
-1. `frostlang/ast.py` — a node.
-2. `frostlang/parser.py` — the syntax. Adding to `HARD_WORDS` takes a word out
+1. `frostlang/ast.py`: a node.
+2. `frostlang/parser.py`: the syntax. Adding to `HARD_WORDS` takes a word out
    of the name vocabulary forever, so prefer a form gated by `the`, which
    costs nothing.
-3. `frostlang/interp.py` — an `exec_` or `eval_` method.
-4. `frostlang/audit.py` — if it is a capability, the manifest must see it, or
+3. `frostlang/interp.py`: an `exec_` or `eval_` method.
+4. `frostlang/audit.py`: if it is a capability, the manifest must see it, or
    `--explain` will understate what a script can do. Consider whether a policy
    should be able to forbid it.
-5. `frostlang/formatter.py` — usually nothing, since it works on tokens, but
+5. `frostlang/formatter.py`: usually nothing, since it works on tokens, but
    check that a block form indents.
-6. `tests/gen.py` — emit it, so the property tests cover it.
-7. `tests/` — direct tests, including the error cases.
+6. `tests/gen.py`: emit it, so the property tests cover it.
+7. `tests/`: direct tests, including the error cases.
 8. `LANGUAGE.md`, and `tools/build_model_spec.py` for the model-facing
    reference. Run the builders.
 9. `web/chunks.js` and `tools/verify_chunks.py`, if it is an expression.
-10. `tools/build_editors.py` needs nothing if you only added a reserved word —
-    it reads `HARD_WORDS` — but rerun it, because the generated grammar under
+10. `tools/build_editors.py` needs nothing if you only added a reserved word,
+    it reads `HARD_WORDS`: but rerun it, because the generated grammar under
     `editors/` is committed and CI checks it is current.
 11. `frostlang/context.py` and `tools/build_context.py`, if you changed a
     statement form. That document is what a model reads before writing frost,
@@ -123,7 +123,7 @@ is the standard. The whole argument for the language is that a human is
 reading this at 3am.
 
 **Comments explain why, not what.** Most of the code is plain enough to read.
-The comments that earn their place are the ones recording a decision — why
+The comments that earn their place are the ones recording a decision, why
 `item` trims, why the pipe input goes through a temporary file, why a time
 unit is not a reserved word.
 

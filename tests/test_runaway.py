@@ -2,7 +2,7 @@
 
 `within` bounds one command and a policy can bound how many there are.
 Neither touches a loop doing arithmetic, which spawns nothing, reads nothing
-and writes nothing — so it has no capabilities, and a manifest describing
+and writes nothing: so it has no capabilities, and a manifest describing
 capabilities called it clean. The cheapest way for a generated script to wedge
 a runner was also the one thing frost reported as harmless.
 """

@@ -4,8 +4,8 @@ The gap: `the arguments` and `every match` were the only lists the language
 could produce, and `put "b" after xs` concatenated text rather than appending
 an element. So there was no way to build up a collection.
 
-The plural of a chunk noun with no index is now the whole set — `the words of
-X` — which means splitting falls out of the grammar that was already there
+The plural of a chunk noun with no index is now the whole set, `the words of
+X`: which means splitting falls out of the grammar that was already there
 rather than arriving as a new function. `split by` covers the delimiters the
 chunk nouns cannot express, and `joined by` goes back the other way.
 """

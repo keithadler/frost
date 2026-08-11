@@ -1,7 +1,7 @@
 """Recording a run, and replaying it without touching anything.
 
 A frost script's capabilities are knowable before it runs. What it actually
-*did* was not knowable at all — you ran it and watched. That gap is what this
+*did* was not knowable at all, you ran it and watched. That gap is what this
 closes:
 
     frost --record run.json deploy.frost      # run it, write down everything
@@ -10,7 +10,7 @@ closes:
 A recording holds every input the run consumed and every effect it produced:
 each command with its arguments, standard input, output and exit status; each
 file read and its contents; each environment variable read; whatever was piped
-in. Replay serves those recorded answers back and performs no effects at all —
+in. Replay serves those recorded answers back and performs no effects at all,
 no process is spawned, no file is written, nothing is deleted.
 
 Two things fall out.
@@ -21,8 +21,8 @@ ran before. A refactor that was meant to be behaviour-preserving either is or
 is not, and you find out without a database or a network.
 
 **Divergence is a finding, not a crash.** If the script asks for something the
-recording does not have, that is reported as a difference — the recorded run
-did X here, this one wants Y — because that is the useful output. A stack
+recording does not have, that is reported as a difference, the recorded run
+did X here, this one wants Y, because that is the useful output. A stack
 trace would only tell you it happened.
 
 ## Secrets
@@ -33,7 +33,7 @@ the redaction rules still hold. Any plaintext the run revealed is also scrubbed
 from recorded command output, since a program handed a credential may well
 echo it back.
 
-That makes a recording safe to commit, which is the point — a fixture you
+That makes a recording safe to commit, which is the point, a fixture you
 cannot check in is not a fixture. The scrubbing is exact-match and says so: a
 program that transforms a secret before printing it will defeat it, and the
 manifest already reports that the secret was released there.
@@ -204,7 +204,7 @@ class Player:
     """Serves a recording back, and performs nothing.
 
     Events are consumed in order. Matching is on what a reader would call the
-    identity of the effect — which program with which arguments, which path —
+    identity of the effect: which program with which arguments, which path,
     and not on the line number, so a script may be reformatted or have
     comments added without every event failing to match.
     """

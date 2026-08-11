@@ -19,7 +19,7 @@ class ParseError(Exception):
     """A refusal, with enough structure to be repaired mechanically.
 
     `code` is a stable identifier for the kind of mistake, which is what
-    frostlang/diagnostics.py keys its repairs on — matching on the English
+    frostlang/diagnostics.py keys its repairs on, matching on the English
     message would break the moment someone improved the wording. `subject`
     and `candidates` carry the name that was wrong and the names that exist,
     for the two errors where "did you mean" is worth offering.
@@ -110,7 +110,7 @@ class Parser:
         # call boundary and break the caller's loop.
         self.loop_depth = 0
         # Set while reading the amount of a timeout. Time units are not
-        # reserved words — `second line` has to stay a legal name — so a name
+        # reserved words, `second line` has to stay a legal name, so a name
         # would otherwise swallow the unit and leave `within limit seconds`
         # unparseable.
         self.reading_timeout = False
@@ -267,7 +267,7 @@ class Parser:
         return A.Put(expr, target, mode, fields, line)
 
     def parse_optional_fields(self):
-        """`with fields "status", "number"` — the shape the author claims.
+        """`with fields "status", "number"`: the shape the author claims.
 
         Two things follow from one declaration. The field names become
         checkable, so `the "staus" of build` is a mistake `--check` catches
@@ -287,7 +287,7 @@ class Parser:
                 raise ParseError(
                     "a field name has to be written out in full",
                     token.line,
-                    hint='write: with fields "status", "number" — a name '
+                    hint='write: with fields "status", "number": a name '
                          'built at runtime could not be checked, which is the '
                          'whole point of declaring it',
                     code="field-must-be-literal")
@@ -303,7 +303,7 @@ class Parser:
             return names
 
     def parse_wait(self):
-        """`wait 3 seconds` — the unit is required, as it is for `within`.
+        """`wait 3 seconds`: the unit is required, as it is for `within`.
 
         A bare number would read as 3 of something and mean milliseconds on
         one machine and seconds on another. The same argument as timeouts.
@@ -338,7 +338,7 @@ class Parser:
             return A.FileTarget(self.parse_expression())
         if self.at_word("the"):
             # `the global x`, `the environment variable "N"`, `the current
-            # folder` — each the writable counterpart of a readable form.
+            # folder`: each the writable counterpart of a readable form.
             line = self.advance().line
             if self.at_word("global"):
                 self.advance()
@@ -411,7 +411,7 @@ class Parser:
                 # other reserved word there is still the mistake this catches.
                 and not (self.cur.value == "with"
                          and self.at_word("fields", offset=1))):
-            # e.g. `put "" into error times` — `times` belongs to `repeat`.
+            # e.g. `put "" into error times`: `times` belongs to `repeat`.
             raise ParseError(
                 f"{self.cur.value!r} is a reserved word and cannot be part of "
                 f"a name", self.cur.line,
@@ -486,7 +486,7 @@ class Parser:
             return stdin, folder, timeout, streaming
 
     def parse_optional_timeout(self):
-        """`within 30 seconds` — an optional tail on run and pipe."""
+        """`within 30 seconds`: an optional tail on run and pipe."""
         if not self.at_word("within"):
             return None
         self.advance()
@@ -515,7 +515,7 @@ class Parser:
 
     @staticmethod
     def check_command_line_mistake(program, args, line):
-        """Catch `run "ls -la"` — the single most likely beginner error."""
+        """Catch `run "ls -la"`: the single most likely beginner error."""
         if isinstance(program, A.Lit) and isinstance(program.value, str):
             text = program.value
             if not args and (" " in text.strip()):
@@ -748,7 +748,7 @@ class Parser:
         if self.cur.kind != "STR":
             raise ParseError(
                 "a module path must be written out in full", line,
-                hint='use "lib/text.frost" for the ... — the path cannot be '
+                hint='use "lib/text.frost" for the ..., the path cannot be '
                      "a variable or an expression, because an import that is "
                      "decided at runtime cannot be reviewed before it runs",
                 code="module-path-must-be-literal")
@@ -782,7 +782,7 @@ class Parser:
         return A.Use(path, names, ceiling, line)
 
     def parse_ceiling(self):
-        """`run "psql", "pg_dump" and write "/tmp/*"` — what a module may do.
+        """`run "psql", "pg_dump" and write "/tmp/*"`: what a module may do.
 
         Commas separate the subjects of one verb; `and` separates verbs. So
         `run "a", "b" and write "c"` is two allowances, not three.
@@ -1014,7 +1014,7 @@ class Parser:
     def parse_postfix(self):
         """`X split by "|"` and `X joined by ", "`, which chain.
 
-        These take a delimiter the chunk grammar cannot express — the chunk
+        These take a delimiter the chunk grammar cannot express, the chunk
         nouns cover whitespace, newlines and commas, and nothing else.
         """
         node = self.parse_additive()
@@ -1126,7 +1126,7 @@ class Parser:
             return None
         w = t.value
 
-        # `first word of X`, `last line of X`, `any item of X` — the article
+        # `first word of X`, `last line of X`, `any item of X`: the article
         # is optional. Only treated as a chunk when a chunk noun follows, so
         # names like `last name` and `first attempt` are unaffected.
         if w in ORDINALS or w in ("last", "middle", "any"):
@@ -1217,7 +1217,7 @@ class Parser:
                                   "into the script")
             return A.StdInRef(line)
 
-        # `the secret ...` — three sources, one seal. Gated by `the`, so
+        # `the secret ...`: three sources, one seal. Gated by `the`, so
         # `secret count` is still an ordinary variable name.
         if self.at_word("secret"):
             self.advance()
@@ -1261,7 +1261,7 @@ class Parser:
                     raise ParseError(
                         "padding goes on the left or the right",
                         self.cur.line,
-                        hint="the padded n to 8 on the left  — for numbers")
+                        hint="the padded n to 8 on the left, for numbers")
                 side = self.advance().value
             return A.Padded(value, width, side, line)
 
@@ -1316,7 +1316,7 @@ class Parser:
             self.expect_word("of")
             return A.Aggregate(op, self.parse_tight_value(), line)
 
-        # `the words of X` — a plural chunk noun with no index is the whole
+        # `the words of X`: a plural chunk noun with no index is the whole
         # set, as a list. Splitting falls out of the grammar already here.
         if (self.cur.kind == "WORD" and self.cur.value in CHUNK_PLURAL
                 and self.at_word("of", offset=1)):
@@ -1382,7 +1382,7 @@ class Parser:
                 end = self.parse_index()
             return A.Chunk(kind, start, end, self.parse_chunk_of(kind), line)
 
-        # `the double of 5` — a handler used inside an expression. Last,
+        # `the double of 5`: a handler used inside an expression. Last,
         # so every built-in form above wins the name.
         if self.cur.kind == "WORD" and self.cur.value not in HARD_WORDS:
             mark = self.i
@@ -1429,8 +1429,8 @@ def resolve_calls(stmts, extra_names=()):
     tree and cannot be done while parsing.
 
     `extra_names` carries the handlers a file imported. A file that is part of
-    a program cannot be resolved on its own — the names it may legally call
-    are its own plus exactly what it imported — so a module's calls are
+    a program cannot be resolved on its own, the names it may legally call
+    are its own plus exactly what it imported, so a module's calls are
     resolved once the whole closure is known, against that file's table.
     """
     known = set(extra_names)

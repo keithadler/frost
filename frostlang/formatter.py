@@ -1,4 +1,4 @@
-"""`frost --format` — canonical layout for a frost script.
+"""`frost --format`: canonical layout for a frost script.
 
 This works on lines and tokens rather than on the parse tree, for one reason:
 the parse tree does not contain comments, and a formatter that silently eats
@@ -7,7 +7,7 @@ comments is worse than no formatter at all.
 Guarantees, each covered by a test:
 
   * comments and their placement survive
-  * formatting is idempotent — running it twice changes nothing
+  * formatting is idempotent, running it twice changes nothing
   * the parse tree before and after is identical, so meaning cannot shift
   * a file that does not parse is refused rather than mangled
 """
@@ -138,7 +138,7 @@ def normalise_spacing(code):
 
 def format_source(text):
     """Return the canonical layout of a script. Raises if it does not parse."""
-    # Refuse to format something broken — but without resolving handler
+    # Refuse to format something broken, but without resolving handler
     # names. Layout is a lexical question, and a file that imports cannot
     # have its names resolved on its own.
     parse(text, resolve=False)

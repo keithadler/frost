@@ -2,7 +2,7 @@
 
 Three gaps at once.
 
-*No string functions* — no uppercase, no trim. These are `the uppercase X`
+*No string functions*: no uppercase, no trim. These are `the uppercase X`
 rather than a new keyword, because after `the` the parser is already in a
 controlled position: `uppercase total` stays a perfectly good variable name.
 
@@ -248,7 +248,7 @@ def test_the_wrong_number_of_arguments_is_an_error():
 
 
 def test_an_unknown_handler_is_caught_when_the_script_is_checked():
-    """Not when the line runs — otherwise a typo in a rarely-taken branch
+    """Not when the line runs, otherwise a typo in a rarely-taken branch
     would sail past --check."""
     with pytest.raises(ParseError) as e:
         parse('put the frobnitz of "x"')

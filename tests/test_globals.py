@@ -5,8 +5,8 @@ local, even when a global of that name was readable two lines up. Reading
 already reached the global; writing quietly did not, so the bug was invisible
 at the write and only showed up later at a read.
 
-The fix is a form that says so at the point of the write — `the global total`
-— rather than a declaration at the top of the handler that a reader has to
+The fix is a form that says so at the point of the write, `the global total`
+rather than a declaration at the top of the handler that a reader has to
 carry in their head for the next forty lines. `global` is now a reserved word,
 so the near-miss `put 5 into global total` is an error rather than a local
 named "global total".
@@ -65,7 +65,7 @@ def test_reading_a_global_that_does_not_exist_is_an_error():
 # ----------------------------------------------------------------- writing
 
 def test_a_plain_put_in_a_handler_still_makes_a_local():
-    """The old behaviour is kept — it is now the explicit choice, not a trap."""
+    """The old behaviour is kept. It is now the explicit choice, not a trap."""
     src = """
     put 10 into total
     to bump

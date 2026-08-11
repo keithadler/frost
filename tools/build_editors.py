@@ -3,7 +3,7 @@
 
 Generated rather than hand-written for the same reason MODEL-SPEC.md is: a
 keyword list maintained by hand drifts from the parser, and highlighting that
-disagrees with the parser is worse than none — it tells the reader a word is
+disagrees with the parser is worse than none. It tells the reader a word is
 structural when it is not.
 """
 import json

@@ -4,8 +4,46 @@ Notable changes to frost. Dates are the release date; unreleased work sits at
 the top.
 
 The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
-frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
+frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
+
+## Unreleased
+
+### Added
+
+**A pre-commit hook.** `.pre-commit-hooks.yaml` provides `frost-check`,
+`frost-explain`, `frost-policy` and `frost-format`. `--check --strict` is the
+form that belongs in a gate, and it existed with nothing wired to it.
+
+**A security policy.** SECURITY.md, which matters more here than for most
+tools: a weakness in frost is a manifest that told somebody their script was
+safe when it was not. It states what counts, starting with an understated
+manifest, and what does not, starting with anything past `sh -c`.
+
+**`.gitattributes`.** `.frost` scripts were being counted as whatever GitHub
+guessed, so the repository's language bar described a project this is not.
+Generated files are marked as generated, and the golden files are pinned to LF
+so a checkout on Windows cannot rewrite what they are compared against byte
+for byte.
+
+### Changed
+
+**`--policy-from` writes an allow-list.** It emitted `warn running "x"` per
+program, which described the script accurately and taught the wrong shape. The
+starter policy is where that habit gets set, and a deny-list is a list of the
+programs somebody thought of. It now emits `require running only`, matching
+what it already did for hosts.
+
+**Every em dash is gone**, from the documentation, the source, the tests and
+the manifest's own output, and a test keeps them gone. The manifest now reads
+`curl  at line 2` rather than using a dash as a column separator, which is
+plainer and removes the ambiguity of two columns running together.
+
+Worth recording: the samples of `--explain` output pasted into README.md and
+LANGUAGE.md had gone stale, and nothing would have caught it. Documentation
+that quotes program output is documentation that drifts silently.
+
+**The workflows moved off Node 20 actions**, which GitHub has deprecated.
 
 ## 0.9.0 - 2026-08-10
 
@@ -157,7 +195,7 @@ between them. It answers "did the blast radius grow", which is the question a
 reviewer is actually asking of a regenerated script.
 
 **A secret a child prints back is re-sealed.** A program handed a credential
-often echoes it — into a log line, an error, a summary of what it just did. It
+often echoes it: into a log line, an error, a summary of what it just did. It
 used to come back into the script as ordinary text, sealed on the way out and
 plain on the way in.
 
@@ -257,7 +295,7 @@ id is resolved at the top where everything reporting on a run can reach it.
 Analysis modes emit nothing, because `--explain` runs nothing and a dashboard
 should not see a run that never happened.
 
-## 0.7.0 — 2026-08-10
+## 0.7.0, 2026-08-10
 
 Everything since 0.6.0: modules that cannot widen a program, an identity per
 execution, declared record shapes, findings a review tool reads, a policy the
@@ -364,7 +402,7 @@ outside id wins, because joining frost's record to the pipeline's is the point.
 
 It reaches the recording (at the top level, so a fixture joins to an audit log
 without being parsed), the trace header, every child process as
-`FROST_RUN_ID`, and the script itself — which is what makes it usable as an
+`FROST_RUN_ID`, and the script itself, which is what makes it usable as an
 idempotency key or as a scratch path that cannot collide with a concurrent
 run. A replay reports the id of the run it is replaying, for the same reason
 it serves the recorded clock.
@@ -388,7 +426,7 @@ is read out of a joined URL when the literal closes the authority, so
 `constant_sets` follows a name whose definitions are all literals even when
 they differ, so a branch picking one of two hosts reports both. Calling either
 of those unknowable was not honesty; it was a manifest declining to read what
-was in front of it. Without the authority terminator — `"https://" & host` —
+was in front of it. Without the authority terminator: `"https://" & host`,
 the destination is still genuinely unknown and still says so.
 
 **Per-host policy rules.** `forbid reaching "*.telemetry.example"` and
@@ -473,7 +511,7 @@ is exactly backwards.
 
 **`--approve` and `--as-approved`: a capability baseline.** `--frozen` asks
 whether a script is byte-identical to the reviewed one. That is right for a
-vendored module and wrong for a script a model regenerates — every
+vendored module and wrong for a script a model regenerates, every
 regeneration trips it, you re-lock every time, and re-locking every time means
 the check has stopped saying anything.
 
@@ -487,7 +525,7 @@ poisoned agent never had to defeat it: it just left the flag off, and in an
 agent loop the agent is usually the thing composing the command line. A guard
 that only applies when the caller remembers is a guard the attacker controls.
 An approval file is now honoured whenever it exists. Skipping it takes
-`--ignore-approval` — still possible, but a deliberate choice a reviewer can
+`--ignore-approval`: still possible, but a deliberate choice a reviewer can
 see, and deleting the file shows up in a diff. `--check`, `--explain` and
 `--format` are never blocked, since they are how the change gets reviewed.
 
@@ -495,7 +533,7 @@ The baseline records **where a script reaches**, not only what it runs.
 Recording program names alone made `curl https://api.github.com` and
 `curl https://telemetry.example` the same capability, which is precisely the
 room a persuaded model needs: not a new program, a new destination. Hosts come
-from literal arguments only — a scheme, or `user@host:path` — because a bare
+from literal arguments only: a scheme, or `user@host:path`: because a bare
 `example.com` is indistinguishable from a filename and inventing hosts in a
 manifest people trust is worse than reporting none. A network command with no
 literal destination is recorded as unknowable rather than omitted. `--explain`
@@ -514,7 +552,7 @@ REFUSED: it can now let a secret leave the process as an argument to curl
 This closes the gap between two claims frost was making. Injection immunity is
 a data-flow property: a value cannot become syntax. It says nothing about an
 agent that *reads* something hostile and writes perfectly valid frost obeying
-it — a confused deputy, not an injection, and no grammar reaches it. A policy
+it: a confused deputy, not an injection, and no grammar reaches it. A policy
 file answers that properly by being authored out of band from generation, but
 a policy has to be written; a baseline needs no rules and compares against the
 reviewer's own past judgement.
@@ -529,7 +567,7 @@ mechanical repair its exact twin `within 3` has had for two releases.
 **The differential verifier checks its own coverage.** `tools/verify_chunks.py`
 compares frostlang against the browser evaluator across a hand-written corpus,
 which meant a new expression form was only compared if somebody remembered to
-add one — and records shipped in 0.6.0 with no browser support at all, silently,
+add one: and records shipped in 0.6.0 with no browser support at all, silently,
 because nothing asked. It now enumerates every expression node the parser can
 produce and fails the build on any that the corpus never exercises. A form may
 be excused only by naming it, with the reason it needs a host the browser does
@@ -550,7 +588,7 @@ attacks are now separated, with the limits of each stated.
 ### Fixed
 
 **`the json text of` printed `2.0` where the rest of the language prints `2`.**
-frost has no visible int/float split — `put 4 / 2` already prints `2` — so a
+frost has no visible int/float split, `put 4 / 2` already prints `2`: so a
 JSON writer that disagreed with every other printing path was the odd one out.
 
 
@@ -558,25 +596,25 @@ JSON writer that disagreed with every other printing path was the odd one out.
 only the file the import named, so a module could widen the program past what
 its importer allowed simply by importing another module: allowed `psql`,
 imported something that ran `curl`, and nothing objected. That made the claim
-the whole module design rests on — that reading the entry file gives a sound
-upper bound on the program — false at any depth greater than one.
+the whole module design rests on. That reading the entry file gives a sound
+upper bound on the program, false at any depth greater than one.
 
 A ceiling now bounds everything an import pulls in, however far down it lives.
 A breach names the file that actually holds the capability and the import that
 forbade it, and says which module it was reached through; blaming the module
 the import names would send a reader to a file with no offending line in it.
 
-The manifest was never wrong here — `--explain` reported the `curl` and
+The manifest was never wrong here, `--explain` reported the `curl` and
 attributed it to the right file the whole time. It was the enforcement that
 had the hole, which is the more dangerous half: a manifest is read by someone
 who is already paying attention, and a ceiling is what protects the people who
 are not.
 
-## 0.6.0 — 2026-08-10
+## 0.6.0, 2026-08-10
 
 The three gaps that pushed a real script back out of frost. Each one had a
 workaround, and every workaround handed capability to something the auditor
-could name but not see inside — which is the one trade frost exists to refuse.
+could name but not see inside, which is the one trade frost exists to refuse.
 
 ### Added
 
@@ -591,13 +629,13 @@ put the "name" of the "author" of build
 ```
 
 Fields nest, `the keys of` and `the values of` are lists, and a record is
-built a field at a time with `put "green" into the "status" of summary` — the
+built a field at a time with `put "green" into the "status" of summary`: the
 first assignment creates it. The alternative was `run "jq" with ".status"`: a
 second language in the file, and a string `--explain` could not see into. It
 could tell you the script ran `jq`; it could never tell you what for.
 
 A missing key is empty, exactly as `word 99 of` is, and a field of empty is
-empty, so an optional field needs no guard. A field of *text* is an error —
+empty, so an optional field needs no guard. A field of *text* is an error,
 that means the value is not the shape the script thinks it is, and empty
 would hide the bug while it is still cheap to find.
 
@@ -608,7 +646,7 @@ print at all is a record people work around.
 
 **`the error output`.** What the last command wrote to standard error, beside
 `it` and `the result`. The only way to see why something failed used to be
-`run "sh" with "-c", "... 2>&1"` — the construct MODEL-SPEC tells models never
+`run "sh" with "-c", "... 2>&1"`: the construct MODEL-SPEC tells models never
 to emit and the auditor flags on sight. Wanting an error message should not
 require defeating the language's main guarantee. Standard error is still
 written through to the terminal as it happens, so a failure is never silent
@@ -618,7 +656,7 @@ whether or not anything reads it.
 `seconds`, plus `wait 3 seconds` with the unit required for the same reason
 `within` requires one. Both are recorded: `--replay` serves back the reading
 that was recorded rather than reading the clock again, and does not sleep at
-all — a fixture whose timestamps move every replay is a diff generator, and a
+all: a fixture whose timestamps move every replay is a diff generator, and a
 replay that honours a thirty-second backoff is a replay nobody runs.
 
 A script that waits says so in `--explain`, and a wait inside a loop is
@@ -637,7 +675,7 @@ shape in `count_lines` silently made new nouns unusable in a policy; it now
 reads the capability off by name. A manifest that lies by omission is worse
 than no manifest.
 
-## 0.5.0 — 2026-08-10
+## 0.5.0, 2026-08-10
 
 The release that turns "frost can describe what a script may do" into "frost
 can hold it". Modules, secrets, runtime confinement, record/replay and
@@ -646,8 +684,8 @@ substantial new language and tooling surface rather than a breaking change.
 
 ### Fixed
 
-**The sandbox self-test could not fail.** It asked one question — did a write
-*outside* the boundary happen? — and a sandbox that dies before executing
+**The sandbox self-test could not fail.** It asked one question, did a write
+*outside* the boundary happen?, and a sandbox that dies before executing
 anything answers no. It certified a completely non-functional Linux backend
 as healthy across four CI runs. It now runs two controls: a forbidden write
 must be refused *and* a permitted write must succeed. An absence is only
@@ -676,7 +714,7 @@ the text of a script and are honest about their limits: a path built at
 runtime is reported as unknowable rather than guessed. That honesty is also
 the gap, because once the script runs an unknowable path is a real path.
 
-A boundary is declared in the policy file, allow-shaped — a deny-list cannot
+A boundary is declared in the policy file, allow-shaped, a deny-list cannot
 become a sandbox, since `forbid writing to "/etc/*"` says nothing about what
 writing is permitted:
 
@@ -688,8 +726,8 @@ sandbox may reach the network
 ```
 
 `frost --policy prod.policy --sandbox deploy.frost` then holds it. Child
-processes are confined by the operating system — sandbox-exec on macOS,
-bubblewrap on Linux — so a path the analyser could not resolve is confined
+processes are confined by the operating system: sandbox-exec on macOS,
+bubblewrap on Linux, so a path the analyser could not resolve is confined
 anyway, because the confinement never needed it resolved. frost's own file
 operations are checked by the interpreter, which is a weaker guarantee, and
 the two are named apart rather than blurred.
@@ -715,7 +753,7 @@ them, including the canary.
 started; what it actually did was not knowable at all. `--record` writes down
 every command with its arguments, input, output and status, every file read,
 every environment variable read, and whatever was piped in. `--replay` serves
-those answers back and **performs nothing** — no process spawned, no file
+those answers back and **performs nothing**: no process spawned, no file
 written, nothing deleted.
 
 That makes a recording a fixture: change the script, replay it, and a refactor
@@ -744,7 +782,7 @@ This immediately found something: `examples/migrate.frost` deleted a lock
 file in `/tmp`, which `examples/production.policy` forbids with `forbid
 deleting "/*"`. The violation had been invisible because the path was
 unknowable. The example now keeps its lock beside the migration, which is
-better practice anyway — a lock in a world-readable directory is one any
+better practice anyway, a lock in a world-readable directory is one any
 other user can remove.
 
 ### Fixed
@@ -767,7 +805,7 @@ outside the manifest*.
 use "lib/db.frost" for the connect, the migrate which may run "psql"
 ```
 
-- **A module is declarations only** — handler definitions and imports, and a
+- **A module is declarations only**: handler definitions and imports, and a
   top-level statement in one is refused. Import-time side effects are the
   most abused feature of every module system ever shipped, and refusing them
   means `use` can never do anything.
@@ -802,13 +840,13 @@ review model cannot survive.
 ### Fixed
 
 - **`collect_handlers` was a flat, last-write-wins table.** With two modules
-  loaded, one silently shadowed a handler in the other — a hijack rather than
+  loaded, one silently shadowed a handler in the other, a hijack rather than
   a hygiene problem. Handler names now resolve in the file that defines the
   code doing the calling, and a collision is an error at load time.
 - **Taint was name-based over the whole tree.** A `token` in one file and an
   unrelated `token` in another were the same node, which gave false positives
   directly and false negatives through the shadowing bug above. Taint is now
-  per file, crossing a boundary only where data does — through the arguments
+  per file, crossing a boundary only where data does, through the arguments
   of a handler call.
 - `--format` raised an uncaught traceback on any file that imports, because
   it re-parsed with name resolution. Layout is lexical and never needed it,
@@ -822,14 +860,14 @@ way a script can be refused: severity, a stable `code`, line and column, the
 offending source, the hint, and any repairs.
 
 **Repair payloads.** A diagnostic can carry the edit that fixes it. Most come
-from information the front end already had — several of the parser's hints
-literally contained the corrected line — so handing it over as data costs
+from information the front end already had, several of the parser's hints
+literally contained the corrected line, so handing it over as data costs
 nothing and saves an agent a round trip. Confidence is three-valued and
 honest: `high` is a mechanical rewrite, `likely` infers a detail, `guess` is a
 name that looks close to one that exists.
 
 **`frost --repair [--write]`** applies the high-confidence repairs and repeats
-until nothing certain is left. One pass is not enough — a recursive-descent
+until nothing certain is left. One pass is not enough, a recursive-descent
 parser stops at the first error, so fixing it reveals the next, and a single
 round would give up on any script with two mistakes. A pass is kept only if
 it made progress: the script parses, or the first error moved strictly later.
@@ -844,7 +882,7 @@ REFUSED: running "sudo"
   why: the deploy role already has the permissions it needs
 ```
 
-No new syntax — policy authors already write that comment, so every policy
+No new syntax: policy authors already write that comment, so every policy
 that already exists gains the explanation for free. A comment on its own line
 stays a section header. `examples/production.policy` now explains all eleven
 of its rules.
@@ -865,7 +903,7 @@ reads from a role-gated keystore; `the secret environment variable "N"` and
 A sealed value refuses to become text. Every printing path in the language
 goes through one conversion, so `put`, joining, `--trace`, error messages and
 the scratchpad redact without knowing secrets exist. Only the secret spans
-redact — `put "connecting as" && user && "with" && token` keeps its context —
+redact: `put "connecting as" && user && "with" && token` keeps its context,
 because a mechanism that destroys logs is one people route around. The seal is
 contagious through concatenation, chunks, `split by` and the transformations,
 so a connection string built from a password is still a password.
@@ -878,7 +916,7 @@ equality is constant time.
 
 **A keystore**, with per-role X25519 keypairs, scrypt-protected private keys
 and AES-256-GCM envelope encryption. Storing a secret and granting a role need
-no passphrase — only reading does — so somebody can add a credential for a
+no passphrase, only reading does, so somebody can add a credential for a
 role whose passphrase they do not have. Secret names and role grants are
 stored in plaintext because that is what a reviewer needs; only values are
 encrypted. `frost keystore init|add-role|set|get|list|grant|revoke|remove`,
@@ -906,17 +944,17 @@ example.
   verbose syntax faster than you can spawn a process. That is true on macOS
   and false on Linux: `fork`/`exec` of `true` costs about 0.7ms on Linux
   against 2.4ms on macOS, while parsing varies far less. CI on Linux
-  disproved it twice — once for `true` and once for `git --version`. The
+  disproved it twice, once for `true` and once for `git --version`. The
   README now states what actually holds, which is the thing the design
   relies on anyway: parsing is paid once and spawning is paid per command,
   so a script running ten commands pays ten spawns against one parse on any
   platform.
 
-### Added — language
+### Added, language
 
 **Cleanup blocks.** `ensure ... end ensure` registers a block when execution
-reaches it and runs it when the script ends — normally, on error, on `quit`,
-or on interrupt — most recent first. Abort-on-failure was the headline default
+reaches it and runs it when the script ends: normally, on error, on `quit`,
+or on interrupt, most recent first. Abort-on-failure was the headline default
 with no way to release a lock on the way out; this closes that.
 
 **Explicit globals.** `put 99 into the global total` writes through from
@@ -939,7 +977,7 @@ the environment.
 child, for long builds and interactive programs. `it` is empty afterwards
 rather than stale.
 
-**Real lists.** A plural chunk noun with no index is the whole set — `the
+**Real lists.** A plural chunk noun with no index is the whole set, `the
 words of X`, `the items of X`. `split by` and `joined by` cover delimiters the
 chunk nouns cannot express. `put "c" after names` appends an element when the
 target is a list. `the sorted X`, `the reversed X`, `the unique X`, with
@@ -968,7 +1006,7 @@ catches a script in minutes.
 
 **`--version`.**
 
-**Continuous integration** across Python 3.10–3.13 on Linux and macOS, with a
+**Continuous integration** across Python 3.10 to 3.13 on Linux and macOS, with a
 job that fails if a generated file was committed out of date.
 
 **Editor support**: a TextMate grammar under `editors/`.
@@ -997,7 +1035,7 @@ job that fails if a generated file was committed out of date.
 - `Repl(out=sys.stdout)` bound stdout at import, so it could never be
   redirected.
 - Two frost snippets in LANGUAGE.md were fenced as `policy`, and three
-  metasyntax tables in MODEL-SPEC.md were fenced as frost — that file goes
+  metasyntax tables in MODEL-SPEC.md were fenced as frost. That file goes
   into system prompts, so a model was shown `put EXPR into NAME` as syntax.
 - The reserved-word list in LANGUAGE.md had drifted from the parser. It is now
   generated, and a test asserts it matches exactly.

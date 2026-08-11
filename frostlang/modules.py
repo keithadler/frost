@@ -3,7 +3,7 @@
 Everything frost is worth using for rests on one invariant: **the tree you
 audit is the program you run, and the audit sees all of it.** A module system
 is the feature most likely to break that. If a module can contribute a `run`
-that `--explain` does not print, frost becomes worse than bash — bash never
+that `--explain` does not print, frost becomes worse than bash, bash never
 claimed to have audited anything.
 
 So the goal here is not "safe modules". It is *modules that cannot put
@@ -11,8 +11,8 @@ capability outside the manifest*, and every rule below is chosen for that.
 
 **A module is declarations only.** Handler definitions and nothing else; a
 top-level statement in a module is a parse error. Import-time side effects are
-the most abused feature of every module system ever shipped — Python's
-`__init__.py`, npm's `postinstall` — and they turn `use` into "run this file".
+the most abused feature of every module system ever shipped, Python's
+`__init__.py`, npm's `postinstall`: and they turn `use` into "run this file".
 Refusing them means `use` can never do anything.
 
 **The path is a literal.** `use (module name)` fails when the file is parsed,
@@ -28,7 +28,7 @@ in the repo, then the review that covered the repo covered the module. An
 ambient search path is exactly how "the script I reviewed loaded a different
 file in production" happens.
 
-**The closure is read once.** Resolve, read, hash, parse, audit, run — all
+**The closure is read once.** Resolve, read, hash, parse, audit, run, all
 from the same bytes. Re-opening a module at execution time would open a
 window between the audit and the run, which is the one thing single-file
 frost never had.
@@ -36,7 +36,7 @@ frost never had.
 **A ceiling constrains the whole subtree, not one file.** `which may run
 "psql"` bounds everything that arrives because of that import, including what
 the imported module imports in turn. Checking only the named file left the
-guarantee holed exactly one level down — a module allowed to run `psql` could
+guarantee holed exactly one level down, a module allowed to run `psql` could
 import a second one that ran `curl`, and nothing objected, so the upper bound
 a reviewer took from the entry file was not an upper bound at all. A breach
 names the file that actually holds the capability and the import that forbade
@@ -196,7 +196,7 @@ def check_declarations_only(tree, path):
 
     `use` counts as a declaration because it cannot do anything: by this same
     rule the file it names has no executable top level either. That is what
-    makes the closure safe to load — reading the graph never runs any of it.
+    makes the closure safe to load, reading the graph never runs any of it.
     """
     for statement in tree:
         if not isinstance(statement, (A.HandlerDef, A.Use)):
@@ -259,7 +259,7 @@ def read_source(absolute, spec, line):
 def load(entry_path):
     """Read, parse and validate the whole closure, once.
 
-    Returns a Program. Raises ModuleError, ParseError or LexError — every one
+    Returns a Program. Raises ModuleError, ParseError or LexError, every one
     of which the caller must treat as fatal, because a manifest built from a
     partial closure would be a manifest with a hole in it.
     """

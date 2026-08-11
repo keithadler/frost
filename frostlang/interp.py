@@ -537,7 +537,7 @@ class Interpreter:
         """Run every registered `ensure` block, most recent first.
 
         A failure in one block is reported but does not stop the others, and
-        never replaces the error that ended the script — that error is what
+        never replaces the error that ended the script. That error is what
         the reader needs to see first.
         """
         pending, self.cleanups = self.cleanups, []
@@ -1250,7 +1250,7 @@ class Interpreter:
     def exec_RepeatForEach(self, node):
         # `repeat for each line in the standard input` is the shape of every
         # filter, and reading the whole stream first makes frost useless for
-        # one that never ends — a tail, a log follow, anything piped from a
+        # one that never ends: a tail, a log follow, anything piped from a
         # long-running command. Lines are consumed as they arrive.
         if (node.kind == "line" and isinstance(node.source, A.StdInRef)
                 and self._stdin_text is None):
@@ -1405,7 +1405,7 @@ class Interpreter:
         """Run a handler and return what it returned.
 
         Shared by the statement form, which lands the value in `it`, and the
-        expression form, which does not — an expression buried inside another
+        expression form, which does not, an expression buried inside another
         expression must not quietly replace the last command's output.
         """
         handler = self.visible_handlers().get(name)
@@ -1459,7 +1459,7 @@ class Interpreter:
         return list(self.argv)
 
     def exec_Wait(self, node):
-        """Sleep, unless this is a replay — then the wait is already known to
+        """Sleep, unless this is a replay, then the wait is already known to
         have happened and re-serving it would only make the replay slow."""
         seconds = to_number(self.eval(node.seconds), node.line)
         if seconds < 0:
@@ -1546,7 +1546,7 @@ class Interpreter:
             raise FrostError(
                 e.msg, node.line,
                 hint="a command that failed often writes an error message "
-                     "where JSON was expected — check 'the result' first, and "
+                     "where JSON was expected: check 'the result' first, and "
                      "'the error output' to see what it said")
 
     def eval_JsonTextOf(self, node):
@@ -1556,7 +1556,7 @@ class Interpreter:
         """A clock reading, written down so a replay stays deterministic.
 
         A recording whose timestamps move every time it is replayed is not a
-        fixture, it is a diff generator — the same reason command output is
+        fixture, it is a diff generator, the same reason command output is
         recorded rather than re-fetched.
         """
         if self.journal is None:
@@ -1701,7 +1701,7 @@ class Interpreter:
         # Comparisons see through the seal. A comparison yields one bit, and
         # checking that a credential is not the placeholder from the example
         # config is exactly the kind of check a careful script does. Comparing
-        # the markers instead would silently answer the wrong question — every
+        # the markers instead would silently answer the wrong question, every
         # secret would look equal to every other.
         def text(value):
             return to_text(reveal(value))

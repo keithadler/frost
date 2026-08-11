@@ -8,7 +8,7 @@ anyone noticing:
   * the **interpreter** decides at runtime, by sealing values and revealing
     them only at boundaries
 
-If the auditor under-reports, `--explain` is a manifest that omits things —
+If the auditor under-reports, `--explain` is a manifest that omits things,
 worse than no manifest, which is the objection the whole feature exists to
 answer. So the two are checked against each other the way web/chunks.js is
 checked against the interpreter: run the script, observe what actually
@@ -225,7 +225,7 @@ def test_every_derived_value_stays_sealed_when_printed(expr):
 @pytest.mark.parametrize("expr", secret_expressions())
 def test_every_derived_value_is_still_reported_when_released(expr):
     """Taint has to survive the derivation in the *auditor* too, not only in
-    the interpreter — otherwise the manifest would miss the leak that the
+    the interpreter, otherwise the manifest would miss the leak that the
     interpreter correctly permits."""
     body = f"put {expr} into derived\nrun \"echo\" with derived"
     assert predicted_releases(body), (
@@ -238,7 +238,7 @@ def test_and_the_derived_value_really_does_escape(expr):
     """Closing the loop: the manifest says it escapes, and it escapes."""
     body = f'put {expr} into derived\nrun "echo" with derived\nput it'
     escaped = escaped_to_disk(expr)
-    # Some derivations legitimately change the text — uppercasing, sorting,
+    # Some derivations legitimately change the text: uppercasing, sorting,
     # taking one word. What must hold is that *something* derived from the
     # secret escaped, and the manifest said so.
     assert predicted_releases(body)

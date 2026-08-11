@@ -39,11 +39,19 @@ def policy_for(path, caps):
     programs = sorted({c.program for c in caps.commands if c.program})
     unknown = [c for c in caps.commands if not c.program]
     if programs:
-        out.append("-- Programs it runs.")
-        for program in programs:
-            note = ("  -- reaches the network"
-                    if program in NETWORK_PROGRAMS else "")
-            out.append(f'warn running "{program}"{note}')
+        # An allow-list, matching what this file already does for hosts. It
+        # used to emit `warn running "x"` per program, which described the
+        # script accurately and taught the wrong shape: a deny-list is a list
+        # of the programs somebody thought of, and it can never be completed.
+        # The starter policy is where that habit is set.
+        out.append("-- Programs it runs. Anything not named here is refused,")
+        out.append("-- which is the point: a deny-list is a list of the")
+        out.append("-- programs somebody thought of.")
+        out.append("require running only "
+                   + ", ".join(f'"{p}"' for p in programs))
+        reaching = [p for p in programs if p in NETWORK_PROGRAMS]
+        for program in reaching:
+            out.append(f"--   {program} reaches the network")
         out.append("")
     if unknown:
         out.append(f"-- {len(unknown)} command(s) build the program name at "

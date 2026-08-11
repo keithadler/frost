@@ -1,18 +1,18 @@
 This script runs chmod, curl, find, rm and 1 more, reaches the internet using curl (install.example.com, metrics.example.com), and writes 1 file (system).
 
 Runs these programs:
-  chmod  — line 18  (no timeout)
-  curl   — line 21, 25  (1 allowed to fail, no timeout)
-  find   — line 8  (no timeout)
-  rm     — line 12  (no timeout)
-  sh     — line 26  (no timeout)
+  chmod  at line 18  (no timeout)
+  curl   at line 21, 25  (1 allowed to fail, no timeout)
+  find   at line 8  (no timeout)
+  rm     at line 12  (no timeout)
+  sh     at line 26  (no timeout)
 
 Writes these files:
-  /etc/cleanup.state  — line 15
+  /etc/cleanup.state  at line 15
 
 Reaches these hosts:
-  metrics.example.com  — line 21
-  install.example.com  — line 25
+  metrics.example.com  at line 21
+  install.example.com  at line 25
 
 Findings:
   [DANGER ] line 12  Recursive forced delete

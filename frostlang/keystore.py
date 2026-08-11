@@ -8,7 +8,7 @@ variable lives in a wiki page.
 
 Here it lives in the file. Every entry names the roles that may open it, a
 script runs under exactly one role, and `--explain` reports which secrets a
-script will ask for — so granting a credential is a capability someone
+script will ask for, so granting a credential is a capability someone
 approves, the same way they approve a command.
 
     frost keystore init prod.keystore --role deploy
@@ -33,7 +33,7 @@ Envelope encryption, which is boring on purpose:
   * that data key is wrapped to every authorised role's *public* key
 
 The keypair is the part that earns its place. With passphrase-derived
-symmetric keys alone, granting a role would require that role's passphrase —
+symmetric keys alone, granting a role would require that role's passphrase,
 so whoever adds a credential would need every recipient's secret, which is
 precisely the thing a keystore exists to avoid. With public keys, adding a
 secret and granting a role need no passphrase at all; only *reading* does.
@@ -43,7 +43,7 @@ value, and never sees the value's plaintext. Revoking removes a wrapping.
 
 Everything comes from `cryptography`, an optional dependency imported lazily:
 `frost script.frost` needs nothing, and only the keystore pulls it in.
-Rolling our own cipher was the alternative and is not a serious one — an
+Rolling our own cipher was the alternative and is not a serious one, an
 audited implementation of a standard construction is worth more than anything
 hand-written here, and the pure-Python route would have meant writing an AEAD
 from scratch for a security feature.
@@ -53,7 +53,7 @@ from scratch for a security feature.
 It is not a secret manager. There is no rotation, no expiry, no audit trail
 of reads, no network service. It is a file you can commit next to the scripts
 that use it, with the property that reading a value requires a passphrase and
-a role. If you already run Vault or SSM, use those — this exists for the many
+a role. If you already run Vault or SSM, use those. This exists for the many
 projects that run neither and keep credentials in a `.env` nobody encrypts.
 """
 # SPDX-License-Identifier: MIT
@@ -296,7 +296,7 @@ class Keystore:
         return private_bytes
 
     def public_key(self, role):
-        """A role's public key — enough to grant it a secret, not to read one."""
+        """A role's public key: enough to grant it a secret, not to read one."""
         return _unb64(self._require_role(role)["public"])
 
     def is_unlocked(self, role):

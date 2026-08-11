@@ -7,7 +7,7 @@ other audience: same information, as data, with the edit attached where frost
 already knew it.
 
 The property that matters most is that a repair cannot make a script worse.
-It is checked directly — every repair is applied and the result re-parsed —
+It is checked directly: every repair is applied and the result re-parsed,
 rather than assumed from the fact that the code looks careful.
 """
 
@@ -352,7 +352,7 @@ def test_the_shipped_policy_still_parses():
 # A code with a derivable fix and no repair is a silent gap: the diagnostic
 # still reports, so nothing looks broken, and an agent that could have been
 # handed the edit gets prose instead. `wait-needs-a-unit` shipped that way
-# despite `timeout-needs-a-unit` — its exact twin — having had a repair for
+# despite `timeout-needs-a-unit`: its exact twin, having had a repair for
 # two releases. Anything genuinely underivable belongs in the list below, with
 # the reason, so the decision is recorded rather than forgotten.
 UNDERIVABLE = {

@@ -1,4 +1,4 @@
-"""Quantitative policy rules — the business-rule half of the policy language.
+"""Quantitative policy rules, the business-rule half of the policy language.
 
 The original rules ask whether something appears at all. These ask how much of
 it there is, which is what an organisation's rule usually says: no more than

@@ -1,19 +1,19 @@
 This script runs curl, rm, reaches the internet using curl (backups-cdn.example.net), reads 2 files (runtime), and reads 2 environment variables.
 
 Runs these programs:
-  curl  — line 21  (1 allowed to fail, no timeout)
-  rm    — line 25  (no timeout)
+  curl  at line 21  (1 allowed to fail, no timeout)
+  rm    at line 25  (no timeout)
 
 Reads these files:
-  (path built at runtime)  — line 13
-  (path built at runtime)  — line 14
+  (path built at runtime)  at line 13
+  (path built at runtime)  at line 14
 
 Reads these environment variables:
-  HOME          — line 10
-  GITHUB_TOKEN  — line 15
+  HOME          at line 10
+  GITHUB_TOKEN  at line 15
 
 Reaches these hosts:
-  backups-cdn.example.net  — line 21
+  backups-cdn.example.net  at line 21
 
 Note: 2 name(s) are built at runtime and cannot be checked ahead of time.
 

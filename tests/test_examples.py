@@ -15,7 +15,7 @@ Regenerate deliberately with:
 and their stdout compared exactly.
 
 *Refusals.* The two demonstration attacks must stay refused, and must never
-run — a test that merely checked the verdict would still pass if the script
+run, a test that merely checked the verdict would still pass if the script
 executed first.
 """
 

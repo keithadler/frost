@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost 0.9.0 — language documentation</title>
+<title>frost 0.9.0, language documentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -191,26 +191,27 @@ tbody tr:last-child td{border-bottom:none}
     <p class="eyebrow">A scripting language for readable shell scripts</p>
     <h1>Scripts are written once<br>and read at 3am.</h1>
     <p class="lede">A shell scripting language for the era when machines write
-    the scripts and humans only get to review them — readable by default,
+    the scripts and humans only get to review them: readable by default,
     structurally immune to injection, and auditable before a single process
     starts.</p>
     <p class="lede" style="font-size:1rem"><a href="audit.html">See a live audit report &rarr;</a></p>
 
     <div class="thesis">
-      <p class="thesis-label">Chunk expressions — hover a layer</p>
+      <p class="thesis-label">Chunk expressions, hover a layer</p>
       <div class="expr" id="expr">
         <span class="layer" data-depth="1">the third word of<span class="layer" data-depth="2"> line 7 of<span class="layer" data-depth="3"> file "access.log"</span></span></span>
       </div>
       <div class="sample" id="sample"></div>
-      <p class="thesis-note">In bash: <code>sed -n '7p' access.log | awk '{print $3}'</code> — two tool dialects instead of one grammar.</p>
+      <p class="thesis-note">In bash: <code>sed -n '7p' access.log | awk '{print $3}'</code>, two tool dialects instead of one grammar.</p>
     </div>
   </header>
 
-  <div class="doc"><p><a href="https://github.com/keithadler/frost/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/keithadler/frost/actions/workflows/ci.yml/badge.svg" /></a>
+  <div class="doc"><p><a href="https://pypi.org/project/frostlang/"><img alt="PyPI" src="https://img.shields.io/pypi/v/frostlang" /></a>
+<a href="https://github.com/keithadler/frost/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/keithadler/frost/actions/workflows/ci.yml/badge.svg" /></a>
 <a href="https://www.python.org/downloads/"><img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-blue" /></a>
 <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a></p>
 <p><strong>A shell scripting language for the era when machines write the scripts and
-humans only get to review them — readable by default, structurally immune to
+humans only get to review them: readable by default, structurally immune to
 injection, and auditable before a single process starts.</strong></p>
 <p>A grammar descended from HyperTalk, an interpreter rather than a login shell.</p>
 <h2 id="guide-what-you-get">What you get</h2>
@@ -228,7 +229,7 @@ contract instead of trusted as a guess.</p>
 <tbody>
 <tr>
 <td><strong>No interpolation, no <code>eval</code></strong></td>
-<td>Injection is <em>unrepresentable</em>, not mitigated. Hostile text stays text wherever it came from — a filename, an issue title, a web page an agent just read.</td>
+<td>Injection is <em>unrepresentable</em>, not mitigated. Hostile text stays text wherever it came from: a filename, an issue title, a web page an agent just read.</td>
 </tr>
 <tr>
 <td><strong><code>--explain</code></strong></td>
@@ -236,7 +237,7 @@ contract instead of trusted as a guess.</p>
 </tr>
 <tr>
 <td><strong><code>--policy</code></strong></td>
-<td>Business rules checked against the tree. Not just <em>may it use curl</em>, but how many times, for how long, and whether it cleans up after itself — and every rule explains itself when it fires. Violations exit 3 and the script never starts.</td>
+<td>Business rules checked against the tree. Not just <em>may it use curl</em>, but how many times, for how long, and whether it cleans up after itself. And every rule explains itself when it fires. Violations exit 3 and the script never starts.</td>
 </tr>
 <tr>
 <td><strong>Sealed secrets</strong></td>
@@ -260,11 +261,11 @@ contract instead of trusted as a guess.</p>
 </tr>
 <tr>
 <td><strong>Records and JSON</strong></td>
-<td><code>the "name" of the "user" of report</code> — API responses without a second language in the file. Shelling out to <code>jq</code> handed the auditor a string it could not see into; a record is part of the tree.</td>
+<td><code>the "name" of the "user" of report</code>: API responses without a second language in the file. Shelling out to <code>jq</code> handed the auditor a string it could not see into; a record is part of the tree.</td>
 </tr>
 <tr>
 <td><strong><code>the error output</code></strong></td>
-<td>Why a command failed, not just that it did — without <code>sh -c "... 2&gt;&amp;1"</code>, which is the one construct the auditor flags and the spec forbids.</td>
+<td>Why a command failed, not just that it did, without <code>sh -c "... 2&gt;&amp;1"</code>, which is the one construct the auditor flags and the spec forbids.</td>
 </tr>
 <tr>
 <td><strong>Declared record shapes</strong></td>
@@ -328,7 +329,7 @@ contract instead of trusted as a guess.</p>
 </tr>
 <tr>
 <td><strong><code>--approve</code></strong></td>
-<td>Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites — this fires only when the script gained a capability.</td>
+<td>Records what a script does today, then binds by default: a regeneration that does more is refused without any flag. A content hash fires on every edit, so it cannot be used on a script an agent rewrites. This fires only when the script gained a capability.</td>
 </tr>
 <tr>
 <td><strong>SARIF and an Action</strong></td>
@@ -359,15 +360,15 @@ process starts. The fourth is enforced by the operating system. The fifth
 turns a run into a fixture.</p>
 <h3 id="guide-where-the-rest-is-documented">Where the rest is documented</h3>
 <ul>
-<li><strong><a href="LANGUAGE.md">LANGUAGE.md</a></strong> — the full reference and grammar.</li>
-<li><strong><a href="MODEL-SPEC.md">MODEL-SPEC.md</a></strong> — a prompt-sized spec, built to be pasted
+<li><strong><a href="LANGUAGE.md">LANGUAGE.md</a></strong>: the full reference and grammar.</li>
+<li><strong><a href="MODEL-SPEC.md">MODEL-SPEC.md</a></strong>: a prompt-sized spec, built to be pasted
   into a system prompt so a model writes correct frost first time.</li>
-<li><strong><a href="CHANGELOG.md">CHANGELOG.md</a></strong> — what changed and why.</li>
-<li><strong><a href="CONTRIBUTING.md">CONTRIBUTING.md</a></strong> — how the pieces fit together.</li>
-<li><strong><a href="PLATFORM.md">PLATFORM.md</a></strong> — for the team that operates the machines:
+<li><strong><a href="CHANGELOG.md">CHANGELOG.md</a></strong>: what changed and why.</li>
+<li><strong><a href="CONTRIBUTING.md">CONTRIBUTING.md</a></strong>: how the pieces fit together.</li>
+<li><strong><a href="PLATFORM.md">PLATFORM.md</a></strong>: for the team that operates the machines:
   what frost enforces, what it cannot, and what actually makes any of it
   mandatory. The honest answer to that last one lives mostly outside frost.</li>
-<li><strong><a href="https://keithadler.github.io/frost/play.html">Try it in the browser</a></strong> —
+<li><strong><a href="https://keithadler.github.io/frost/play.html">Try it in the browser</a></strong>,
   the scratchpad, and below it frost itself compiled to WebAssembly. The same
   Python the command line runs, so <code>--explain</code>, <code>--policy</code>, <code>--repair</code> and an
   approval comparison answer exactly as they would in a terminal. Nothing to
@@ -415,8 +416,8 @@ off.</p>
 <h2 id="guide-why">Why</h2>
 <p>Shell syntax was optimised for a cost that no longer dominates. <code>cut -d: -f1</code>
 is terse because a human typed it a thousand times on a serial terminal. When a
-model writes the script and a human reads it once — at 3am, while production is
-down — the scarce resource is comprehension at review time, not keystrokes.</p>
+model writes the script and a human reads it once: at 3am, while production is
+down: the scarce resource is comprehension at review time, not keystrokes.</p>
 <p>frost inverts the optimisation. It is not a login shell; it is an interpreter
 you point at a file. Because nobody types it at a prompt, nothing in the design
 has to be short.</p>
@@ -427,12 +428,12 @@ one fork+exec of true                            1992us   (the floor)
 one fork+exec of git --version                  12767us   (a real command)
 </code></pre>
 <p>Parsing an 80-line script and deriving its entire capability manifest costs
-about a millisecond. So does starting a process — the two are the same order
+about a millisecond. So does starting a process, the two are the same order
 of magnitude, and which one wins depends entirely on the machine. <code>fork</code>/
 <code>exec</code> of <code>true</code> is roughly 0.7ms on Linux and 2.4ms on macOS; <code>git
 --version</code> is 1.2ms on Linux and 12ms on macOS. Parsing varies far less.</p>
-<p>The tempting claim — <em>you can parse verbose syntax faster than you can spawn
-a process</em> — is therefore true on macOS and false on Linux. It was in this
+<p>The tempting claim, <em>you can parse verbose syntax faster than you can spawn
+a process</em>, is therefore true on macOS and false on Linux. It was in this
 README until CI on Linux disproved it.</p>
 <p>What actually holds is the thing the design relies on: <strong>parsing is paid
 once, spawning is paid per command.</strong> A script that runs ten commands spends
@@ -485,7 +486,7 @@ if error count is greater than 2 then
 end if
 </code></pre>
 <p>Longer, and that is the trade. Nothing in the second version needs explaining
-to someone who has never seen frost — no <code>set -euo pipefail</code>, no <code>IFS</code>
+to someone who has never seen frost: no <code>set -euo pipefail</code>, no <code>IFS</code>
 incantation, no <code>${1:?}</code>, no <code>$4 ~ /^5/</code>, no <code>&gt;&amp;2</code>. The safety that bash gets
 from three lines of ceremony, frost gets from having no other mode.</p>
 <h2 id="guide-patterns-and-timeouts">Patterns and timeouts</h2>
@@ -501,7 +502,7 @@ end if
 put every match of &quot;\d+&quot; in request into numbers
 replace &quot;(\d+)-(\d+)-(\d+)&quot; with &quot;\3/\2/\1&quot; in date text
 </code></pre>
-<p>Capture groups use the same chunk grammar as everything else — <code>match 1</code>,
+<p>Capture groups use the same chunk grammar as everything else: <code>match 1</code>,
 <code>the last match</code>, <code>the number of matches</code>, <code>the whole match</code>.</p>
 <p>Any command can carry a deadline, with a required unit:</p>
 <pre><code>run &quot;curl&quot; with &quot;--silent&quot;, endpoint within 30 seconds
@@ -513,12 +514,12 @@ end pipe
 
 if the result is 124 then put &quot;took too long&quot; into standard error
 </code></pre>
-<p>Timed-out children are killed and reaped — no orphans, no wedged script.</p>
+<p>Timed-out children are killed and reaped: no orphans, no wedged script.</p>
 <h2 id="guide-cleanup-that-actually-runs">Cleanup that actually runs</h2>
 <p>Abort-on-failure is the headline default, which makes the way out matter as
 much as the way through. <code>ensure</code> registers a block when execution reaches it,
-and it runs when the script ends — normally, on error, on <code>quit</code>, or on Ctrl-C
-— most recent first:</p>
+and it runs when the script ends: normally, on error, on <code>quit</code>, or on Ctrl-C
+most recent first:</p>
 <pre><code>put &quot;held&quot; into file (lock path)
 
 ensure
@@ -537,12 +538,12 @@ put the lines of report into rows
 put item 1 of (passwd entry split by &quot;:&quot;)     -- cut -d: -f1
 put the sorted (the unique terms) joined by &quot;, &quot;
 </code></pre>
-<p>A list keeps its elements separate, which comma-delimited text cannot — an
+<p>A list keeps its elements separate, which comma-delimited text cannot, an
 element may contain a comma and stay one element. <code>the sorted X</code> compares
 numerically when every element is a number, because sorting 10 before 9 is
 never what a counter meant.</p>
 <p>Text and numbers come with the article, so they cost nothing from the name
-vocabulary — <code>sorted count</code> is still a perfectly good variable:</p>
+vocabulary, <code>sorted count</code> is still a perfectly good variable:</p>
 <pre><code>if the lowercase target is &quot;production&quot; then put &quot;shipping for real&quot;
 put the trimmed reply into answer
 put the sum of the words of counts
@@ -559,7 +560,7 @@ put the double of 5 + the double of 10        -- 30
 happens to run.</p>
 <h2 id="guide-structured-data-without-a-second-grammar">Structured data, without a second grammar</h2>
 <p>Every real script eventually calls an API and reads a field out of the answer.
-Until now that meant <code>run "jq" with ".status"</code> — a second language inside a
+Until now that meant <code>run "jq" with ".status"</code>: a second language inside a
 file whose entire argument is that it needs only one, and a string the auditor
 could not see into. <code>--explain</code> could tell you the script ran <code>jq</code>. It could
 never tell you what for.</p>
@@ -573,12 +574,12 @@ if the &quot;status&quot; of build is not &quot;green&quot; then
 end if
 </code></pre>
 <p>Objects become records, arrays become the lists frost already has, and numbers
-stay numbers — so <code>item 1 of</code>, <code>repeat for each</code> and <code>+ 1</code> all keep working. A
+stay numbers: so <code>item 1 of</code>, <code>repeat for each</code> and <code>+ 1</code> all keep working. A
 missing key is empty, like <code>word 99 of</code>, and a field of empty is empty, so an
 optional field needs no guard. A field of <em>text</em> is an error, because that
 means the value is not the shape the script thinks it is.</p>
 <p>Parsing a secret seals every field it produces, and serialising redacts field
-by field rather than all at once — a record you cannot print at all is a
+by field rather than all at once, a record you cannot print at all is a
 record people work around.</p>
 <pre><code class="language-text">put the json of the secret file &quot;credentials.json&quot; into config
 put &quot;connecting as&quot; &amp;&amp; the &quot;user&quot; of config
@@ -602,8 +603,8 @@ defeating the language's main guarantee to get it.</p>
 wait 5 seconds
 </code></pre>
 <p>Both are recorded. <code>--replay</code> serves back the reading that was recorded rather
-than reading the clock again — a fixture whose timestamps move on every replay
-is a diff generator, not a fixture — and it does not sleep, so replaying a
+than reading the clock again, a fixture whose timestamps move on every replay
+is a diff generator, not a fixture: and it does not sleep, so replaying a
 script that backs off for thirty seconds costs nothing. A script that waits
 says so in <code>--explain</code>.</p>
 <h2 id="guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</h2>
@@ -612,7 +613,7 @@ says so in <code>--explain</code>.</p>
 credential into a log that is retained for a year. That mistake is made by
 being ordinary, so the fix has to be structural.</p>
 <p>A secret is a <em>sealed</em> value. It refuses to become text, and every printing
-path in the language goes through one conversion — so <code>put</code>, joining,
+path in the language goes through one conversion: so <code>put</code>, joining,
 <code>--trace</code> and error messages all redact without knowing secrets exist:</p>
 <pre><code>put the secret &quot;db password&quot; into password
 put &quot;connecting as&quot; &amp;&amp; user &amp;&amp; &quot;with&quot; &amp;&amp; password
@@ -625,13 +626,13 @@ contagious, so <code>"postgres://user:" &amp; password &amp; "@host"</code> is s
 still works when it reaches a program.</p>
 <p><strong>Streams redact, boundaries release.</strong> Printing is the accidental path and is
 closed. A program's arguments, its standard input, its environment and a file
-write are deliberate, so they get the real value — and <code>--explain</code> names every
+write are deliberate, so they get the real value, and <code>--explain</code> names every
 place it happens:</p>
 <pre><code class="language-text">Reads these secrets:
-  db password  — line 4  (from the keystore)
+  db password  at line 4  (from the keystore)
 
 Lets a secret leave the process:
-  on the standard input of psql  — line 9
+  on the standard input of psql  at line 9
 </code></pre>
 <p>Values live in a keystore, and each one names the roles that may read it:</p>
 <pre><code class="language-bash">frost keystore set prod.keystore &quot;db password&quot; --roles deploy,admin
@@ -640,7 +641,7 @@ frost --keystore prod.keystore --role deploy release.frost
 <p>If the role cannot open a secret the script names, frost exits 3 and nothing
 runs. The secret <em>names</em> and the role grants are stored in plaintext, because
 that is the part a reviewer needs; only the values are encrypted. Roles hold
-X25519 keypairs, so storing a secret and granting a role need no passphrase —
+X25519 keypairs, so storing a secret and granting a role need no passphrase,
 only reading does.</p>
 <p>It does not stop a script handing a secret to a program it is allowed to run;
 nothing at this layer can. And once the plaintext reaches another program,
@@ -651,7 +652,7 @@ otherwise.</p>
 <pre><code class="language-bash">frost --record run.json deploy.frost      # run it, write down everything
 frost --replay run.json deploy.frost      # run it again, spawn nothing
 </code></pre>
-<p>Replay performs nothing at all — no process, no write, no delete — and serves
+<p>Replay performs nothing at all: no process, no write, no delete, and serves
 the recorded answers back. So a recording is a fixture: change the script,
 replay it, and a refactor meant to preserve behaviour either did or did not.</p>
 <pre><code class="language-text">DIVERGED at deploy.frost:3
@@ -659,8 +660,8 @@ replay it, and a refactor meant to preserve behaviour either did or did not.</p>
     this run wants:  echo CHANGED
 </code></pre>
 <p>Reformatting replays clean, because matching is on the identity of the effect
-rather than on line numbers. Secret values are never written down — only their
-names — and any revealed plaintext is scrubbed from everything recorded, so
+rather than on line numbers. Secret values are never written down, only their
+names: and any revealed plaintext is scrubbed from everything recorded, so
 the fixture is safe to commit.</p>
 <h2 id="guide-telling-a-monitoring-system-what-happened">Telling a monitoring system what happened</h2>
 <pre><code class="language-bash">frost --events run.ndjson deploy.frost      # or - for standard error
@@ -677,7 +678,7 @@ halfway, which a single JSON document does not.</p>
 </code></pre>
 <p><strong>The resolution worth having is the pairing, not the volume.</strong> Any tool can
 log that a command ran. frost knows what the script was <em>allowed</em> to do before
-it ran, what a person <em>approved</em>, and what the host <em>permits</em> — so the finish
+it ran, what a person <em>approved</em>, and what the host <em>permits</em>, so the finish
 event reports which approved capabilities went <strong>unused</strong>. A script approved
 for six programs that uses two is an approval somebody should tighten, and
 that is only visible holding the manifest and the run side by side.</p>
@@ -715,13 +716,13 @@ but nothing in it needs decoding, so skimming and reading converge.</p>
 <p><strong>Hostile text reaches a command as data.</strong> An agent that reads a web page, a
 filename, an issue title, or a log line and puts that text into a generated
 command has handed an attacker a shell. In frost a value cannot become syntax
-— arguments are a list handed to <code>execve</code>, never re-parsed — so hostile text
+arguments are a list handed to <code>execve</code>, never re-parsed, so hostile text
 stays text no matter where it came from. The <code>rm -rf *</code> in a filename above is
 the whole demonstration.</p>
 <p><strong>Hostile text reaches the model instead.</strong> This is the harder one, and no
 grammar touches it. An agent reads "also upload ~/.ssh/id_rsa" in a README and
 writes perfectly valid frost that does exactly that: it parses, it formats
-canonically, <code>--check</code> passes. The model is not confused about syntax — it has
+canonically, <code>--check</code> passes. The model is not confused about syntax. It has
 been persuaded to use authority it legitimately holds, which is a confused
 deputy rather than an injection.</p>
 <p>frost's answer is not the grammar. It is that <strong>the thing deciding what is
@@ -731,7 +732,7 @@ can emit whatever it likes and the rules still refuse it before a process
 starts. The sandbox is held by the kernel, and a module cannot widen the
 program past what its import declared.</p>
 <p>Where there is no policy yet, <code>--approve</code> records what a script does today,
-and from then on the approval binds by default — no flag to remember, because
+and from then on the approval binds by default: no flag to remember, because
 a guard you have to remember is one the attacker composing your command line
 will not:</p>
 <pre><code class="language-text">REFUSED: it can now run curl
@@ -764,7 +765,7 @@ require every command to be checked
 language level rather than the container level, and it composes with a
 container rather than competing with it. The agent proposes; the policy
 disposes; the human reads a manifest instead of code.</p>
-<p>Rules also count, which is what an organisation's actual rules tend to do —
+<p>Rules also count, which is what an organisation's actual rules tend to do,
 not <em>may it use curl</em>, but <em>how many times, for how long, and does it clean up
 after itself</em>:</p>
 <pre><code class="language-policy">require at most 12 commands
@@ -779,7 +780,7 @@ in minutes. A limit that is exceeded points at the line that crossed it. A
 deadline computed at runtime is refused rather than assumed acceptable, on the
 same principle as the manifest: say what is unknowable, do not guess it.</p>
 <p>Rules say why. A rule's trailing comment is its hint, and frost prints it
-when the rule fires — so a refusal explains what to do instead rather than
+when the rule fires, so a refusal explains what to do instead rather than
 just saying no:</p>
 <pre><code class="language-text">REFUSED: running &quot;sudo&quot;
   deploy.frost:1  run &quot;sudo&quot; with &quot;systemctl&quot;, &quot;restart&quot;, &quot;api&quot;
@@ -788,7 +789,7 @@ just saying no:</p>
 <p>No new syntax; policy authors already write that comment.</p>
 <h3 id="guide-modules-that-cannot-hide-anything">Modules that cannot hide anything</h3>
 <p>Sharing handlers across scripts is the feature most likely to break the one
-invariant frost depends on — that the tree you audit is the program you run,
+invariant frost depends on. That the tree you audit is the program you run,
 and the audit sees all of it. So the goal is not <em>safe modules</em>; it is
 <strong>modules that cannot put capability outside the manifest</strong>.</p>
 <pre><code>use &quot;lib/db.frost&quot; for the connect, the migrate which may run &quot;psql&quot;
@@ -803,7 +804,7 @@ replacing another's handler.</p>
 from:</p>
 <pre><code class="language-text">lib/db.frost   (imported by deploy.frost:1)
   Runs these programs:
-    psql  — line 2
+    psql  at line 2
 </code></pre>
 <p>And the <code>which may</code> clause is the part that makes single-file review survive
 multi-file code. A module defaults to no capabilities at all. If it does more
@@ -812,7 +813,7 @@ than its import declared, the program is refused before anything runs:</p>
   The import at deploy.frost:2 allows: nothing but compute.
 </code></pre>
 <p>A ceiling bounds the whole subtree an import pulls in, not just the file it
-names — a module allowed to run <code>psql</code> cannot import a second one that runs
+names, a module allowed to run <code>psql</code> cannot import a second one that runs
 <code>curl</code>. So a reviewer who reads only the entry file has a sound upper bound on
 the whole program, and a shared module that later grows a network call breaks
 the build at the import site rather than quietly widening someone's manifest.
@@ -826,7 +827,7 @@ information as data, with the edit attached wherever frost already knew it:</p>
               &quot;text&quot;: &quot;if error count is 0 then&quot;, &quot;confidence&quot;: &quot;high&quot;}]}
 </code></pre>
 <p><code>frost --repair --write</code> applies the high-confidence ones and repeats until
-nothing certain is left — fixing one error reveals the next, so a single pass
+nothing certain is left: fixing one error reveals the next, so a single pass
 would give up on any script with two mistakes. A pass is kept only if it made
 progress, which is what makes it safe to run unattended:</p>
 <pre><code class="language-text">repaired deploy.frost (3 change(s))
@@ -834,7 +835,7 @@ progress, which is what makes it safe to run unattended:</p>
   line 3: run takes a program and a list of arguments, never a command line
   line 5: a global is written 'the global &lt;name&gt;'
 </code></pre>
-<p>That is the loop: generate, check, repair, re-check — with a policy deciding
+<p>That is the loop: generate, check, repair, re-check, with a policy deciding
 what is acceptable and a manifest a human approves at the end.</p>
 <h3 id="guide-boundaries-the-kernel-holds">Boundaries the kernel holds</h3>
 <p>Everything above reasons about the text of a script, and is careful to say
@@ -848,8 +849,8 @@ sandbox may write &quot;build/*&quot;
 </code></pre>
 <pre><code class="language-text">sh: /tmp/anywhere-else.txt: Operation not permitted
 </code></pre>
-<p>Child processes are confined by the operating system — <code>sandbox-exec</code> on
-macOS, <code>bubblewrap</code> on Linux — so a path the analyser could not resolve is
+<p>Child processes are confined by the operating system, <code>sandbox-exec</code> on
+macOS, <code>bubblewrap</code> on Linux, so a path the analyser could not resolve is
 confined anyway. frost's own file operations are checked by frost, which is a
 weaker guarantee, and the docs keep the two apart rather than blurring them.</p>
 <p>Two things it deliberately will not do. <strong>Per-host network rules are refused,
@@ -857,24 +858,24 @@ not faked</strong>: macOS filters on addresses and a Linux namespace is
 all-or-nothing, so <code>sandbox may reach "api.github.com"</code> is a parse error and
 <code>sandbox may reach the network</code> means exactly what it says. And if a boundary
 is declared but cannot be enforced here, <strong>frost refuses to run</strong> rather than
-warning and continuing — including when the backend is present but a live
+warning and continuing, including when the backend is present but a live
 self-test shows it not actually confining.</p>
 <p>That self-test runs two controls, not one. A forbidden write must be refused
 <em>and</em> a permitted write must succeed. Checking only the first is the trap the
 feature is most likely to ship with: a sandbox that fails to start blocks the
 forbidden write too, so every "is it blocked?" assertion passes and the thing
 reports itself healthy while confining nothing. Both backends were caught by
-the second control — Linux dying on a network namespace it was not allowed to
+the second control, Linux dying on a network namespace it was not allowed to
 enter, macOS naming an unresolved <code>/tmp</code> path the kernel never matches.</p>
-<p>Built-in checks catch the classics with no policy at all — <code>curl … | sh</code> is
+<p>Built-in checks catch the classics with no policy at all, <code>curl … | sh</code> is
 reported as <em>downloaded code piped into a shell</em>, and a script that reads
 <code>~/.ssh/id_rsa</code> and then makes a network call is flagged as <em>secrets read, then
-the network is contacted</em> — the shape of data theft. Both are facts about the
+the network is contacted</em>, the shape of data theft. Both are facts about the
 tree, not pattern matches on the text, and both hold even when the sensitive
 path is assembled at runtime from a variable and a string fragment.</p>
 <h3 id="guide-what-this-does-not-do">What this does not do</h3>
 <p>Analysis covers literals. If a script builds a program name or path at runtime,
-frost reports it as <em>built at runtime</em> rather than guessing — the manifest tells
+frost reports it as <em>built at runtime</em> rather than guessing, the manifest tells
 you that something is unknowable, not what it is. A determined script can still
 put itself out of reach that way, and a policy that permits a command permits
 its consequences. This narrows the blast radius and makes review tractable; it
@@ -929,7 +930,7 @@ that looks like routine cleanup:</p>
 
 Verdict: dangerous
 </code></pre>
-<p><a href="https://keithadler.github.io/frost/audit.html">The audit report</a>, or <code>open audit.html</code> locally, shows four scripts — a fake "dotfile backup"
+<p><a href="https://keithadler.github.io/frost/audit.html">The audit report</a>, or <code>open audit.html</code> locally, shows four scripts, a fake "dotfile backup"
 that exfiltrates your keys and a cleanup script that quietly does four dangerous
 things, both refused, alongside a health check and a log analyzer that pass.</p>
 <h2 id="guide-install">Install</h2>
@@ -945,7 +946,7 @@ frost --version
 ln -s &quot;$PWD/frost&quot; /usr/local/bin/frost
 frost examples/hello.frost
 </code></pre>
-<p>Coexists with zsh — you are adding an interpreter, not replacing your shell.
+<p>Coexists with zsh: you are adding an interpreter, not replacing your shell.
 Make scripts executable with a shebang and run them directly:</p>
 <pre><code class="language-bash">chmod +x report.frost
 ./report.frost access.log
@@ -1032,7 +1033,7 @@ back with the rule that fired and a refusal to draft the widening, because an
 agent handed the exact edit that clears its own refusal has been handed the
 instructions for widening its own bounds.</p>
 <h2 id="guide-tooling">Tooling</h2>
-<p><strong>Scratchpad</strong> — the fastest way to understand chunk expressions:</p>
+<p><strong>Scratchpad</strong>: the fastest way to understand chunk expressions:</p>
 <pre><code class="language-bash">frost --try
 </code></pre>
 <pre><code class="language-text">frost&gt; the third word of line 2 of it
@@ -1045,19 +1046,19 @@ frost&gt; every match of &quot;\d+&quot; in the first line of it
 <p><a href="https://keithadler.github.io/frost/play.html">The scratchpad</a> is the same thing in a browser, with the text editable and a set of
 worked examples. Its evaluator is a second implementation, and
 <code>tools/verify_chunks.py</code> runs 1,288 expressions through both it and the real
-interpreter on every build — the page is not written if they disagree.</p>
-<p><strong>Formatter</strong> — canonical layout, comments preserved:</p>
+interpreter on every build, the page is not written if they disagree.</p>
+<p><strong>Formatter</strong>: canonical layout, comments preserved:</p>
 <pre><code class="language-bash">frost --format script.frost          # print
 frost --format --write script.frost  # rewrite in place
 </code></pre>
 <p>It refuses to format a script that does not parse, is idempotent, and produces
 an identical parse tree, so it cannot quietly change meaning. The examples in
 this repo are its style reference, and a test fails if any of them drifts.</p>
-<p><strong>Editor support</strong> — <code>editors/</code> holds a TextMate grammar and a VS Code
+<p><strong>Editor support</strong>: <code>editors/</code> holds a TextMate grammar and a VS Code
 manifest, generated from the parser so the highlighted keywords cannot drift
 from the real ones, with indent rules taken from the formatter so typing does
 not fight <code>--format</code>.</p>
-<p><strong>For code-generating models</strong> — <code>MODEL-SPEC.md</code> is a compact reference sized
+<p><strong>For code-generating models</strong>: <code>MODEL-SPEC.md</code> is a compact reference sized
 for a system prompt. Point a model at it and it will emit frost instead of
 bash; then <code>--explain</code> and <code>--policy</code> check the result before it runs.</p>
 <h2 id="guide-usage">Usage</h2>
@@ -1139,7 +1140,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2089 tests — python3 -m pytest tests/ -q
+tests/                2090 tests, python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1156,7 +1157,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.9.0. The language runs, the examples are real, and 2089 tests cover
+<p>Version 0.9.0. The language runs, the examples are real, and 2090 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>
@@ -1200,7 +1201,7 @@ injection property.</p>
 <li><strong>An automation guard</strong>: <code>--automated</code> refuses anything that would widen
   what a script may do.</li>
 <li><strong>Records and JSON</strong>: <code>the json of it</code>, <code>the "status" of report</code>, nested
-  fields, <code>the json text of</code> — with sealing preserved in both directions.</li>
+  fields, <code>the json text of</code>: with sealing preserved in both directions.</li>
 <li><strong>Captured standard error</strong>: <code>the error output</code>, beside <code>it</code> and
   <code>the result</code>.</li>
 <li><strong>A clock and <code>wait</code></strong>: both recorded, so a replay is still deterministic
@@ -1210,7 +1211,7 @@ injection property.</p>
 <ul>
 <li><strong><code>--explain</code> reads what is derivable, not what is computed.</strong> A name whose
   definitions are all literals is followed through, including when they differ
-  — a branch picking one of two hosts is reported as two hosts. A host is read
+  a branch picking one of two hosts is reported as two hosts. A host is read
   out of a joined URL when the literal closes the authority, so
   <code>"https://api.github.com/repos/" &amp; repo</code> reaches <code>api.github.com</code>. A value
   genuinely assembled at runtime is still reported as <em>unknowable</em> rather than
@@ -1346,8 +1347,8 @@ put the current folder into working directory
 </code></pre>
 <p>This is the reason the keyword list is short. A word is available for use in a
 name unless it is structurally load-bearing. Chunk nouns (<code>line</code>, <code>word</code>,
-<code>item</code>, <code>character</code>) are <em>not</em> reserved — <code>line count</code> is a perfectly good
-variable — because frost recognises chunk expressions by context rather than by
+<code>item</code>, <code>character</code>) are <em>not</em> reserved, <code>line count</code> is a perfectly good
+variable, because frost recognises chunk expressions by context rather than by
 reserving the noun.</p>
 <p>Assignment is <code>put ... into ...</code>. Reading a name that was never assigned is an
 error, not an empty string:</p>
@@ -1417,7 +1418,7 @@ put item 1 of the &quot;tags&quot; of build
 put the &quot;attempt&quot; of build + 1
 </code></pre>
 <p>This exists because the alternative was <code>run "jq" with ".status"</code>, which puts
-a second language in a file whose whole argument is that it needs only one —
+a second language in a file whose whole argument is that it needs only one,
 and hands the auditor a string it cannot see into. <code>--explain</code> could say the
 script runs <code>jq</code>; it could never say what <code>jq</code> was asked for.</p>
 <p>Build one field at a time. The first assignment creates the record, so no
@@ -1430,7 +1431,7 @@ put the json text of summary into file &quot;report.json&quot;
 prints as JSON, because a record that printed as its type name would send you
 straight back to jq to look at your own data.</p>
 <p><strong>Missing keys.</strong> Asking for a key a record does not have yields empty,
-exactly as <code>word 99 of</code> does, and a field of empty is empty — so
+exactly as <code>word 99 of</code> does, and a field of empty is empty, so
 <code>the "name" of the "user" of build</code> is safe on a payload with no <code>user</code>.
 Asking for a field of <em>text</em> is an error: that means the value is not the
 shape the script thinks it is, and empty would hide the bug while it is still
@@ -1476,7 +1477,7 @@ if the result is not 0 then
 end if
 </code></pre>
 <p>Without this the only way to see why something failed was
-<code>run "sh" with "-c", "... 2&gt;&amp;1"</code> — which reintroduces the shell frost exists
+<code>run "sh" with "-c", "... 2&gt;&amp;1"</code>: which reintroduces the shell frost exists
 to avoid, and which the auditor flags. Needing an error message should not
 require defeating the language's main guarantee.</p>
 <p>A command's standard error is still written through to the terminal as it
@@ -1495,8 +1496,8 @@ wait 500 milliseconds
 <p>The unit is required, for the same reason <code>within</code> requires one: a bare <code>3</code>
 means seconds to one reader and milliseconds to another.</p>
 <p>Both are recorded. <code>--replay</code> serves back the clock reading that was recorded
-rather than reading the clock again — a fixture whose timestamps move on every
-replay is a diff generator, not a fixture — and it does not actually sleep, so
+rather than reading the clock again, a fixture whose timestamps move on every
+replay is a diff generator, not a fixture: and it does not actually sleep, so
 replaying a script that backs off for thirty seconds is no slower than
 replaying anything else.</p>
 <p>A script that waits says so in <code>--explain</code>, under <code>Waits:</code>. It is not a
@@ -1575,8 +1576,8 @@ require reaching only &quot;api.github.com&quot;, &quot;*.internal&quot;
 </code></pre>
 <p>Checked against the text, before anything runs. That is possible because the
 analyser reads a host out of a joined URL when the literal closes the
-authority — <code>"https://api.github.com/repos/" &amp; repo</code> reaches
-<code>api.github.com</code>, and nothing after the slash can move it — and because a name
+authority, <code>"https://api.github.com/repos/" &amp; repo</code> reaches
+<code>api.github.com</code>, and nothing after the slash can move it, and because a name
 whose definitions are all literals contributes every one of them, so a branch
 choosing between two hosts is two known hosts rather than an unknown one.</p>
 <p>A destination that genuinely cannot be read fails both rules. "Cannot be shown
@@ -1633,7 +1634,7 @@ anybody intended.</p>
 statements after a <code>quit</code>, <code>return</code>, <code>exit repeat</code> or <code>next repeat</code> in the
 same block, reported once per block rather than once per line, because a run
 of ten dead lines is one mistake. <strong>Never called</strong>: a handler used nowhere in
-the program — across an import, not within one file, since defined here and
+the program: across an import, not within one file, since defined here and
 called there is the normal shape of a module. <strong>Never read</strong>: a name assigned
 and never used, where reading it by any route counts, including <code>add 1 to n</code>,
 which reads the value before writing it.</p>
@@ -1679,7 +1680,7 @@ guessing is how a check earns a reputation for crying wolf.</p>
 </code></pre>
 <pre><code class="language-policy">require the run to finish within 5 minutes
 </code></pre>
-<p>The run stops when the budget is spent, exiting 124 — what a shell reports for
+<p>The run stops when the budget is spent, exiting 124, what a shell reports for
 a timeout, and what frost already returns when a single command runs too long.
 The same answer to the same question at a different scale.</p>
 <p>It is raised rather than killed, so <code>ensure</code> blocks still run. A deadline that
@@ -1808,7 +1809,7 @@ reviewed. That is the right question for a vendored module and the wrong one
 for a script a model regenerates: every regeneration trips it, so you re-lock
 every time, and re-locking every time means the check has stopped telling you
 anything.</p>
-<p><code>--approve</code> asks the question that survives regeneration — did it get <em>more
+<p><code>--approve</code> asks the question that survives regeneration, did it get <em>more
 powerful</em>?</p>
 <pre><code class="language-bash">frost --approve deploy.frost
 </code></pre>
@@ -1830,21 +1831,21 @@ REFUSED: it can now let a secret leave the process as an argument to curl
   Read what changed, then re-approve with --approve.
 </code></pre>
 <p>Binding by default is the difference between a guard and a suggestion. While
-it was opt-in, a poisoned agent did not have to defeat it — it just left the
+it was opt-in, a poisoned agent did not have to defeat it. It just left the
 flag off, and in most agent loops the agent is the thing composing the command
 line. Skipping it now takes <code>--ignore-approval</code>: still possible, but a choice
 someone made and a reviewer can see, rather than what happens when nobody
 types anything. Deleting the approval file works too, and shows up in a diff.</p>
 <p><code>--as-approved</code> keeps a stronger meaning for CI: not <em>honour an approval if
 there is one</em> but <em>there had better be one</em>, refusing with exit 2 when none
-exists. <code>--check</code>, <code>--explain</code> and <code>--format</code> are never blocked — they are how
+exists. <code>--check</code>, <code>--explain</code> and <code>--format</code> are never blocked. They are how
 you review the change, and blocking them would push people straight to
 <code>--ignore-approval</code>.</p>
 <p>A capability that <em>disappears</em> is not reported and never refuses. The
 asymmetry is the point: a script that stops touching the network needs no
 ceremony, and one that starts needs a person. Re-approving prints what changed,
 so the moment of approval has something in it to read.</p>
-<p>The baseline covers imported modules too — a capability that arrives through
+<p>The baseline covers imported modules too, a capability that arrives through
 an import is still a capability, and measuring only the entry file would make
 "add an import" the way around this.</p>
 <p><strong>What it is for.</strong> Not injection: frost already stops a value becoming
@@ -1852,12 +1853,12 @@ syntax. This is for the case where an agent reads something hostile and writes
 perfectly valid frost obeying it. The script parses, formats canonically and
 passes <code>--check</code>; the model was never confused about syntax, it was persuaded
 to use authority it legitimately holds. A policy file answers that properly,
-by being written by a person ahead of time — but a policy has to be written,
+by being written by a person ahead of time: but a policy has to be written,
 and a baseline needs no rules at all. It compares against the reviewer's own
 past judgement instead of a security model they had to author.</p>
 <p>Destinations are recorded, not just program names. Without that,
 <code>curl https://api.github.com</code> and <code>curl https://telemetry.example</code> are the same
-capability — and a persuaded model does not need a new program, only a new
+capability: and a persuaded model does not need a new program, only a new
 destination. The host is taken from literal arguments only: a scheme, or an
 scp-style <code>user@host:path</code>. A bare <code>example.com</code> is indistinguishable from a
 filename and is not guessed at, and a network command whose destination is not
@@ -2091,7 +2092,7 @@ reads better in a sentence.</p>
 <hr />
 <h2 id="ref-6a-patterns">6a. Patterns</h2>
 <p>Two forms, because the two jobs are different.</p>
-<h3 id="ref-globs-is-like">Globs — <code>is like</code></h3>
+<h3 id="ref-globs-is-like">Globs, <code>is like</code></h3>
 <p>For filename-shaped matching, where regex is overkill and unreadable:</p>
 <pre><code>if filename is like &quot;*.tmp&quot; then delete file filename
 if name is not like &quot;test_*&quot; then put &quot;not a test&quot;
@@ -2099,7 +2100,7 @@ if log is like &quot;log-????-??.txt&quot; then put &quot;dated log&quot;
 </code></pre>
 <p><code>*</code> matches any run of characters, <code>?</code> matches one, <code>[abc]</code> matches a set.
 Case-sensitive.</p>
-<h3 id="ref-regular-expressions-matches">Regular expressions — <code>matches</code></h3>
+<h3 id="ref-regular-expressions-matches">Regular expressions, <code>matches</code></h3>
 <p>For everything else. frost does not pretend regex is readable; it makes it
 explicit instead, so a reader knows to slow down at exactly the places that
 deserve it.</p>
@@ -2251,7 +2252,7 @@ time with a suggested fix:</p>
 run &quot;make&quot; with &quot;test&quot; within 10 minutes
 try to run &quot;ping&quot; with &quot;-c&quot;, &quot;1&quot;, host within 500 milliseconds
 </code></pre>
-<p>Units are required — <code>within 5</code> is a syntax error, because a bare number could
+<p>Units are required: <code>within 5</code> is a syntax error, because a bare number could
 mean seconds or milliseconds and the reader should not have to guess. Accepted
 units: <code>milliseconds</code> (or <code>ms</code>), <code>seconds</code>, <code>minutes</code>, <code>hours</code>, singular or
 plural.</p>
@@ -2269,7 +2270,7 @@ if the result is 124 then
 end if
 </code></pre>
 <p>Putting <code>within</code> on an individual stage is a syntax error that says so. When a
-pipe times out, every stage is killed and reaped — no orphans.</p>
+pipe times out, every stage is killed and reaped, no orphans.</p>
 <h3 id="ref-output">Output</h3>
 <p><code>run</code> captures standard output into <code>it</code>, with the trailing newline removed.
 Standard error passes straight through to the terminal. The exit code lands in
@@ -2294,7 +2295,7 @@ the child's stdin and never re-parsed as anything.</p>
 </code></pre>
 <p>The folder applies to that command only, so a reader need not track a mutable
 working directory while reading the rest of the script. To move the script
-itself, assign to <code>the current folder</code> — see section 11.</p>
+itself, assign to <code>the current folder</code>: see section 11.</p>
 <h3 id="ref-watching-a-program-work">Watching a program work</h3>
 <p><code>run</code> captures output, which means a ten-minute build shows nothing until it
 finishes and an interactive program cannot work at all. <code>showing output</code> hands
@@ -2307,7 +2308,7 @@ result</code> still reports the exit status, and failure still aborts.</p>
 <hr />
 <h2 id="ref-9-pipes">9. Pipes</h2>
 <p>A pipe is a block, not a connective. English has no graceful N-ary connective
-for this, so frost does not invent one — position carries the meaning.</p>
+for this, so frost does not invent one, position carries the meaning.</p>
 <pre><code>pipe
     run &quot;cat&quot; with &quot;access.log&quot;
     run &quot;grep&quot; with &quot;ERROR&quot;
@@ -2355,7 +2356,7 @@ for <code>try to</code>.</p>
 <p>Failure aborts the script. That is the right default, and on its own it leaks
 every lock file and temporary directory the script had taken.</p>
 <p><code>ensure</code> registers a block when execution reaches it. Registered blocks run
-when the script ends — normally, on error, on <code>quit</code>, or on interrupt — most
+when the script ends: normally, on error, on <code>quit</code>, or on interrupt, most
 recent first, so cleanup unwinds in the reverse of the order things were
 acquired.</p>
 <pre><code>put &quot;/tmp/deploy.lock&quot; into lock path
@@ -2371,7 +2372,7 @@ run &quot;make&quot; with &quot;deploy&quot;
 <p>A block that is never reached is never registered, so a lock taken inside a
 branch is only released if it was actually taken. A failure inside a cleanup
 block is reported on standard error and does not stop the other blocks, and it
-never replaces the error that ended the script — that error is the one the
+never replaces the error that ended the script. That error is the one the
 reader needs first.</p>
 <hr />
 <h2 id="ref-11-files">11. Files</h2>
@@ -2379,7 +2380,7 @@ reader needs first.</p>
 <pre><code>put file &quot;config.txt&quot; into settings
 put the first line of file &quot;VERSION&quot;
 </code></pre>
-<p>If the path is in a variable, parenthesise it — this is how frost tells
+<p>If the path is in a variable, parenthesise it. This is how frost tells
 <code>file "x"</code> from a variable named <code>file path</code>:</p>
 <pre><code>put item 1 of the arguments into log path
 put the number of lines in file (log path)
@@ -2414,12 +2415,12 @@ may run.</p>
 <h2 id="ref-12-handlers">12. Handlers</h2>
 <p>A handler is a named block of statements.</p>
 <pre><code>to warn about with subject, detail
-    put &quot;WARNING:&quot; &amp;&amp; subject &amp; &quot; — &quot; &amp; detail into standard error
+    put &quot;WARNING:&quot; &amp;&amp; subject &amp; &quot;: &quot; &amp; detail into standard error
 end warn about
 
 warn about with &quot;disk&quot;, &quot;92% full&quot;
 </code></pre>
-<p>The handler name may be several words. <code>end</code> must repeat the name — a rule that
+<p>The handler name may be several words. <code>end</code> must repeat the name, a rule that
 costs one word and makes long scripts navigable.</p>
 <p>Handlers may return a value, which arrives in <code>it</code>:</p>
 <pre><code>to short revision
@@ -2435,7 +2436,7 @@ assigned inside a handler do not leak out. Argument count is checked at the
 call.</p>
 <h3 id="ref-reaching-a-global">Reaching a global</h3>
 <p>A handler can read a global directly, but a plain <code>put</code> inside one creates a
-local — even when a global of that name exists. To write through, say so:</p>
+local, even when a global of that name exists. To write through, say so:</p>
 <pre><code>put 0 into error total
 
 to record with status code
@@ -2480,7 +2481,7 @@ executes.</p>
 <p>Everything frost is worth using for rests on one invariant: <strong>the tree you
 audit is the program you run, and the audit sees all of it.</strong> A module system
 is the feature most likely to break that. If a module could contribute a
-<code>run</code> that <code>--explain</code> does not print, frost would be worse than bash — bash
+<code>run</code> that <code>--explain</code> does not print, frost would be worse than bash, bash
 never claimed to have audited anything.</p>
 <p>So the design goal is not <em>safe modules</em>. It is <strong>modules that cannot put
 capability outside the manifest</strong>, and every rule below is chosen for that.</p>
@@ -2496,7 +2497,7 @@ top-level statement in one is refused:</p>
        hint: move it into a handler.
 </code></pre>
 <p>Import-time side effects are the most abused feature of every module system
-ever shipped — Python's <code>__init__.py</code>, npm's <code>postinstall</code> — and they turn
+ever shipped: Python's <code>__init__.py</code>, npm's <code>postinstall</code>: and they turn
 <code>use</code> into <em>run this file</em>. Refusing them means <code>use</code> can never do anything,
 which is what makes it safe to read the whole graph before deciding anything.</p>
 <h3 id="ref-the-path-is-written-out-in-full">The path is written out in full</h3>
@@ -2511,12 +2512,12 @@ to one file, the same way on every machine.</p>
 <p>The boundary is the entry script's directory, not the repository root, so a
 script in <code>tools/</code> cannot reach a sibling <code>lib/</code>. That is restrictive on
 purpose: the directory a reviewer opens is the directory the program lives
-in. Vendoring is the feature — if a module has to live with the script, then
+in. Vendoring is the feature: if a module has to live with the script, then
 the review that covered the repository covered the module.</p>
 <h3 id="ref-imports-are-explicit-and-the-graph-is-a-dag">Imports are explicit, and the graph is a DAG</h3>
 <p><code>for the connect, the migrate</code> names exactly what arrives. Only those names
 are in scope; the module's other handlers are not. Two imports bringing in
-the same name is an error, as is an import shadowing a local handler — with
+the same name is an error, as is an import shadowing a local handler, with
 a single flat table one would silently replace the other, which is a hijack
 rather than a hygiene problem.</p>
 <p>Cycles are refused rather than resolved, and the whole closure is read
@@ -2547,15 +2548,15 @@ put the inner          -- the entry script's
 from, and names the import it arrived through:</p>
 <pre><code class="language-text">lib/db.frost   (imported by deploy.frost:1)
   Runs these programs:
-    psql  — line 2  (no timeout)
+    psql  at line 2  (no timeout)
 </code></pre>
 <p>A module's handlers are audited whether or not anything calls them, which is
-the sound direction. An unresolvable module fails closed — exit 2 and no
+the sound direction. An unresolvable module fails closed, exit 2 and no
 manifest at all, because a manifest with a hole in it is the one output that
 would actively mislead a reviewer.</p>
 <h3 id="ref-the-ceiling-at-the-import-site">The ceiling at the import site</h3>
 <p>This is the part that makes single-file review survive multi-file code. A
-module defaults to <strong>no capabilities</strong> — pure computation, chunk expressions
+module defaults to <strong>no capabilities</strong>: pure computation, chunk expressions
 and the string and number functions. Widen it explicitly:</p>
 <pre><code>use &quot;lib/db.frost&quot; for the connect which may run &quot;psql&quot;, &quot;pg_dump&quot;
 use &quot;lib/net.frost&quot; for the fetch which may run &quot;curl&quot; and write &quot;/tmp/*&quot;
@@ -2569,7 +2570,7 @@ anything runs:</p>
 <p>Two things fall out. A reviewer who reads only the entry file has a sound
 upper bound on what the entire program can do. And a shared module that later
 grows a network call breaks the build at the import site instead of quietly
-widening somebody's manifest — which is the supply-chain shape you become
+widening somebody's manifest, which is the supply-chain shape you become
 exposed to the moment modules can be shared at all.</p>
 <p>The vocabulary is the policy language's, pointed inward: <code>run</code>, <code>read</code>,
 <code>write</code>, <code>delete</code>, <code>set</code>, <code>read secret</code> and <code>change folder</code>, each taking
@@ -2652,7 +2653,7 @@ put the environment variable &quot;HOME&quot; into home folder
 <p>in a generated script, running in CI, writing a credential into a log that is
 retained for a year and readable by everyone in the organisation. That mistake
 is made by being ordinary, not by being careless, so the fix is structural
-rather than a rule to remember — the same argument frost makes about
+rather than a rule to remember, the same argument frost makes about
 injection.</p>
 <h3 id="ref-sealed-values">Sealed values</h3>
 <p>Three expressions produce a <em>sealed</em> value:</p>
@@ -2714,7 +2715,7 @@ returned from a handler. Anything derived from a secret is a secret.</p>
 </table>
 <p>The rule: <strong>streams redact, boundaries release.</strong> Printing is the accidental
 path and is closed. Handing a value to a program is a deliberate act, so it
-works — and <code>--explain</code> reports every place it happens.</p>
+works, and <code>--explain</code> reports every place it happens.</p>
 <p>Comparisons and measurements see through the seal, because the alternative is
 answering a different question:</p>
 <pre><code>if password is empty then quit with status 1
@@ -2767,7 +2768,7 @@ encrypted.</p>
 passphrase with scrypt; each value has a random data key sealed to every
 authorised role's public key, with AES-256-GCM throughout. The consequence
 worth knowing is that <strong>storing a secret and granting a role need no
-passphrase — only reading does.</strong> Somebody can add a credential for a role
+passphrase, only reading does.</strong> Somebody can add a credential for a role
 whose passphrase they do not have, which is the usual case.</p>
 <p>This needs the <code>cryptography</code> package: <code>pip install "frostlang[keystore]"</code>.
 The interpreter and everything else still have no dependencies, and the two
@@ -2778,13 +2779,13 @@ manifest and is checked before anything executes:</p>
 <pre><code class="language-text">$ frost --explain release.frost
 
 Reads these secrets:
-  db password  — line 4  (from the keystore)
+  db password  at line 4  (from the keystore)
 
 Lets a secret leave the process:
-  on the standard input of psql  — line 9
+  on the standard input of psql  at line 9
 </code></pre>
 <p>If the role cannot open a secret the script names, frost exits 3 and nothing
-runs — the same contract as <code>--policy</code>. A policy can also refuse outright:</p>
+runs, the same contract as <code>--policy</code>. A policy can also refuse outright:</p>
 <pre><code class="language-policy">forbid reading secret &quot;prod/*&quot;
 require at most 2 secrets read
 forbid any secret releases
@@ -2837,8 +2838,8 @@ output for a model, which has to parse the English and guess an edit.</p>
 so one flag covers every way a script can be refused.</p>
 <h3 id="ref-repairs">Repairs</h3>
 <p>A repair is an edit, not advice. Most come from information the front end
-already had — several hints in this document literally contain the corrected
-line — so handing it over as data costs nothing and saves a round trip.</p>
+already had, several hints in this document literally contain the corrected
+line, so handing it over as data costs nothing and saves a round trip.</p>
 <table>
 <thead>
 <tr>
@@ -2853,7 +2854,7 @@ line — so handing it over as data costs nothing and saves a round trip.</p>
 </tr>
 <tr>
 <td><code>likely</code></td>
-<td>the fix is right, a detail is inferred — which unit a timeout meant, where a missing <code>end repeat</code> goes</td>
+<td>the fix is right, a detail is inferred: which unit a timeout meant, where a missing <code>end repeat</code> goes</td>
 </tr>
 <tr>
 <td><code>guess</code></td>
@@ -2864,7 +2865,7 @@ line — so handing it over as data costs nothing and saves a round trip.</p>
 <pre><code class="language-bash">frost --repair --write report.frost
 </code></pre>
 <p>applies <code>high</code> repairs only, and repeats until nothing is left that it is
-sure about — a recursive-descent parser stops at the first error, so fixing
+sure about: a recursive-descent parser stops at the first error, so fixing
 one reveals the next, and a single pass would give up on any script with two
 mistakes.</p>
 <p>A pass is kept only if it made progress: the script now parses, or the first
@@ -2874,7 +2875,7 @@ wrong repair costs a round trip and teaches the wrong grammar.</p>
 <hr />
 <h2 id="ref-13c-recording-and-replaying-a-run">13c. Recording and replaying a run</h2>
 <p>What a script <em>can</em> do is knowable before it runs. What it <em>did</em> was not
-knowable at all — you ran it and watched.</p>
+knowable at all, you ran it and watched.</p>
 <pre><code class="language-bash">frost --record run.json deploy.frost      # run it, write down everything
 frost --replay run.json deploy.frost      # run it again, spawn nothing
 </code></pre>
@@ -2884,7 +2885,7 @@ read; and whatever was piped in. <strong>Replay performs nothing</strong>: no pr
 spawned, no file is written, nothing is deleted. The recorded answers are
 served back in order.</p>
 <p>That makes a recording a fixture. Change the script, replay it, and every
-command it would run is compared against what it ran before — so a refactor
+command it would run is compared against what it ran before, so a refactor
 meant to preserve behaviour either did or did not, and you find out without a
 database or a network.</p>
 <p>A difference is reported rather than raised:</p>
@@ -2892,12 +2893,12 @@ database or a network.</p>
     the recording ran: echo two
     this run wants:  echo CHANGED
 </code></pre>
-<p>Matching is on the identity of the effect — which program with which
-arguments, which path — not on line numbers, so reformatting or adding
+<p>Matching is on the identity of the effect, which program with which
+arguments, which path: not on line numbers, so reformatting or adding
 comments replays clean. Exit status is 4 for a divergence, distinct from a
 policy refusal.</p>
 <p>Secret <em>values</em> are never recorded, only their names, and any plaintext the
-run revealed is scrubbed from everything written down — including command
+run revealed is scrubbed from everything written down, including command
 arguments, which is where the first version of this leaked. So a recording is
 safe to commit, which is the point: a fixture you cannot check in is not a
 fixture. The scrubbing is exact-match, so a program that transforms a secret
@@ -3049,7 +3050,7 @@ count</code>, <code>file path</code>, and <code>exit status</code>.</p>
 <p>A frost script is parsed, not string-substituted, so everything it can do is
 visible in the tree. Two tools use that.</p>
 <h3 id="ref---explain"><code>--explain</code></h3>
-<p>A capability manifest — what the script touches, without running it.</p>
+<p>A capability manifest: what the script touches, without running it.</p>
 <pre><code class="language-text">$ frost --explain cleanup.frost
 
 Runs these programs:
@@ -3119,14 +3120,14 @@ warning: running &quot;curl&quot;
 </code></pre>
 <p>Subjects are globs, so <code>forbid writing to "/etc/*"</code> covers the whole tree.
 <code>forbid running "rm" with "-rf"</code> matches the program <em>and</em> an argument, so
-ordinary <code>rm</code> still works — the rule targets the dangerous combination rather
+ordinary <code>rm</code> still works, the rule targets the dangerous combination rather
 than banning a useful tool.</p>
 <p><code>require every command to be checked</code> understands the difference between an
 ignored failure and a handled one: a <code>try to run</code> whose result is examined in
 the next statement or two passes, while one whose failure is silently dropped
 does not.</p>
-<p>The capabilities added since — setting an environment variable and changing
-the working folder — have rules of their own, because otherwise they would be
+<p>The capabilities added since, setting an environment variable and changing
+the working folder: have rules of their own, because otherwise they would be
 a way around the rest of the policy:</p>
 <pre><code class="language-policy">forbid setting &quot;PATH&quot;
 forbid setting &quot;LD_*&quot;
@@ -3228,7 +3229,7 @@ them is honest about its limits: a path built at runtime is reported as
 unknowable rather than guessed. That honesty is also the gap. Once the script
 runs, an unknowable path is a real path.</p>
 <p>A boundary closes it. Declared in the same file, but <strong>allow-shaped</strong>, because
-a deny-list cannot become a sandbox — <code>forbid writing to "/etc/*"</code> says
+a deny-list cannot become a sandbox, <code>forbid writing to "/etc/*"</code> says
 nothing about what writing <em>is</em> permitted:</p>
 <pre><code class="language-policy">sandbox may run &quot;git&quot;, &quot;make&quot;
 sandbox may read &quot;*&quot;
@@ -3240,13 +3241,13 @@ sandbox may reach the network
 <p>A path the analyser could not resolve is still confined, because the
 confinement never needed it resolved.</p>
 <h5>Two enforcers, and the difference is real</h5>
-<p><strong>Child processes are confined by the operating system</strong> — <code>sandbox-exec</code> on
+<p><strong>Child processes are confined by the operating system</strong>: <code>sandbox-exec</code> on
 macOS, <code>bubblewrap</code> on Linux. Once a program runs inside one, frost is not in
 the loop: the kernel refuses the write. That holds even if the program is
 hostile, even if frost has a bug.</p>
 <p><strong>frost's own file operations are confined by frost.</strong> <code>put X into file
 (path)</code> never becomes a child process, so the check is a check in the
-interpreter — enforced by the same code being trusted to run the script at
+interpreter, enforced by the same code being trusted to run the script at
 all. A weaker claim, and named differently here for that reason.</p>
 <h5>What it cannot do</h5>
 <p><strong>Per-host network rules.</strong> The obvious thing to want is <em>may reach
@@ -3260,7 +3261,7 @@ all-or-nothing, <code>sandbox may reach the network</code> says exactly that, an
 under-enforced. A boundary that does not hold is worse than no boundary,
 because somebody relies on it.</p>
 <p><strong>Platforms with no backend.</strong> If a boundary is declared and cannot be
-enforced here, frost refuses to run — it does not warn and continue. Before
+enforced here, frost refuses to run. It does not warn and continue. Before
 each run it also executes a real confined command that tries to write outside
 its boundary, and refuses if that write succeeds: present is not the same as
 working.</p>
@@ -3269,7 +3270,7 @@ run every <code>git</code> subcommand. Confinement bounds the blast radius; it d
 read intent.</p>
 <h4>Bounded timeouts</h4>
 <p><code>require timeout on "curl"</code> asks only that a deadline exists. A deadline of
-six hours satisfies it, and so does one of a millisecond — the first hangs the
+six hours satisfies it, and so does one of a millisecond, the first hangs the
 script, the second kills healthy work. So the bound can be given:</p>
 <pre><code class="language-policy">require timeout on &quot;curl&quot; of at most 30 seconds
 require timeout on &quot;*&quot; of at least 1 second
@@ -3279,10 +3280,10 @@ require timeout on &quot;*&quot; between 1 and 120 seconds
 seconds catches a script written in minutes, because <code>within 2 minutes</code> is
 already <code>2 * 60</code> in the tree and folds to 120 before the comparison.</p>
 <p>A timeout computed at runtime cannot be checked ahead of time, and is refused
-rather than assumed acceptable — the same rule the manifest follows for a
+rather than assumed acceptable, the same rule the manifest follows for a
 program name built at runtime.</p>
 <p>Sensitive-path detection works on literal <em>fragments</em>, so a path assembled at
-runtime — <code>file (home &amp; "/.ssh/id_rsa")</code> — is still recognised even though no
+runtime, <code>file (home &amp; "/.ssh/id_rsa")</code>: is still recognised even though no
 whole-string literal ever appears in the source.</p>
 <p>This is the part a traditional shell cannot offer. <code>rm -rf "$DIR"</code> is a string
 until the moment it executes, so there is nothing to inspect beforehand. In
@@ -3429,7 +3430,7 @@ values being re-read as syntax after substitution. Use <code>&amp;</code> and <c
 shell explicitly: <code>run "sh" with "-c", script text</code>. That line is greppable in
 review, which is the point.</p>
 <p><strong>Globbing in <code>run</code> arguments.</strong> <code>run "rm" with "*.tmp"</code> passes a literal
-asterisk. Expansion happens where you can see it — loop over the output of
+asterisk. Expansion happens where you can see it, loop over the output of
 <code>find</code>, or hand the pattern to a program that expands it.</p>
 <p><strong>Background jobs, job control, <code>&amp;</code>, <code>fg</code>, <code>bg</code>.</strong> These belong to an
 interactive shell. frost is not one.</p>

@@ -175,7 +175,7 @@ def test_the_length_is_the_real_length():
 
 
 def test_comparison_is_constant_time():
-    """Not a timing measurement — that it routes through compare_digest."""
+    """Not a timing measurement. That it routes through compare_digest."""
     import frostlang.interp as interp
     source = open(interp.__file__).read()
     assert "hmac.compare_digest" in source
@@ -192,7 +192,7 @@ def test_a_list_of_arguments_gets_the_plaintext():
 
 
 # These used to read the value back through `put it`. frost now re-seals a
-# secret a child prints back, so that route redacts — which is the leak being
+# secret a child prints back, so that route redacts, which is the leak being
 # closed, and would have turned these into tests of the redaction rather than
 # of the release. The child writes what it received to a file instead, which
 # is the one record frost does not edit on the way past.

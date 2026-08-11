@@ -1,7 +1,7 @@
 """Regression guards on the front end, and nothing more.
 
-There is a temptation to encode the README's argument as a test — "parsing is
-cheaper than spawning a process" — and two rounds of CI showed why that does
+There is a temptation to encode the README's argument as a test, "parsing is
+cheaper than spawning a process": and two rounds of CI showed why that does
 not work. The cost of `fork`/`exec` swings by platform far more than parsing
 does: `true` is about 0.7ms on Linux and 2.4ms on macOS, and `git --version`
 is about 1.2ms on Linux and 12ms on macOS. A comparison between the two is a

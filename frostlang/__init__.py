@@ -1,4 +1,4 @@
-"""frost — a HyperTalk-descended scripting language for readable shell scripts."""
+"""frost, a HyperTalk-descended scripting language for readable shell scripts."""
 # SPDX-License-Identifier: MIT
 
 __version__ = "0.9.0"

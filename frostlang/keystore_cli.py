@@ -1,4 +1,4 @@
-"""`frost keystore ...` — managing the keystore from the command line.
+"""`frost keystore ...`: managing the keystore from the command line.
 
 Kept apart from cli.py because it is a different job: cli.py runs and inspects
 scripts, this administers a file. The only thing they share is how a
@@ -7,8 +7,8 @@ passphrase is obtained.
 A passphrase comes from `FROST_PASSPHRASE` when it is set, and from a terminal
 prompt otherwise. The environment variable exists because CI has no terminal;
 it is read once and never echoed. Nothing here ever writes a passphrase or a
-secret value to a log, and `keystore get` — the one command that prints a
-value — says so in its help.
+secret value to a log, and `keystore get`: the one command that prints a
+value, says so in its help.
 """
 # SPDX-License-Identifier: MIT
 
@@ -93,7 +93,7 @@ def build_parser():
     p.add_argument("--roles", required=True,
                    help="comma separated; at least one")
 
-    p = add("get", "print a secret in the clear — it will be visible")
+    p = add("get", "print a secret in the clear. It will be visible")
     p.add_argument("name")
     p.add_argument("--role", required=True)
 
@@ -177,7 +177,7 @@ def run(opts, out, passphrases, values):
             out.write("no roles yet\n")
         for role in store.roles:
             readable = [n for n in store.names if store.may_read(n, role)]
-            out.write(f"  {role}  — may read {len(readable)} secret(s)\n")
+            out.write(f"  {role}  may read {len(readable)} secret(s)\n")
         return 0
 
     if command == "list":
@@ -186,7 +186,7 @@ def run(opts, out, passphrases, values):
             return 0
         width = max(len(n) for n in store.names)
         for name, roles in store.inventory():
-            out.write(f"  {name.ljust(width)}  — {', '.join(roles)}\n")
+            out.write(f"  {name.ljust(width)}  {', '.join(roles)}\n")
         return 0
 
     if command == "set":

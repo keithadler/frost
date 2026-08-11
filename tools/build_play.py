@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build play.html — a live scratchpad for chunk expressions.
+"""Build play.html, a live scratchpad for chunk expressions.
 
 The evaluator is web/chunks.js, which tools/verify_chunks.py checks against the
 Python implementation on every build. This script refuses to write the page if
@@ -219,7 +219,7 @@ TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost — chunk expression scratchpad</title>
+<title>frost, chunk expression scratchpad</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -321,7 +321,7 @@ footer code{font-family:var(--mono);font-size:.85em}
 <body>
 <div class="wrap">
 
-<p class="eyebrow">frost — scratchpad</p>
+<p class="eyebrow">frost, scratchpad</p>
 <h1>Chunk expressions, live.</h1>
 <p class="lede">Type an expression and see the result against the text on the
 left. <code>it</code> holds that text. This is the notation that replaces
@@ -337,7 +337,7 @@ left. <code>it</code> holds that text. This is the notation that replaces
 
 <div class="cols">
   <div class="panel">
-    <h2>The text — edit it freely</h2>
+    <h2>The text, edit it freely</h2>
     <div class="body">
       <textarea id="subject" spellcheck="false"></textarea>
       <p class="gutter" id="gutter"></p>
