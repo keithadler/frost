@@ -26,9 +26,14 @@
   language: python
   files: \.frost$
 
+# --explain exits 1 on a dangerous verdict, so this stops a commit as well as
+# describing it. The first version of this file called it informational, which
+# was wrong in the way that matters: somebody adds it expecting a log line and
+# gets a blocked commit. Use it *instead of* frost-check, not alongside, and
+# take it out if you only want the manifest in the log.
 - id: frost-explain
   name: frost explain
-  description: Print what each frost script can do, for the record.
+  description: Print the full manifest, and stop on a dangerous verdict.
   entry: frost --explain
   language: python
   files: \.frost$
@@ -36,14 +41,18 @@
 
 - id: frost-policy
   name: frost policy
-  description: Check every frost script against a policy. Pass --policy PATH.
+  description: Refuse any script a policy forbids. Pass --policy PATH.
   entry: frost --check --strict
   language: python
   files: \.frost$
 
+# --write, or this reformats nothing. Without it `--format` prints the
+# canonical layout to standard output, the file on disk is untouched, and the
+# hook passes every time: a formatting hook that silently does nothing is
+# worse than no hook, because it is believed.
 - id: frost-format
   name: frost format
-  description: Rewrite frost scripts in canonical form.
-  entry: frost --format
+  description: Rewrite frost scripts in canonical form, in place.
+  entry: frost --format --write
   language: python
   files: \.frost$

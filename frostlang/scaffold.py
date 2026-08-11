@@ -19,7 +19,8 @@ easier job than starting from nothing.
 
 import os
 
-from .audit import NETWORK_PROGRAMS, RUNTIME_HOST, classify_path
+from .audit import (NETWORK_PROGRAMS, RUNTIME_HOST, classify_path,
+                    shell_escapes)
 
 HEADER = """-- A starter policy for {name}, written by `frost --policy-from`.
 --
@@ -98,6 +99,30 @@ def policy_for(path, caps):
         out.append(f"require at most {len(caps.writes)} files written")
     if caps.cleanups:
         out.append("require at least 1 cleanup")
+    out.append("")
+
+    # Volume and escapes. Neither is knowable from the text, so neither can
+    # be sized from the script the way the counts above are: what a command
+    # returns is a fact about the run. They are emitted as a starting figure
+    # to argue with, which is the whole point of a scaffold, and generous
+    # enough that a first run does not fail on a number nobody chose.
+    out.append("-- How much it may move. Nothing here can be measured from")
+    out.append("-- the text, so these are a starting figure, not a finding.")
+    out.append("require at most 10 megabytes of output")
+    out.append("require at most 5 megabytes from one command")
+    if caps.writes:
+        out.append("require at most 10 megabytes written to files")
+    out.append("")
+
+    escapes = len(shell_escapes(caps))
+    if escapes:
+        out.append(f"-- {escapes} place(s) reach an interpreter, so this")
+        out.append("-- would refuse the script as it stands:")
+        out.append("-- require at most 0 shell escapes")
+    else:
+        out.append("-- It reaches no interpreter today. Keeping it that way")
+        out.append("-- is the single most useful line in this file.")
+        out.append("require at most 0 shell escapes")
     out.append("")
 
     out.append("-- The usual refusals. Uncomment the ones that apply here.")

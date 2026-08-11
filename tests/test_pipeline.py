@@ -387,3 +387,61 @@ def test_merge_files_reads_a_directory(tmp_path):
     merged = json.loads(out.read_text())
     assert len(merged["runs"]) == 1
     assert len(merged["runs"][0]["results"]) == 2
+
+
+def test_the_scaffold_covers_the_newest_rules():
+    """A starter policy that silently omits a capability teaches that the
+    capability does not exist. Volume and escapes were added after this
+    generator was written, and it went on describing the older frost."""
+    text = scaffold.policy_for("s.frost", caps_for(
+        'run "curl" with "https://x.example" within 30 seconds\n'
+        'put it into file "out.txt"\n'))
+    assert "megabytes of output" in text
+    assert "from one command" in text
+    assert "megabytes written to files" in text
+    assert "shell escapes" in text
+
+
+def test_the_scaffold_comments_out_an_escape_rule_it_would_break():
+    """Suggesting a rule that fails the build immediately is how a scaffold
+    gets deleted rather than edited."""
+    text = scaffold.policy_for("s.frost", caps_for(
+        'run "sh" with "-c", "id"\n'))
+    assert "-- require at most 0 shell escapes" in text
+    assert "\nrequire at most 0 shell escapes" not in text
+
+
+def test_the_scaffold_asserts_the_rule_when_the_script_is_clean():
+    text = scaffold.policy_for("s.frost", caps_for('run "git" with "status"'))
+    assert "\nrequire at most 0 shell escapes" in text
+
+
+def test_a_generated_policy_never_refuses_its_own_script():
+    """The property that matters, over every example in the repository.
+
+    A starter policy is read once and trusted. If it refuses the script it
+    was generated from, the first thing it teaches is that the policy engine
+    is an obstacle.
+    """
+    import os
+    from frostlang.audit import audit, check, parse_policy
+    from frostlang.parser import parse
+
+    folder = os.path.join(REPO, "examples")
+    checked = 0
+    for name in sorted(os.listdir(folder)):
+        if not name.endswith(".frost"):
+            continue
+        with open(os.path.join(folder, name)) as fh:
+            source = fh.read()
+        try:
+            caps = caps_for(source)
+        except Exception:
+            continue                      # a deliberately broken example
+        rules = parse_policy(scaffold.policy_for(name, caps))
+        refused = [f for f in check(caps, rules) if f.severity == "forbid"]
+        assert not refused, (
+            f"the policy generated for {name} refuses it: "
+            f"{[f.what for f in refused]}")
+        checked += 1
+    assert checked > 5, f"only checked {checked} examples; the walk is wrong"

@@ -9,6 +9,7 @@ it shows up when you run the interpreter.
 import json
 import os
 import re
+import sys
 
 import pytest
 
@@ -321,3 +322,79 @@ def test_the_contributing_guide_lists_the_real_builders():
     for builder in os.listdir(os.path.join(REPO, "tools")):
         if builder.startswith("build_") and builder.endswith(".py"):
             assert builder in guide, f"CONTRIBUTING.md never mentions {builder}"
+
+
+# ------------------------------------------------------ the pre-commit hooks
+
+def hook_definitions():
+    yaml = pytest.importorskip("yaml")
+    with open(os.path.join(REPO, ".pre-commit-hooks.yaml")) as fh:
+        return yaml.safe_load(fh)
+
+
+def test_every_hook_names_flags_the_cli_accepts():
+    """A hook is a command line nobody here runs. A flag renamed in cli.py
+    leaves this file pointing at something that no longer exists, and the
+    failure lands in a stranger's commit rather than in this suite."""
+    from frostlang import cli
+
+    parser = cli.build_parser() if hasattr(cli, "build_parser") else None
+    if parser is None:
+        pytest.skip("the parser is built inside main()")
+    known = set()
+    for action in parser._actions:
+        known.update(action.option_strings)
+
+    for hook in hook_definitions():
+        flags = [w for w in hook["entry"].split() if w.startswith("-")]
+        for flag in flags:
+            assert flag in known, f"{hook['id']} uses {flag}, which cli.py "\
+                                  f"does not define"
+
+
+def test_the_formatting_hook_actually_rewrites_the_file(tmp_path):
+    """The bug this file shipped with.
+
+    `--format` prints the canonical layout to standard output and leaves the
+    file alone. The hook was `frost --format`, so it reformatted nothing and
+    passed every time. A formatting hook that silently does nothing is worse
+    than no hook, because it is believed.
+
+    Asserted by running the hook's own command line rather than by reading it,
+    since reading it is what went wrong.
+    """
+    import subprocess
+
+    hooks = {h["id"]: h for h in hook_definitions()}
+    entry = hooks["frost-format"]["entry"].split()
+
+    messy = tmp_path / "messy.frost"
+    messy.write_text('run   "echo"    with "a"\nput it\n')
+    before = messy.read_text()
+
+    env = {**os.environ, "PYTHONPATH": REPO}
+    done = subprocess.run(
+        [sys.executable, os.path.join(REPO, "frost")] + entry[1:]
+        + [str(messy)], capture_output=True, text=True, env=env, timeout=60)
+    assert done.returncode == 0, done.stderr
+    assert messy.read_text() != before, \
+        "the formatting hook left the file untouched"
+    assert messy.read_text() == 'run "echo" with "a"\nput it\n'
+
+
+def test_a_hook_that_stops_a_commit_says_so():
+    """`--explain` exits 1 on a dangerous verdict. This file described that
+    hook as informational, which is wrong in the way that matters: somebody
+    adds it expecting a log line and gets a blocked commit."""
+    for hook in hook_definitions():
+        if "--explain" in hook["entry"] or "--strict" in hook["entry"]:
+            words = hook["description"].lower()
+            assert any(w in words for w in ("stop", "refuse", "dangerous")), (
+                f"{hook['id']} can fail a commit and its description does "
+                f"not say so: {hook['description']!r}")
+
+
+def test_the_hooks_only_touch_frost_files():
+    for hook in hook_definitions():
+        assert hook["files"] == r"\.frost$", hook["id"]
+        assert hook["language"] == "python", hook["id"]
