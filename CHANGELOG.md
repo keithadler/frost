@@ -7,6 +7,25 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
 
+## 0.9.3 - 2026-08-10
+
+### Fixed
+
+**The container is built from the wheel this release published**, rather than
+fetching it back from PyPI.
+
+Fetching it back looked like the more honest choice and was a race. PyPI's
+index is eventually consistent across edges: on the 0.9.2 release the runner
+probed and reported the version available, and sixteen seconds later the build
+container, talking to a different edge, could not find it. Waiting longer on
+the runner cannot fix that, because the runner was never the one that had to
+see it. 0.9.2 published to PyPI with no container image.
+
+Building from the artefact is also the stronger guarantee. The image holds the
+exact file that was uploaded rather than a copy that resembles it, and the
+build ends by running `frost --version` inside the image, so a wheel that
+installed but could not run would fail the build instead of shipping.
+
 ## 0.9.2 - 2026-08-10
 
 ### Fixed

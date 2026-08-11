@@ -949,7 +949,7 @@ As a pre-commit hook:
 ```yaml
 repos:
   - repo: https://github.com/keithadler/frost
-    rev: v0.9.2
+    rev: v0.9.3
     hooks:
       - id: frost-check
 ```
@@ -1161,7 +1161,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.9.2. The language runs, the examples are real, and 2100 tests cover
+Version 0.9.3. The language runs, the examples are real, and 2100 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

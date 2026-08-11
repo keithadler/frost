@@ -110,24 +110,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Wait for PyPI to serve the new version
-        # The image installs from PyPI rather than the checkout, so it cannot
-        # be built until the index has the version this tag published. A build
-        # that raced ahead would either fail or, worse, quietly bake the
-        # previous release into an image labelled with this one.
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          for attempt in $(seq 1 30); do
-            if pip download --no-deps --dest /tmp/probe \
-                 "frostlang==$version" >/dev/null 2>&1; then
-              echo "frostlang $version is available"
-              exit 0
-            fi
-            echo "attempt $attempt: not on PyPI yet"
-            sleep 10
-          done
-          echo "::error::frostlang $version never appeared on PyPI"
-          exit 1
+      - uses: actions/download-artifact@v6
+        # The very wheel this run built and published, rather than a copy
+        # fetched back from PyPI. The index is eventually consistent across
+        # edges, so a probe from the runner can report the version available
+        # while the build container, talking to a different edge, cannot find
+        # it. That is exactly how v0.9.2 failed.
+        with:
+          name: dist
+          path: dist/
 
       - name: The version, without the leading v
         # github.ref_name is "v0.9.1" and pip needs "0.9.1". Passing the tag
