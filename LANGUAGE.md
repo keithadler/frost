@@ -417,6 +417,28 @@ one that never finishes and a buffered trace of a wedged script is an empty
 file. It prints source text and never runtime values, so a credential cannot
 reach it.
 
+### Rules about what a script may run
+
+```policy
+forbid running "sudo"
+require running only "git", "npm", "docker-*"
+require at most 0 shell escapes
+```
+
+The deny form names what you fear. The allow form names what you trust, and it
+is the one that holds: a deny-list cannot be completed, because it is a list of
+the programs somebody thought of.
+
+A program named at runtime is refused by the allow form rather than assumed to
+be on it. Assuming it passes is what makes an allow-list decorative, and it is
+the same answer `require reaching only` gives to a destination built at
+runtime.
+
+`require at most 0 shell escapes` covers what `forbid running "sh"` cannot.
+That rule matches the program frost spawns, which for `xargs sh -c` is xargs,
+so it never fires on the indirect form. The count sees both, and both the
+count and the finding come from one detector so they cannot disagree.
+
 ### Rules about where a script reaches
 
 ```policy

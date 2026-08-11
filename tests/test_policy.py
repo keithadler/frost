@@ -218,3 +218,101 @@ def test_reading_and_setting_are_separate_rules():
     assert check(caps, parse_policy('forbid setting "TOKEN"\n')) == []
     assert check(caps, parse_policy(
         'forbid reading the environment "TOKEN"\n'))
+
+
+# ------------------------------------------------------- the allow-list forms
+#
+# Hosts had `require reaching only` and environment reads had `require reading
+# only the environment`. Programs, the capability that matters most, were
+# deny-shaped only: a policy could name what it feared and never what it
+# trusted. A deny-list cannot be completed, because it is a list of the
+# programs somebody thought of.
+
+def test_a_program_allow_list_permits_what_it_names():
+    rules = parse_policy('require running only "git", "npm"')
+    assert check(caps_for('run "git" with "status"'), rules) == []
+    assert check(caps_for('run "npm" with "ci"'), rules) == []
+
+
+def test_a_program_allow_list_refuses_everything_else():
+    rules = parse_policy('require running only "git"')
+    [finding] = check(caps_for('run "curl" with "https://x.example"'), rules)
+    assert finding.severity == "forbid"
+    assert "running curl" in finding.what
+    assert "allow-list" in finding.what
+
+
+def test_a_program_allow_list_takes_patterns():
+    rules = parse_policy('require running only "git", "docker-*"')
+    assert check(caps_for('run "docker-compose" with "up"'), rules) == []
+    assert check(caps_for('run "dockerd"'), rules)
+
+
+def test_a_program_named_at_runtime_is_refused_rather_than_assumed():
+    """The same answer the host allow-list gives. A name that does not exist
+    until the run cannot be shown to be on the list, and assuming it is on the
+    list is the failure that makes an allow-list decorative."""
+    rules = parse_policy('require running only "git"')
+    [finding] = check(caps_for('put the environment variable "T" into tool\n'
+                               "run tool"), rules)
+    assert finding.severity == "forbid"
+    assert "named at runtime" in finding.what
+
+
+def test_a_program_allow_list_without_quotes_is_refused_at_parse_time():
+    with pytest.raises(PolicyError) as caught:
+        parse_policy("require running only git")
+    assert "in quotes" in str(caught.value)
+
+
+def test_the_allow_list_composes_by_intersection():
+    """Two policies concatenated must narrow, never widen. Both rules apply,
+    so a program has to satisfy each of them."""
+    rules = parse_policy('require running only "git", "npm"\n'
+                         'require running only "git"')
+    assert check(caps_for('run "git" with "status"'), rules) == []
+    assert check(caps_for('run "npm" with "ci"'), rules)
+
+
+# ------------------------------------------------- escapes a rule can act on
+
+def test_a_shell_escape_can_be_refused_and_not_only_reported():
+    """The gap this closes: `forbid running "sh"` matches the program frost
+    spawns, which for `xargs sh -c` is xargs, so the direct rule never fired
+    on the indirect form. The manifest named an escape that no rule could
+    count."""
+    named = parse_policy('forbid running "sh"')
+    indirect = 'run "xargs" with "-I", "{}", "sh", "-c", "echo {}"'
+    assert check(caps_for(indirect), named) == [], \
+        "the program rule still does not see through the launcher"
+
+    counted = parse_policy("require at most 0 shell escapes")
+    [finding] = check(caps_for(indirect), counted)
+    assert finding.severity == "forbid"
+    assert "shell escapes" in finding.what
+
+
+def test_the_direct_escape_is_counted_too():
+    rules = parse_policy("require at most 0 shell escapes")
+    assert check(caps_for('run "sh" with "-c", "id"'), rules)
+
+
+def test_a_script_with_no_escape_passes_the_count():
+    rules = parse_policy("require at most 0 shell escapes")
+    assert check(caps_for('run "git" with "status"'), rules) == []
+
+
+def test_the_count_and_the_findings_cannot_disagree():
+    """Both read the same detector. Two answers to one question is how a
+    manifest ends up describing something no rule can refuse."""
+    from frostlang.audit import shell_escapes, find_dangers
+
+    source = ('run "sh" with "-c", "id"\n'
+              'run "xargs" with "sh", "-c", "id"\n'
+              'run "find" with ".", "-exec", "rm", "{}", ";"\n')
+    caps = caps_for(source)
+    escapes = shell_escapes(caps)
+    titled = [f.title for f in find_dangers(caps)]
+    assert len(escapes) == 3
+    for _, title, _ in escapes:
+        assert title in titled

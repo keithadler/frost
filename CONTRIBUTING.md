@@ -87,6 +87,32 @@ git diff --exit-code          # generated files must be committed up to date
 
 CI runs all of that on Python 3.10 through 3.13, on Linux and macOS.
 
+## Cutting a release
+
+Publishing runs on a version tag, through PyPI trusted publishing, so there is
+no API token in this repository to leak or rotate. That needs a one-time setup
+on PyPI before the first release: add a trusted publisher for the `frostlang`
+project pointing at this repository, the workflow file `release.yml`, and the
+environment name `pypi`. Until that exists the publish step fails loudly,
+which is the right failure: a release that silently uploaded nothing would be
+found by whoever tried to install it.
+
+```bash
+# 1. version, changelog, generated files
+#    (pyproject.toml, frostlang/__init__.py, editors/package.json,
+#     examples/tour.frost all carry the version; the tests check they agree)
+python -m pytest tests/ -q
+git commit -am "Release 0.9.0"
+
+# 2. the tag has to match the declared version or the workflow refuses
+git tag v0.9.0
+git push origin master --tags
+```
+
+The workflow builds the sdist and the wheel, checks the metadata, installs the
+built wheel into a clean environment and runs a script through it. Installing
+the checkout instead would prove the checkout works, which was never in doubt.
+
 ## Style
 
 Match the surrounding code. Two things are deliberate and worth keeping:
