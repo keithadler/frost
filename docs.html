@@ -279,6 +279,14 @@ contract instead of trusted as a guess.</p>
 <td>Unreachable statements, handlers nobody calls, values computed and dropped. Harmless individually, and together the clearest sign a generated script contains more than anyone intended.</td>
 </tr>
 <tr>
+<td><strong><code>frost mcp</code></strong></td>
+<td>The review tools over Model Context Protocol, stdio JSON-RPC, no dependencies. It cannot run a script and reads no files, by design: frost exists because the decision to run sits with a person, and a server that executes on request moves it back to the machine.</td>
+</tr>
+<tr>
+<td><strong><code>frost context</code></strong></td>
+<td>What a model should read before writing frost: the forms, the reserved words taken from the parser, and the constructs it deliberately lacks. Every snippet in it is parsed by the test suite, so it cannot teach a form that does not work.</td>
+</tr>
+<tr>
 <td><strong>Volume limits</strong></td>
 <td><code>require at most 10 megabytes of output</code> and <code>--max-output 10MB</code>. A deadline says nothing about a command that answers instantly with a gigabyte. The child is killed at the ceiling rather than measured after the fact, because a limit that notices afterwards prevents nothing.</td>
 </tr>
@@ -1093,7 +1101,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2039 tests — python3 -m pytest tests/ -q
+tests/                2071 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1110,7 +1118,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.8.0. The language runs, the examples are real, and 2039 tests cover
+<p>Version 0.8.0. The language runs, the examples are real, and 2071 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>

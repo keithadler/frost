@@ -64,6 +64,11 @@ Roughly in order:
 10. `tools/build_editors.py` needs nothing if you only added a reserved word —
     it reads `HARD_WORDS` — but rerun it, because the generated grammar under
     `editors/` is committed and CI checks it is current.
+11. `frostlang/context.py` and `tools/build_context.py`, if you changed a
+    statement form. That document is what a model reads before writing frost,
+    and `MODEL-CONTEXT.md` is committed, so a stale copy teaches yesterday's
+    grammar to everything that fetches it. Every snippet in it is parsed by
+    the test suite, so a form that does not work cannot be documented there.
 
 ## Before opening a pull request
 
@@ -75,6 +80,7 @@ python tools/build_docs.py
 python tools/build_play.py
 python tools/build_audit.py
 python tools/build_editors.py
+python tools/build_context.py
 python tools/build_site.py       # only to preview what Pages will publish
 git diff --exit-code          # generated files must be committed up to date
 ```

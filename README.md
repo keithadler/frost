@@ -32,6 +32,8 @@ contract instead of trusted as a guess.
 | **Declared record shapes** | `with fields "status", "number"` makes a mistyped field a `--check` failure instead of a silent empty, and verifies the payload at the line that parsed it. |
 | **`--events`** | NDJSON for Splunk, New Relic, Datadog or a collector. Every command timed, every effect reported, secrets redacted. The finish event says which approved capabilities went **unused**, which is a signal a shell cannot produce and which drives tightening an approval before it is abused. |
 | **Dead code** | Unreachable statements, handlers nobody calls, values computed and dropped. Harmless individually, and together the clearest sign a generated script contains more than anyone intended. |
+| **`frost mcp`** | The review tools over Model Context Protocol, stdio JSON-RPC, no dependencies. It cannot run a script and reads no files, by design: frost exists because the decision to run sits with a person, and a server that executes on request moves it back to the machine. |
+| **`frost context`** | What a model should read before writing frost: the forms, the reserved words taken from the parser, and the constructs it deliberately lacks. Every snippet in it is parsed by the test suite, so it cannot teach a form that does not work. |
 | **Volume limits** | `require at most 10 megabytes of output` and `--max-output 10MB`. A deadline says nothing about a command that answers instantly with a gigabyte. The child is killed at the ceiling rather than measured after the fact, because a limit that notices afterwards prevents nothing. |
 | **Nested interpreters** | `xargs sh -c`, `env sh -c`, `sudo sh -c`, `find -exec`, `ssh host "..."`. The escape check used to fire only when the interpreter was the program name, so every indirect form reported nothing at all. A manifest may overstate; understating is what makes it worse than none. |
 | **`frost diff`** | `frost diff old.frost new.frost` compares two versions by what they can do, not by their text. Three rearranged lines can be a widening and thirty can be a rename, so a review that reads the text diff is reading the wrong artefact. |
@@ -1043,7 +1045,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2039 tests — python3 -m pytest tests/ -q
+tests/                2071 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1062,7 +1064,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.8.0. The language runs, the examples are real, and 2039 tests cover
+Version 0.8.0. The language runs, the examples are real, and 2071 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

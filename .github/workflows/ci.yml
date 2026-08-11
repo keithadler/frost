@@ -91,6 +91,7 @@ jobs:
           python tools/build_play.py
           python tools/build_audit.py
           python tools/build_editors.py
+          python tools/build_context.py
 
       - name: Nothing changed
         # A generated file committed out of date is a lie that survives review,
