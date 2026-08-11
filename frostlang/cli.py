@@ -9,7 +9,8 @@ import time
 from . import __version__
 from .lexer import LexError
 from .parser import parse, ParseError
-from .interp import Interpreter, FrostError, DeadlineExceeded
+from .interp import (Interpreter, FrostError, DeadlineExceeded,
+                     VolumeExceeded)
 from . import diagnostics
 from .diagnostics import (collect_diagnostics, first_error_line,
                           repair_until_stuck, MAX_REPAIR_PASSES)
@@ -462,6 +463,14 @@ def build_parser():
     ap.add_argument("--deadline", metavar="SECONDS", type=float,
                     help="stop the whole run after this long, running any "
                          "cleanup on the way out")
+    ap.add_argument("--max-output", metavar="SIZE", dest="max_output",
+                    help="the most a run may return from its commands, as "
+                         "'10MB' or '500kb'; the child is killed at the "
+                         "ceiling rather than measured after the fact")
+    ap.add_argument("--max-one-command", metavar="SIZE", dest="max_command",
+                    help="the most any single command may return")
+    ap.add_argument("--max-written", metavar="SIZE", dest="max_written",
+                    help="the most a run may write to files")
     ap.add_argument("--enforce-hosts", action="store_true",
                     dest="enforce_hosts",
                     help="check a command's real destination before it runs, "
@@ -482,6 +491,36 @@ def build_parser():
                     help="hold the boundary the policy declares; refuses to "
                          "run if it cannot be enforced here")
     return ap
+
+
+def parse_size(text):
+    """A size written on the command line, as bytes.
+
+    Accepts what a person types: `10MB`, `10 mb`, `500kb`, `2048`. Decimal
+    units, matching the policy language, because a flag that means one thing
+    and a rule that means another is a bug waiting for the day the two
+    disagree by 4.8 percent.
+    """
+    from .audit import BYTE_UNITS
+
+    cleaned = text.strip().lower().replace(" ", "")
+    number, unit = cleaned, ""
+    for i, ch in enumerate(cleaned):
+        if not (ch.isdigit() or ch == "."):
+            number, unit = cleaned[:i], cleaned[i:]
+            break
+    if not number:
+        raise ValueError(f"{text!r} is not a size; try 10MB")
+    try:
+        amount = float(number)
+    except ValueError:
+        raise ValueError(f"{text!r} is not a size; try 10MB") from None
+    scale = BYTE_UNITS.get(unit or "bytes")
+    if scale is None:
+        raise ValueError(f"{unit!r} is not a size unit; try MB, kb or bytes")
+    if amount <= 0:
+        raise ValueError(f"a limit of {text} allows nothing at all")
+    return int(amount * scale)
 
 
 def diff_scripts(before, after):
@@ -1101,6 +1140,24 @@ def main(argv=None):
         import time as _time
         interp.deadline = _time.monotonic() + min(budgets)
 
+    # The same composition as the deadline: a policy and a flag both apply,
+    # and the tighter of the two wins, so a flag can narrow a site limit and
+    # never widen one.
+    from .audit import volume_limits
+    limits = volume_limits(policy_rules)
+    for which, given in (("output", opts.max_output),
+                         ("command", opts.max_command),
+                         ("written", opts.max_written)):
+        if given is None:
+            continue
+        try:
+            size = parse_size(given)
+        except ValueError as e:
+            sys.stderr.write(f"frost: {e}\n")
+            return 2
+        limits[which] = min(limits.get(which, size), size)
+    interp.volume = limits
+
     if opts.enforce_hosts and policy_rules:
         from .audit import host_rules
         interp.host_rules = host_rules(policy_rules)
@@ -1129,6 +1186,13 @@ def main(argv=None):
         where = f"{opts.script}:{e.line}" if e.line else opts.script
         sys.stderr.write(f"\nDIVERGED at {where}\n    {e.msg}\n\n")
         outcome = 4
+        return outcome
+    except VolumeExceeded as e:
+        # A distinct code from 124, because the two are distinct facts about
+        # the run and a repair loop that cannot tell them apart will raise the
+        # wrong limit.
+        report("Error", e.msg, e.line, e.hint, source_lines, opts.script)
+        outcome = 125
         return outcome
     except DeadlineExceeded as e:
         # 124 is what a shell reports for a timeout, and what frost already
@@ -1179,6 +1243,13 @@ def main(argv=None):
                 commands=observer.commands,
                 command_seconds=round(observer.busy, 6),
                 waited_seconds=round(observer.waited, 6),
+                # The run already counts these to enforce a ceiling, so
+                # reporting them costs nothing and answers the question that
+                # comes before setting one: how much does this normally move?
+                bytes_returned=interp.bytes_out,
+                bytes_written=interp.bytes_written,
+                output_limit=interp.volume.get("output"),
+                written_limit=interp.volume.get("written"),
                 replayed=bool(opts.replay),
                 **T.utilisation(audit_program(program).merged, observer))
             events.close()
