@@ -827,3 +827,101 @@ def test_init_creates_a_folder_that_is_not_there(tmp_path):
 def test_init_rejects_more_than_one_folder(tmp_path, capsys):
     assert cli.main(["init", str(tmp_path), "extra"]) == 2
     assert "usage" in capsys.readouterr().err
+
+
+# ------------------------------------- finding the policy, and colour, and folders
+
+def test_a_policy_beside_the_script_is_found(tmp_path, capsys):
+    """`frost init` wrote a policy next to the script and then made you name
+    it on every run. The pair it creates should work as a pair."""
+    cli.main(["init", str(tmp_path)])
+    (tmp_path / "frost.policy").write_text('forbid running "git"\n')
+    assert cli.main(["--check", str(tmp_path / "main.frost")]) == 3
+    assert "using" in capsys.readouterr().err
+
+
+def test_the_found_policy_is_named_out_loud(tmp_path, capsys):
+    """A rule that applies without being asked for has to be visible."""
+    cli.main(["init", str(tmp_path)])
+    cli.main(["--check", str(tmp_path / "main.frost")])
+    assert str(tmp_path / "frost.policy") in capsys.readouterr().err
+
+
+def test_no_policy_opts_out(tmp_path):
+    cli.main(["init", str(tmp_path)])
+    (tmp_path / "frost.policy").write_text('forbid running "git"\n')
+    assert cli.main(["--check", "--no-policy",
+                     str(tmp_path / "main.frost")]) == 0
+
+
+def test_an_explicit_policy_still_wins(tmp_path):
+    cli.main(["init", str(tmp_path)])
+    (tmp_path / "frost.policy").write_text('forbid running "git"\n')
+    permissive = tmp_path / "other.policy"
+    permissive.write_text('warn running "git"\n')
+    assert cli.main(["--check", "--policy", str(permissive),
+                     str(tmp_path / "main.frost")]) == 0
+
+
+def test_the_search_stops_at_a_project_boundary(tmp_path):
+    """A policy from outside the project is somebody else's contract."""
+    (tmp_path / "frost.policy").write_text('forbid running "git"\n')
+    project = tmp_path / "project"
+    (project / ".git").mkdir(parents=True)
+    cli.main(["init", str(project)])
+    (project / "frost.policy").unlink()
+    assert cli.nearby_policy(str(project / "main.frost")) is None
+
+
+def test_colour_is_off_when_nothing_is_watching(monkeypatch):
+    """SARIF, JSON, pipes and CI logs stay byte for byte what they were."""
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert cli.paint("x", "danger", stream=io.StringIO()) == "x"
+
+
+def test_colour_appears_when_asked_for(monkeypatch):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    painted = cli.paint("x", "danger", stream=io.StringIO())
+    assert painted != "x" and painted.endswith("\033[0m")
+
+
+def test_no_color_beats_force_color(monkeypatch):
+    """People who set NO_COLOR mean it."""
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert cli.paint("x", "danger", stream=io.StringIO()) == "x"
+
+
+def test_an_unknown_colour_name_changes_nothing(monkeypatch):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert cli.paint("x", "chartreuse", stream=io.StringIO()) == "x"
+
+
+def test_a_folder_is_reviewed_script_by_script(tmp_path, capsys):
+    (tmp_path / "a.frost").write_text('run "echo" with "a"\n')
+    (tmp_path / "b.frost").write_text('run "echo" with "b"\n')
+    assert cli.main(["--check", "--no-policy", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "a.frost" in out and "b.frost" in out
+
+
+def test_the_worst_exit_code_wins_over_a_folder(tmp_path):
+    """One dangerous script fails the folder the way it would fail alone."""
+    (tmp_path / "fine.frost").write_text('run "echo" with "a"\n')
+    (tmp_path / "bad.frost").write_text('run "rm" with "-rf", "/tmp/x"\n')
+    assert cli.main(["--check", "--strict", "--no-policy", str(tmp_path)]) == 1
+
+
+def test_running_a_folder_is_refused(tmp_path, capsys):
+    """Guessing which script was meant is worse than refusing."""
+    (tmp_path / "a.frost").write_text('run "echo" with "a"\n')
+    assert cli.main([str(tmp_path)]) == 2
+    assert "is a folder" in capsys.readouterr().err
+
+
+def test_an_empty_folder_says_so(tmp_path, capsys):
+    assert cli.main(["--check", str(tmp_path)]) == 2
+    assert "no .frost files" in capsys.readouterr().err

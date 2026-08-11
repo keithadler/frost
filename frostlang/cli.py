@@ -416,6 +416,8 @@ def build_parser():
     ap.add_argument("--policy", metavar="FILE",
                     help="check the script against a policy file, "
                          "then run it only if it passes")
+    ap.add_argument("--no-policy", action="store_true", dest="no_policy",
+                    help="ignore a frost.policy found beside the script")
     ap.add_argument("--keystore", metavar="FILE",
                     help="the keystore that 'the secret ...' reads from")
     ap.add_argument("--role", metavar="ROLE",
@@ -558,6 +560,96 @@ def init_project(args):
     print(f"  frost --check --policy {policy_path} {script_path}")
     print("Run it:                   frost " + script_path)
     return 0
+
+
+# Colour, on a terminal only.
+#
+# A manifest is read by somebody under time pressure, and a danger that looks
+# like a note gets skimmed. Everything here is off unless standard output is a
+# terminal, so SARIF, JSON, pipes and CI logs are byte for byte what they were.
+# NO_COLOR is honoured because people who set it mean it.
+COLOURS = {
+    "danger": "\033[31m",      # red
+    "caution": "\033[33m",     # yellow
+    "note": "\033[2m",         # dim
+    "clean": "\033[32m",       # green
+    "path": "\033[36m",        # cyan
+}
+RESET = "\033[0m"
+
+
+def colour_wanted(stream=None):
+    stream = stream or sys.stdout
+    if os.environ.get("NO_COLOR") is not None:
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    if os.environ.get("TERM") == "dumb":
+        return False
+    return bool(getattr(stream, "isatty", lambda: False)())
+
+
+def paint(text, kind, stream=None):
+    """`text` in the colour for `kind`, or unchanged when nobody is watching."""
+    if kind not in COLOURS or not colour_wanted(stream):
+        return text
+    return f"{COLOURS[kind]}{text}{RESET}"
+
+
+POLICY_NAME = "frost.policy"
+
+
+def review_folder(ap, opts, argv):
+    """Every .frost file under a folder, reviewed one at a time.
+
+    The worst exit code wins, so a folder with one dangerous script fails the
+    way that script would on its own. Sorted, because a review that changes
+    order between runs is a diff nobody can read.
+    """
+    scripts = []
+    for folder, _, names in os.walk(opts.script):
+        for name in sorted(names):
+            if name.endswith(".frost"):
+                scripts.append(os.path.join(folder, name))
+    scripts.sort()
+
+    if not scripts:
+        sys.stderr.write(f"frost: no .frost files under {opts.script}\n")
+        return 2
+
+    worst = 0
+    base = [a for a in (argv or sys.argv[1:]) if a != opts.script]
+    for path in scripts:
+        if not opts.json and not opts.sarif and len(scripts) > 1:
+            print(paint(f"== {path}", "path"))
+        outcome = main(base + [path])
+        worst = max(worst, outcome)
+        if not opts.json and not opts.sarif and path != scripts[-1]:
+            print()
+    return worst
+
+
+def nearby_policy(script):
+    """The policy beside the script, or above it, or None.
+
+    Walks up from the script's own folder rather than from the working
+    directory, so running a script from elsewhere finds the policy that was
+    written for it. Stops at the filesystem root and at a .git, because a
+    policy from outside the project is somebody else's contract.
+    """
+    if not script or script == "-":
+        return None
+    here = os.path.dirname(os.path.abspath(script))
+    while True:
+        candidate = os.path.join(here, POLICY_NAME)
+        if os.path.isfile(candidate):
+            return candidate
+        if os.path.isdir(os.path.join(here, ".git")):
+            return None
+        parent = os.path.dirname(here)
+        if parent == here:
+            return None
+        here = parent
 
 
 def parse_size(text):
@@ -710,6 +802,19 @@ def main(argv=None):
     if not opts.script:
         ap.print_help()
         return 2
+
+    # A folder of scripts, for the repository that has more than one. Review
+    # only: running a directory means nothing, and guessing which script was
+    # meant is worse than refusing.
+    if os.path.isdir(opts.script):
+        reviewing = any((opts.check, opts.explain, opts.fmt, opts.policy_from))
+        if not reviewing:
+            sys.stderr.write(
+                f"frost: {opts.script} is a folder.\n"
+                f"  hint: --check, --explain or --format take a folder; "
+                f"running one does not\n")
+            return 2
+        return review_folder(ap, opts, argv)
 
     try:
         with open(opts.script) as fh:
@@ -909,15 +1014,21 @@ def main(argv=None):
             label = {"danger": "DANGER ", "caution": "caution", "note": "note   "}
             print("Findings:")
             for f in findings:
-                print(f"  [{label[f.severity]}] line {f.line}  {f.title}")
-                print(f"             {f.detail}")
+                marker = paint(f"[{label[f.severity]}]", f.severity)
+                print(f"  {marker} line {f.line}  {f.title}")
+                print(paint(f"             {f.detail}", "note"))
         print()
         for line in SITE.describe(provenance):
             print(line)
         if provenance:
             print()
-        print(f"Verdict: {verdict(findings)}")
-        return 0 if verdict(findings) in ("clean", "caution") else 1
+        seen = verdict(findings)
+        # The colour is chosen before the f-string. An expression spanning two
+        # lines inside one is a 3.12 feature and a SyntaxError on the 3.10
+        # this package promises, which the suite caught here rather than CI.
+        tone = {"dangerous": "danger", "caution": "caution"}.get(seen, "clean")
+        print(f"Verdict: {paint(seen, tone)}")
+        return 0 if seen in ("clean", "caution") else 1
 
     # Opened here, before anything can refuse. The refusal is the event a
     # security team most wants, and while the sink was created further down
@@ -970,6 +1081,18 @@ def main(argv=None):
                         "unknowable": caps_now.dynamic,
                     })
 
+
+    # A policy sitting beside the script is one somebody wrote for it, and
+    # requiring --policy on every invocation meant `frost init` handed people
+    # two files and a flag to type forever. Found rather than assumed: the
+    # path used is printed, because a rule that applies without being asked
+    # for has to be visible.
+    if not opts.policy and not opts.no_policy:
+        found = nearby_policy(opts.script)
+        if found:
+            opts.policy = found
+            if not opts.json and not opts.sarif:
+                sys.stderr.write(f"frost: using {found}\n")
 
     policy_rules = list(site_rules)
     if opts.policy:
@@ -1096,7 +1219,8 @@ def main(argv=None):
               f"verdict: {seen}")
         for f in findings:
             if f.severity == "danger":
-                print(f"  [DANGER ] line {f.line}  {f.title}")
+                print(f"  {paint('[DANGER ]', 'danger')} line {f.line}  "
+                      f"{f.title}")
         if seen == "dangerous" and not opts.strict:
             print("  (--check reports; --check --strict exits 1 on this)")
         # The exit code stays 0 without --strict. Changing it would turn every

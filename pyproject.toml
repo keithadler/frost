@@ -29,6 +29,11 @@ classifiers = [
 # cipher, and the rest are for the test suite and the page builders.
 keystore = [
     "cryptography>=42",
+    # Test-only. The schema under schema/ is a promise to whoever consumes
+    # --explain --json, and a promise nothing checks is a comment.
+    "jsonschema>=4",
+    # Test-only, for .pre-commit-hooks.yaml and action.yml.
+    "pyyaml>=6",
 ]
 dev = [
     "pytest>=7",

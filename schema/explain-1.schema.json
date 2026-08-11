@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/keithadler/frost/master/schema/explain-1.schema.json",
+  "title": "frost --explain --json, schema 1",
+  "description": "The capability manifest of a frost script, as structured data. Every field is derived from the tree before anything runs. The manifest may overstate what a script can do and must never understate it, so a consumer may treat an absent capability as absent and a present one as possible rather than certain.",
+  "type": "object",
+  "required": [
+    "script",
+    "summary",
+    "verdict",
+    "commands",
+    "reads",
+    "writes",
+    "deletes",
+    "environment",
+    "exits",
+    "findings"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "script": {
+      "type": "string",
+      "description": "The path frost was given."
+    },
+    "summary": {
+      "type": "string",
+      "description": "One sentence naming what the script does, in English."
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "clean",
+        "caution",
+        "dangerous"
+      ],
+      "description": "The worst finding present. `dangerous` is what --check --strict and --explain exit 1 on."
+    },
+    "commands": {
+      "type": "array",
+      "description": "Every program the script can run.",
+      "items": {
+        "type": "object",
+        "required": [
+          "program",
+          "args",
+          "line",
+          "checked",
+          "timeout",
+          "in_pipe",
+          "source"
+        ],
+        "properties": {
+          "program": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The program name, or null when it is built at runtime and cannot be known from the text. A consumer must treat null as 'anything', because that is what it is."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": "Literal arguments. A null entry is an argument built at runtime."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "checked": {
+            "type": "boolean",
+            "description": "False for `try to run`, where a failure does not stop the script."
+          },
+          "timeout": {
+            "description": "Seconds, or false when the command has no deadline.",
+            "type": [
+              "number",
+              "boolean"
+            ]
+          },
+          "in_pipe": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "description": "The line as written."
+          }
+        }
+      }
+    },
+    "reads": {
+      "type": "array",
+      "description": "Files the script reads.",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "line",
+          "source"
+        ],
+        "properties": {
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The literal path, or null when it is assembled at runtime and cannot be known from the text. A consumer must read null as 'any path'."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "description": "The line as written."
+          }
+        }
+      }
+    },
+    "writes": {
+      "type": "array",
+      "description": "Files the script writes.",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "line",
+          "source"
+        ],
+        "properties": {
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The literal path, or null when it is assembled at runtime and cannot be known from the text. A consumer must read null as 'any path'."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "description": "The line as written."
+          }
+        }
+      }
+    },
+    "deletes": {
+      "type": "array",
+      "description": "Files the script deletes.",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "line",
+          "source"
+        ],
+        "properties": {
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The literal path, or null when it is assembled at runtime and cannot be known from the text. A consumer must read null as 'any path'."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "description": "The line as written."
+          }
+        }
+      }
+    },
+    "environment": {
+      "type": "array",
+      "description": "Environment variables the script reads or sets.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "line"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null when the variable is named at runtime."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "exits": {
+      "type": "array",
+      "description": "Statuses the script can exit with, as written.",
+      "items": {
+        "type": [
+          "string",
+          "integer"
+        ]
+      }
+    },
+    "findings": {
+      "type": "array",
+      "description": "Standing dangers, independent of any policy.",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "title",
+          "detail",
+          "line",
+          "source"
+        ],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "danger",
+              "caution",
+              "note"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the finding was written, or the built-in rule that produced it."
+          }
+        }
+      }
+    }
+  }
+}
