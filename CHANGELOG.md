@@ -7,6 +7,62 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
+## Unreleased
+
+### Added
+
+**Ceilings on how much data a run may move.** `require at most 10 megabytes of
+output`, `require at most 2 megabytes from one command`, `require at most 500
+kilobytes written to files`, and the flags `--max-output`, `--max-one-command`
+and `--max-written`. A policy and a flag both apply and the tighter wins, so a
+flag can narrow a site limit and never widen one.
+
+Time was bounded and volume was not. A deadline says nothing about a command
+that answers instantly with a gigabyte, and `cat` of the wrong file or `yes`
+with no `head` is cheap to write and looks like nothing in a manifest.
+
+Enforced by reading the child's output as it arrives and killing it at the
+ceiling. Measuring what was captured would report the overrun accurately and
+prevent nothing, which is the shape of a limit that exists to be quoted rather
+than to hold. A file write is checked before it happens, for the same reason.
+
+Two holes, both stated rather than papered over: `showing output` connects the
+child to the terminal, so those bytes never pass through frost and nothing
+here can see them, and inside a `pipe` only the last stage is counted.
+
+The bytes are counted whether or not a limit is set, and reported in the
+finish event, because the question people ask before setting a ceiling is what
+a run normally moves.
+
+**An interpreter reached through another program is reported.** The shell
+escape check asked whether the *program* was an interpreter and whether `-c`
+was among its arguments. That is the shape somebody writes when they mean to
+use a shell, and not the shape they write when they do it by accident.
+
+`xargs sh -c`, `env sh -c`, `sudo sh -c`, `timeout 5 bash -c`, `nohup sh -c`,
+`docker run img sh -c`, `find -exec`, `find -execdir` and `ssh host "..."` all
+walked past a manifest that then reported no shell escape at all. A manifest
+may overstate. Understating is the failure that makes it worse than having
+none, and this was an understatement.
+
+Each case says what actually happens rather than one blanket sentence. `find
+-exec rm` involves no shell: it runs a program per match, with arguments from
+the filesystem, and that program appears nowhere in the manifest. `ssh` hands
+everything after the destination to a shell on another machine, where none of
+frost's guarantees apply.
+
+The launcher list is a floor and the documentation says so. `awk` can call
+`system()`, `make` runs a shell for every recipe line, and some program nobody
+has heard of takes a `--command` flag.
+
+### Fixed
+
+**A NUL in an argument printed a Python traceback.** It cannot be passed to
+`execve`, the standard library reports that by raising out of the fork, and
+what reached the terminal said nothing about the script and everything about
+frost's internals. It is a frost error now, with the useful suggestion
+attached: pass the data on standard input with `reading`.
+
 ## 0.8.0 - 2026-08-10
 
 ### Added

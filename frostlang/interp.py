@@ -36,6 +36,94 @@ class FrostError(Exception):
 TIMEOUT_STATUS = 124
 
 
+def run_capped(argv, cwd, env, input_text, timeout, cap):
+    """`subprocess.run` with a byte ceiling the child cannot talk past.
+
+    Returns (stdout, stderr, returncode, overflowed). When the two streams
+    together pass `cap` the child is killed and `overflowed` is true: the
+    partial output still comes back, because the caller decides whether an
+    overrun is fatal and a truncated answer is more use than none when it is
+    not.
+
+    Both pipes are drained by their own thread. Reading one to exhaustion
+    before starting the other deadlocks as soon as the child fills the pipe it
+    is not being read from, which is exactly the case a volume limit exists
+    for.
+    """
+    import threading
+
+    proc = subprocess.Popen(
+        argv, cwd=cwd, env=env,
+        stdin=subprocess.PIPE if input_text is not None else None,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    seen = {"stdout": [], "stderr": []}
+    counted = [0]
+    over = threading.Event()
+    lock = threading.Lock()
+
+    def drain(stream, key):
+        try:
+            while True:
+                chunk = stream.read(65536)
+                if not chunk:
+                    break
+                with lock:
+                    counted[0] += len(chunk)
+                    total = counted[0]
+                seen[key].append(chunk)
+                if total > cap:
+                    over.set()
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+                    break
+        except (OSError, ValueError):
+            pass
+        finally:
+            try:
+                stream.close()
+            except OSError:
+                pass
+
+    def feed():
+        try:
+            proc.stdin.write(input_text.encode())
+        except (OSError, ValueError):
+            pass
+        finally:
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+
+    workers = [threading.Thread(target=drain, args=(proc.stdout, "stdout")),
+               threading.Thread(target=drain, args=(proc.stderr, "stderr"))]
+    if input_text is not None:
+        workers.append(threading.Thread(target=feed))
+    for w in workers:
+        w.daemon = True
+        w.start()
+
+    try:
+        code = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        for w in workers:
+            w.join(timeout=1)
+        raise
+    for w in workers:
+        w.join(timeout=5)
+
+    def text(key):
+        return b"".join(seen[key]).decode(errors="replace").replace(
+            "\r\n", "\n")
+
+    return text("stdout"), text("stderr"), code, over.is_set()
+
+
 class DeadlineExceeded(FrostError):
     """The run used its whole budget.
 
@@ -43,6 +131,21 @@ class DeadlineExceeded(FrostError):
     one command and a policy can bound how many there are, but neither touches
     a loop doing arithmetic, which is the cheapest way for a generated script
     to wedge a runner and the one that reports as doing nothing observable.
+    """
+
+
+class VolumeExceeded(FrostError):
+    """The run moved more data than it was allowed to.
+
+    Distinct from the script being wrong, for the same reason
+    DeadlineExceeded is: a deadline bounds how long a command may take and
+    says nothing about a command that answers instantly with a gigabyte. One
+    `cat` of the wrong file fills memory long before any clock runs out.
+
+    Enforced by reading the child's output as it arrives and killing it at the
+    ceiling, not by measuring what was captured. Measuring afterwards would
+    report the overrun accurately and prevent nothing, which is the shape of a
+    limit that exists to be quoted rather than to hold.
     """
 
 
@@ -237,6 +340,19 @@ def format_seconds(seconds):
     return f"{n} second" + ("s" if n != 1 else "")
 
 
+def format_bytes(size):
+    """A size in the units a policy is written in, which are decimal."""
+    if size is None:
+        return "no limit"
+    for unit, scale in (("gigabytes", 1000 ** 3), ("megabytes", 1000 ** 2),
+                        ("kilobytes", 1000)):
+        if size >= scale:
+            shown = size / scale
+            n = int(shown) if float(shown).is_integer() else round(shown, 1)
+            return f"{n} {unit}"
+    return f"{size} byte" + ("s" if size != 1 else "")
+
+
 def truthy(v):
     if isinstance(v, bool):
         return v
@@ -310,6 +426,12 @@ class Interpreter:
         # often enough that a tight loop cannot outrun it and rarely enough
         # that reading the clock is not the program.
         self.deadline = None
+        # {"output": bytes, "command": bytes, "written": bytes}, from the
+        # policy and the flags. Empty means unlimited, which is the default:
+        # a limit nobody set is not a limit frost invents.
+        self.volume = {}
+        self.bytes_out = 0
+        self.bytes_written = 0
         self._ticks = 0
         self.handler_tables = {}      # file -> {name: HandlerDef}
         self.handler_home = {}        # id(HandlerDef) -> defining file
@@ -439,6 +561,57 @@ class Interpreter:
 
     # -- statements
 
+    def command_ceiling(self):
+        """The most one command may return, or None when nothing bounds it.
+
+        The per-command limit and what is left of the whole-run budget,
+        whichever is smaller. Taking the minimum is what makes the run budget
+        real: without it a script could stay under the per-command limit
+        forever and move any amount in total.
+        """
+        limits = []
+        if "command" in self.volume:
+            limits.append(self.volume["command"])
+        if "output" in self.volume:
+            limits.append(max(0, self.volume["output"] - self.bytes_out))
+        return min(limits) if limits else None
+
+    def charge_output(self, out, err, line, program=None):
+        """Count what a command returned, and stop if it passed the budget.
+
+        Counted whether or not a limit is set. The count is reported in the
+        finish event, and the question people ask before setting a ceiling is
+        what the run normally moves; answering it with a zero because nobody
+        had set a ceiling yet would make the number useless exactly when it is
+        wanted.
+        """
+        self.bytes_out += len(out.encode(errors="replace")) + \
+            len(err.encode(errors="replace"))
+        if not self.volume:
+            return
+        limit = self.volume.get("output")
+        if limit is not None and self.bytes_out > limit:
+            raise VolumeExceeded(
+                f"the run returned {format_bytes(self.bytes_out)}, over the "
+                f"{format_bytes(limit)} it is allowed", line,
+                hint="raise it with --max-output, or find what is returning "
+                     "more than anyone expected")
+
+    def charge_write(self, size, path, line):
+        """Count bytes on their way to a file, before they are written.
+
+        Checked before the write rather than after it, because a limit that
+        notices afterwards has already filled the disk it exists to protect.
+        Counted either way, for the same reason as charge_output.
+        """
+        limit = self.volume.get("written")
+        if limit is not None and self.bytes_written + size > limit:
+            raise VolumeExceeded(
+                f"writing {format_bytes(size)} to {path} would pass the "
+                f"{format_bytes(limit)} this run may write", line,
+                hint="raise it with --max-written, or write less")
+        self.bytes_written += size
+
     def tick(self, line=None):
         """Stop if the run is out of time.
 
@@ -530,6 +703,8 @@ class Interpreter:
             # --explain reports it as a secret leaving the process.
             written = to_argument(value)
             self.guard("write", path, node.line)
+            self.charge_write(len(written.encode(errors="replace")) + 1, path,
+                              node.line)
 
             def do_write():
                 if node.mode == "before":
@@ -617,7 +792,19 @@ class Interpreter:
 
     def journal_run(self, node, program, argv, stdin_text, folder, seconds):
         """A command, recorded or replayed. Replay spawns nothing."""
+        ceiling = None if node.streaming else self.command_ceiling()
+
         def spawn():
+            if ceiling is not None:
+                out, err, code, over = run_capped(
+                    argv, folder, self.env, stdin_text, seconds, ceiling)
+                if over:
+                    raise VolumeExceeded(
+                        f"{program!r} returned more than the "
+                        f"{format_bytes(ceiling)} it was allowed and was "
+                        f"stopped", node.line,
+                        hint="raise the limit, or ask the command for less")
+                return (out, err, code)
             done = subprocess.run(argv, capture_output=not node.streaming,
                                   text=True, cwd=folder, env=self.env,
                                   input=stdin_text, timeout=seconds)
@@ -639,6 +826,17 @@ class Interpreter:
             raise FrostError(f"there is no program named {program!r}",
                              node.line,
                              hint="check the name, or that it is on your PATH")
+        except ValueError as e:
+            raise FrostError(
+                f"{program!r} was given an argument that cannot be passed to "
+                f"a program: {e}", node.line,
+                hint="a NUL byte cannot appear in an argument; pass the data "
+                     "on standard input with 'reading' instead") from None
+
+        # Charged after the fact as well as during, because a replayed run
+        # spawns nothing and still has to obey the budget it is replayed
+        # under.
+        self.charge_output(out, err, node.line, program)
 
         if err:
             sys.stderr.write(self.mask_text(err))
@@ -830,16 +1028,31 @@ class Interpreter:
             return self.journal_run(node, program, argv, stdin_text, folder,
                                     seconds)
 
+        ceiling = None if node.streaming else self.command_ceiling()
+
         try:
             # `showing output` lets the child write straight to the terminal:
             # the only way to see a long build as it happens, or to run
             # anything interactive at all. Nothing is captured, so `it` is
-            # empty afterwards rather than stale.
-            proc = subprocess.run(argv,
-                                  capture_output=not node.streaming,
-                                  text=True, cwd=folder,
-                                  env=self.env, input=stdin_text,
-                                  timeout=seconds)
+            # empty afterwards rather than stale. Nothing is counted either,
+            # which is a hole a limit cannot close: the bytes never pass
+            # through frost.
+            if ceiling is not None:
+                out, err, code, over = run_capped(
+                    argv, folder, self.env, stdin_text, seconds, ceiling)
+                if over:
+                    raise VolumeExceeded(
+                        f"{program!r} returned more than the "
+                        f"{format_bytes(ceiling)} it was allowed and was "
+                        f"stopped", node.line,
+                        hint="raise the limit, or ask the command for less")
+                proc = subprocess.CompletedProcess(argv, code, out, err)
+            else:
+                proc = subprocess.run(argv,
+                                      capture_output=not node.streaming,
+                                      text=True, cwd=folder,
+                                      env=self.env, input=stdin_text,
+                                      timeout=seconds)
         except subprocess.TimeoutExpired as e:
             partial = e.stdout or ""
             if isinstance(partial, bytes):
@@ -861,6 +1074,20 @@ class Interpreter:
                              hint="check the name, or that it is on your PATH")
         except PermissionError:
             raise FrostError(f"{program!r} is not executable", node.line)
+        except ValueError as e:
+            # An argument holding a NUL cannot be passed to execve, and the
+            # standard library reports it by raising out of the fork. That
+            # reached the terminal as a Python traceback, which tells the
+            # person reading it nothing about their script and everything
+            # about ours.
+            raise FrostError(
+                f"{program!r} was given an argument that cannot be passed to "
+                f"a program: {e}", node.line,
+                hint="a NUL byte cannot appear in an argument; pass the data "
+                     "on standard input with 'reading' instead") from None
+
+        self.charge_output(proc.stdout or "", proc.stderr or "", node.line,
+                           program)
 
         if proc.stderr:
             sys.stderr.write(self.mask_text(proc.stderr))

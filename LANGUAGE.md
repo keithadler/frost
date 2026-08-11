@@ -2437,6 +2437,112 @@ makes a script checkable as a contract rather than trusted as a guess.
 
 ---
 
+## 14aa. Bounding how much a run moves
+
+A deadline bounds how long a command may take. It says nothing about a command
+that answers instantly with a gigabyte, and that is the cheaper mistake to
+make: `cat` of the wrong file, `yes` with no `head`, a log query with no date
+range. None of them looks like anything in a manifest.
+
+```policy
+require at most 10 megabytes of output
+require at most 2 megabytes from one command
+require at most 500 kilobytes written to files
+```
+
+```bash
+frost --max-output 10MB --max-one-command 2MB --max-written 500kb deploy.frost
+```
+
+A policy and a flag both apply and the tighter of the two wins, so a flag can
+narrow a site limit and never widen one. Sizes are decimal: a megabyte is
+1,000,000 bytes, because that is what the word means and a policy that says
+one thing and means another misleads exactly the person working out which
+limit fired.
+
+The ceiling for any single command is whatever is left of the run budget. That
+is what makes the run budget real: a per-command limit on its own bounds
+nothing, since a script can stay under it and repeat.
+
+**The child is killed at the ceiling, not measured after it.** frost reads the
+output as it arrives and stops the process when it passes the limit. A limit
+applied to captured output would report the overrun accurately and prevent
+none of it, which is the shape of a number that exists to be quoted rather
+than to hold. A file write is checked before the write happens, for the same
+reason: noticing afterwards means the disk is already full.
+
+A run that passes a limit exits **125**, distinct from the 124 a deadline
+uses, because a repair loop that cannot tell the two apart will raise the
+wrong one.
+
+Two holes, worth naming:
+
+**`showing output` is not counted.** That form connects the child straight to
+the terminal, so the bytes never pass through frost and no limit here can see
+them.
+
+**Inside a `pipe`, only the last stage is counted.** The intermediate stages
+are connected to each other directly, which is what makes a pipe a pipe.
+
+The bytes are counted whether or not a limit is set, and reported in the
+finish event as `bytes_returned` and `bytes_written`. The question people ask
+before setting a ceiling is what the run normally moves, and answering it with
+a zero because nobody had set a ceiling yet would make the number useless
+exactly where it is wanted.
+
+---
+
+## 14ab. Interpreters reached through another program
+
+`run "sh" with "-c", text` is the explicit escape hatch, and it is reported as
+a danger. The same escape written a slightly different way used to be reported
+as nothing:
+
+```frost
+run "xargs" with "-I", "{}", "sh", "-c", "echo {}"
+run "env" with "FOO=1", "bash", "-c", "id"
+run "sudo" with "sh", "-c", "id"
+run "timeout" with "5", "python3", "-c", "print(1)"
+run "find" with ".", "-exec", "rm", "{}", ";"
+run "ssh" with "host", "rm -rf /tmp/x"
+```
+
+Every one of those reaches an interpreter, and every one of them has an
+innocent program name. The check now looks at the arguments as well, and each
+case says what actually happens rather than sharing one blanket sentence:
+
+**A launcher naming an interpreter, then `-c`.** `xargs`, `env`, `sudo`,
+`nice`, `timeout`, `nohup`, `setsid`, `docker`, `kubectl` and others whose job
+is to run another program. The text after `-c` is re-parsed as a command line,
+exactly as it would be in the direct form.
+
+**`find -exec` and friends.** No shell is involved: find execs the program
+directly. The problem is different and still real, so it is reported as a
+hidden command rather than a shell escape. It runs once per match, its
+arguments come from the filesystem rather than from the script, and the
+program it runs appears nowhere in the manifest.
+
+**`ssh` with a remote command.** Everything after the destination is handed to
+a shell on another machine. None of frost's guarantees apply over there, and
+saying so is more use than pretending the boundary is not there.
+
+Innocent lookalikes are left alone, because a check that fires on `grep -c sh`
+teaches people to ignore it and costs more than the cases it catches. `ssh -p
+22 host` is not a remote command, and `run "echo" with "sh"` is not an escape.
+
+**This list is a floor, not a proof.** `awk` can call `system()`, `make` runs a
+shell for every recipe line, and a program nobody here has heard of may take a
+`--command` flag. What the check does is catch the spellings that actually get
+written and stay quiet where it is unsure, and what the manifest must never do
+is imply it has looked everywhere.
+
+One limit worth stating: the finding names the escape, but `forbid running
+"sh"` matches the program frost spawns, which for `xargs sh -c` is xargs. The
+rule does not fire. Refusing the launcher too is the policy author's decision,
+and the manifest now gives them the reason to make it.
+
+---
+
 ## 14b. `frost diff`
 
 Two versions of a script, compared by what they can do.

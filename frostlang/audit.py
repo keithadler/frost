@@ -1075,6 +1075,15 @@ RULE_PATTERNS = [
     # script costs without every author remembering to.
     (re.compile(r'^require\s+the\s+run\s+to\s+finish\s+within\s+' + NUM +
                 r'\s+(\w+)\s*$'), "deadline"),
+    # A ceiling on how much data a run may move. Time was bounded and volume
+    # was not, and a script that cannot run for long can still return a
+    # gigabyte in one line and take the machine down with it.
+    (re.compile(r'^require\s+at\s+most\s+' + NUM +
+                r'\s+(\w+)\s+of\s+output\s*$'), "vol_output"),
+    (re.compile(r'^require\s+at\s+most\s+' + NUM +
+                r'\s+(\w+)\s+from\s+one\s+command\s*$'), "vol_command"),
+    (re.compile(r'^require\s+at\s+most\s+' + NUM +
+                r'\s+(\w+)\s+written\s+to\s+files\s*$'), "vol_written"),
 
     # The sandbox boundary. Allow-shaped, because a deny-list cannot become
     # one: `forbid writing to "/etc/*"` says nothing about what writing is
@@ -1159,6 +1168,39 @@ def _resolve_noun(phrase, policy_line):
         f'counted. Countable: {known}, and runs of "program"')
 
 
+# Decimal, because the words are decimal. A policy that says megabytes and
+# means 1,048,576 is a policy that lies to the person reading it, and the
+# difference matters exactly when somebody is working out whether a limit is
+# the one that fired.
+BYTE_UNITS = {
+    "byte": 1, "bytes": 1,
+    "kilobyte": 1000, "kilobytes": 1000, "kb": 1000,
+    "megabyte": 1000 ** 2, "megabytes": 1000 ** 2, "mb": 1000 ** 2,
+    "gigabyte": 1000 ** 3, "gigabytes": 1000 ** 3, "gb": 1000 ** 3,
+}
+
+
+def _bytes(amount, unit, policy_line):
+    """A size in a policy, as a whole number of bytes."""
+    key = unit.lower()
+    if key not in BYTE_UNITS:
+        known = ", ".join(sorted({"bytes", "kilobytes", "megabytes",
+                                  "gigabytes"}))
+        raise PolicyError(
+            f"policy line {policy_line}: {unit!r} is not a size.\n"
+            f"  try one of: {known}")
+    try:
+        size = float(amount)
+    except ValueError:
+        raise PolicyError(
+            f"policy line {policy_line}: {amount!r} is not a number") from None
+    if size <= 0:
+        raise PolicyError(
+            f"policy line {policy_line}: a limit of {amount} allows nothing "
+            f"at all.\n  to forbid the capability outright, forbid it by name")
+    return int(size * BYTE_UNITS[key])
+
+
 def _seconds(amount, unit, policy_line):
     if unit not in TIME_UNITS:
         raise PolicyError(
@@ -1209,6 +1251,9 @@ def parse_policy(text):
             elif kind == "deadline":
                 rules.append(Rule(kind, "forbid", "deadline",
                                   _seconds(g[0], g[1], n), n))
+            elif kind in ("vol_output", "vol_command", "vol_written"):
+                rules.append(Rule(kind, "forbid", kind[4:],
+                                  _bytes(g[0], g[1], n), n))
             elif kind == "approval_signed":
                 keys = re.findall(r'"([^"]+)"', g[0])
                 if not keys:
@@ -1429,6 +1474,11 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
             continue          # the driver applies this; a budget is a fact
                               # about the run rather than about the text
 
+        elif rule.kind in ("vol_output", "vol_command", "vol_written"):
+            continue          # likewise: how much a command returns is not
+                              # knowable from the text, so this is enforced
+                              # while the run happens and not before it
+
         elif rule.kind in ("approval", "approval_signed"):
             continue          # the driver checks these: whether a file exists
                               # and who signed it are facts about the disk
@@ -1552,6 +1602,20 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
     return findings
 
 
+def volume_limits(rules):
+    """The byte ceilings a policy imposes, as {which: bytes}.
+
+    The tightest wins where a rule appears twice, so composing site policies
+    can narrow a limit and never widen one.
+    """
+    limits = {}
+    for rule in rules:
+        if rule.kind in ("vol_output", "vol_command", "vol_written"):
+            which = rule.kind[4:]
+            limits[which] = min(limits.get(which, rule.detail), rule.detail)
+    return limits
+
+
 def host_rules(rules):
     """The host rules a runtime check needs, as (forbidden, allowed).
 
@@ -1602,6 +1666,93 @@ NETWORK_PROGRAMS = {
 
 SHELL_PROGRAMS = {"sh", "bash", "zsh", "dash", "ksh", "fish", "python",
                   "python3", "perl", "ruby", "node", "osascript"}
+
+# Programs whose whole job is to run another program, so the interpreter can
+# be the argument rather than the command. `xargs sh -c`, `env sh -c`,
+# `timeout 5 bash -c`, `sudo sh -c`: the escape is identical and the detector
+# that only looked at c.program saw none of them.
+LAUNCHERS = {"xargs", "env", "sudo", "doas", "nice", "ionice", "timeout",
+             "nohup", "setsid", "stdbuf", "chroot", "unshare", "su",
+             "watch", "parallel", "ssh", "docker", "kubectl", "flock"}
+
+# find runs a command per match, with its own spelling for it.
+FIND_ACTIONS = ("-exec", "-execdir", "-ok", "-okdir")
+
+# ssh options that consume the next argument. Without these, the value looks
+# like the destination and the destination looks like a remote command.
+SSH_FLAGS_WITH_VALUES = set("bcDEeFIiJLlmOopQRSWw")
+
+
+def nested_interpreter(program, args):
+    """The interpreter this command reaches, if it reaches one indirectly.
+
+    Returns (what, how, why) or None. Three shapes, ordinary to write, and
+    each one hiding a command from the manifest:
+
+      * a launcher whose arguments name an interpreter and then -c
+      * find with -exec and friends, which runs a command per match
+      * ssh, where everything after the destination is a remote command line
+
+    Deliberately not exhaustive, and it cannot be: `awk` can call system(),
+    `make` runs a shell for every recipe line, and a program nobody has heard
+    of may take a --command flag. What it can do is catch the spellings an
+    agent actually writes, and it reports the ones it is sure of rather than
+    guessing at the rest. The manifest may overstate; it must never
+    understate, and silence here reads as "no escape found" either way, so
+    LANGUAGE.md says plainly that this list is a floor.
+    """
+    lowered = [a.lower() for a in args]
+
+    if program == "find":
+        for action in FIND_ACTIONS:
+            if action in lowered:
+                where = lowered.index(action)
+                ran = args[where + 1] if where + 1 < len(args) else "a command"
+                base = ran.rsplit("/", 1)[-1].lower()
+                if base in SHELL_PROGRAMS and "-c" in lowered[where + 1:]:
+                    return (ran, f"find {action} {base} -c",
+                            f"find runs {base} once per match, and the text "
+                            f"handed to -c is re-parsed as a command line.")
+                # No shell is involved in the plain form: find execs the
+                # program directly. The problem is different and still real.
+                return (ran, f"find {action}",
+                        f"find runs {ran} once for every match, with "
+                        f"arguments that come from the filesystem rather "
+                        f"than from this script. {ran} never appears in the "
+                        f"manifest as a program this script runs.")
+        return None
+
+    if program == "ssh":
+        # The first non-flag argument is the destination; anything after it is
+        # a command line the remote shell parses. Flags that take a value have
+        # to be skipped along with their value, or `ssh -p 22 host` reads the
+        # port as the destination and the host as a remote command.
+        rest, skip = [], False
+        for arg in args:
+            if skip:
+                skip = False
+                continue
+            if arg.startswith("-"):
+                skip = len(arg) == 2 and arg[1] in SSH_FLAGS_WITH_VALUES
+                continue
+            rest.append(arg)
+        if len(rest) > 1:
+            return (rest[1], "ssh remote command",
+                    "everything after the destination is handed to a shell "
+                    "on the other machine, which parses it. None of frost's "
+                    "guarantees apply over there.")
+        return None
+
+    if program in LAUNCHERS:
+        for i, arg in enumerate(lowered):
+            base = arg.rsplit("/", 1)[-1]
+            if base in SHELL_PROGRAMS and "-c" in lowered[i + 1:]:
+                return (base, f"{program} {base} -c",
+                        f"{program} runs {base} for you, and the text handed "
+                        f"to -c is re-parsed as a command line. The same "
+                        f"escape as {base} -c, reached through an argument "
+                        f"instead of the program name.")
+    return None
 
 SYSTEM_PREFIXES = ("/etc", "/usr", "/bin", "/sbin", "/boot", "/var/lib",
                    "/System", "/Library", "/private/etc", "/opt")
@@ -1744,6 +1895,16 @@ def find_dangers(caps):
                 "The text handed to -c is re-parsed as a command line, which "
                 "reintroduces exactly the injection risk frost removes.",
                 c.line))
+        else:
+            nested = nested_interpreter(prog, args)
+            if nested:
+                ran, how, why = nested
+                shell = "-c" in how or how.endswith("remote command")
+                out.append(Finding(
+                    "danger",
+                    f"{'Shell escape' if shell else 'Hidden command'} "
+                    f"via {how}",
+                    why, c.line))
 
         if prog in NETWORK_PROGRAMS:
             targets = [a for a in args if "://" in a or a.count(".") >= 2]
