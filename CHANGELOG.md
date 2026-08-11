@@ -7,6 +7,18 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
 
+## Unreleased
+
+### Fixed
+
+**The container is built for arm64 as well as amd64.** The first image was
+amd64 only, so every Apple Silicon machine and every arm64 runner pulled
+something it had to emulate. That is slow enough that people quietly stop
+using it, which is the kind of failure nobody reports.
+
+Found by inspecting the published image config through the registry rather
+than trusting the green check on the build.
+
 ## 0.9.1 - 2026-08-10
 
 ### Added
