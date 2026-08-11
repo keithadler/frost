@@ -106,6 +106,18 @@ def build_parser():
     p = add("revoke", "stop a role reading a secret")
     p.add_argument("name")
     p.add_argument("--role", required=True)
+    p.add_argument("--as", dest="by", help="the role doing the revoking, "
+                                           "recorded in the trail")
+
+    p = add("rotate", "replace a secret's value under a fresh key")
+    p.add_argument("name")
+    p.add_argument("--as", dest="by", required=True,
+                   help="a role that can read it, recorded in the trail")
+    p.add_argument("--value", help="the new value; read from standard input "
+                                   "when left off, so it stays out of the "
+                                   "shell history")
+
+    add("history", "who changed what, and when")
 
     p = add("remove", "delete a secret entirely")
     p.add_argument("name")
@@ -214,9 +226,44 @@ def run(opts, out, passphrases, values):
         return 0
 
     if command == "revoke":
-        store.revoke(opts.name, opts.role)
+        warning = store.revoke(opts.name, opts.role, by=getattr(opts, "by",
+                                                                None))
         store.save()
         out.write(f"{opts.role!r} may no longer read {opts.name!r}\n")
+        if warning:
+            # Printed every time, not once. Removing access is the easy half
+            # and the half that feels like the job is done.
+            out.write(f"  {warning}\n")
+        return 0
+
+    if command == "rotate":
+        value = opts.value
+        if value is None:
+            value = sys.stdin.read().rstrip("\n")
+        if not value:
+            raise KeystoreError(
+                "a rotation needs a new value.\n"
+                "  the point is that the old one is known to whoever read it")
+        roles = store.rotate(opts.name, value, by=opts.by)
+        store.save()
+        out.write(f"rotated {opts.name!r} under a fresh key, still readable "
+                  f"by {', '.join(roles)}\n")
+        return 0
+
+    if command == "history":
+        entries = store.history
+        if not entries:
+            out.write("nothing recorded yet\n")
+            return 0
+        for e in entries:
+            detail = " ".join(
+                f"{k}={v}" for k, v in sorted(e.items())
+                if k not in ("action", "when"))
+            out.write(f"{e['when']}  {e['action']:<8} {detail}\n")
+        out.write("\nAdministrative changes only. Reads are not here and "
+                  "cannot be:\n"
+                  "a keystore is a file people copy, and a read happens "
+                  "against their copy.\n")
         return 0
 
     if command == "remove":

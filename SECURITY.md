@@ -49,8 +49,11 @@ These are documented limits rather than defects, and
   volume limits. Those bytes never pass through frost.
 * **Capabilities of a name built at runtime.** These are reported as unknown
   and refused by allow-list rules rather than guessed at.
-* **The keystore standing in for a secret manager.** No rotation, no expiry,
-  no audit trail of reads. Use Vault or SSM if you have one.
+* **The keystore standing in for a secret manager.** It rotates and it keeps
+  a trail of administrative changes, and it still has no expiry and no audit
+  of reads. Reads cannot be audited here and the trail says so: a keystore is
+  a file people copy, and a read happens against their copy. Use Vault or SSM
+  if you have one.
 
 If you are unsure which side of the line something falls on, report it
 privately and say so. Deciding is our job, not yours.

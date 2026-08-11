@@ -7,6 +7,41 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
 
+## Unreleased
+
+### Fixed
+
+**A cached secret was returned without checking the role.** `open_secret`
+consulted its cache before answering the permission question, so once any role
+had read a secret in a process, every other role got the plaintext back with
+no check at all. A single run uses a single role, which is why nobody hit it,
+and "usually only one role" is not an access rule.
+
+Found by a test written for rotation, against code older than rotation.
+
+### Added
+
+**Rotation.** `frost keystore rotate <keystore> <name> --as <role>` replaces a
+value under a fresh data key. Both halves matter: a new value, because the old
+one is known to whoever read it, and a new data key, so a role removed earlier
+cannot use anything it kept. The role set is preserved, since rotation is not
+the moment to change who can read a credential and doing both at once means
+the trail cannot say which was intended.
+
+**Revoking says what it does not achieve.** Removing a wrapped key removes
+future access and does not remove what the role already read. `revoke` now
+returns and prints that, every time, with the only move that actually helps:
+change the credential where it lives, then rotate.
+
+**A trail of administrative changes.** `frost keystore history` reports who
+granted, revoked, rotated or removed what, and when.
+
+Reads are deliberately absent, and the command says so in its own output. A
+keystore is a file people copy; a read happens on their machine against their
+copy, and nothing here would ever see it. A read log recording only the reads
+that went through this CLI would be believed exactly when it mattered and
+wrong exactly then.
+
 ## 0.9.4 - 2026-08-10
 
 ### Fixed
