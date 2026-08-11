@@ -7,6 +7,41 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
 
+## Unreleased
+
+### Added
+
+**The manifest invariant is now checked against generated scripts, not
+chosen ones.** `--explain` may overstate what a script can do and must never
+understate it, and everything else here rests on that: the policy engine,
+approvals, the sandbox, the MCP server. It was checked by example, over a list
+of scripts somebody thought of.
+
+`tests/test_manifest_property.py` generates scripts from a grammar of
+effectful shapes, runs them with the real interpreter, and records what
+actually happened at the boundary: every process spawned through Popen, every
+file opened for reading or writing, every file removed. Then it asserts that
+everything which happened appears in the manifest. Overstatement stays legal,
+because a branch not taken is still a capability.
+
+The grammar includes the cases most likely to defeat a static reading: a path
+built by joining a literal to a name, a path built from an environment
+variable, a program name held in a variable, effects inside a handler called
+from a loop, and both arms of a branch where only one runs.
+
+Three guards keep it from passing vacuously. One asserts the generator
+actually produces each kind of effect. One asserts the instrument observed
+each kind across a batch, since the comparisons iterate over what was recorded
+and an empty list satisfies them all. And one points the comparison at a
+manifest with a command removed by hand, and requires it to notice.
+
+That last one earned its place immediately: it caught the instrument counting
+every spawn twice, because `subprocess.run` builds a `Popen` internally and
+both were being recorded.
+
+No understatement was found across 500 seeds. That is a weaker claim than a
+proof and a much stronger one than a list of examples.
+
 ## 0.10.0 - 2026-08-10
 
 ### Added
