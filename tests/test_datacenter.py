@@ -513,3 +513,45 @@ def test_the_payload_is_stable_across_key_order():
     b = dict(reversed(list(a.items())))
     assert signing.payload(a) == signing.payload(b), \
         "a signature over a formatting choice would break on re-serialising"
+
+
+# ------------------------------------------- the flake, and what caused it
+
+def test_a_comment_marker_inside_quotes_is_not_a_comment():
+    """The bug behind an intermittent CI failure nobody could reproduce.
+
+    Policy comments start with `--`. An Ed25519 public key is urlsafe base64,
+    so it contains `-`, so about one key in a hundred contains `--`. The line
+    `require an approval signed by "kA--bQ..."` was truncated at the marker,
+    leaving an unterminated quote and a policy that did not parse, and the run
+    failed with exit 2 while the test was asserting about approvals.
+
+    It failed roughly one CI run in five and never once locally, which is what
+    a 1-in-100 event looks like across a matrix of jobs.
+    """
+    from frostlang.audit import parse_policy
+
+    rules = parse_policy('require an approval signed by "kA--bQ_x-y"')
+    assert rules[0].detail == ["kA--bQ_x-y"]
+
+    rules = parse_policy('forbid running "my--tool"  -- and here is a comment')
+    assert rules[0].subject == "my--tool"
+    assert rules[0].hint == "and here is a comment"
+
+    rules = parse_policy('forbid reading "/data/a#b"  # hash comments too')
+    assert rules[0].subject == "/data/a#b"
+    assert rules[0].hint == "hash comments too"
+
+
+@needs_cipher
+def test_every_generated_key_survives_the_policy_that_names_it():
+    """The property, not one example. Generating keys until one contains the
+    marker takes a few hundred tries, so the fixed value above is the
+    regression test and this is the check that the generator and the parser
+    agree at all."""
+    from frostlang.audit import parse_policy
+
+    for _ in range(200):
+        _, public = signing.generate()
+        rules = parse_policy(f'require an approval signed by "{public}"')
+        assert rules[0].detail == [public], public
