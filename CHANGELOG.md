@@ -11,6 +11,37 @@ bump may change the language.
 
 ### Added
 
+**`frost mcp`, the review tools over Model Context Protocol.** A stdio
+JSON-RPC server exposing `frost_check`, `frost_explain`, `frost_policy`,
+`frost_diff` and `frost_grammar`. An agent already shells out to frost, parses
+the text back and guesses at the exit code; this serves the same answers as
+structured data, in the shape the caller is already speaking. No dependencies:
+the standard library has everything it needs.
+
+It cannot run a script, and that is the design rather than a gap waiting to be
+filled. frost exists because a machine writes the script and a person decides
+whether it runs, and a server that executes on request moves that decision back
+to the machine. It also reads no files: every tool takes source text, because a
+path argument would let whatever holds the other end of the pipe read anything
+the process can reach. Both are asserted in the tests, not just described.
+
+Refusals come back with the rule that fired, and with a refusal to draft the
+widening: every call here is automated by definition, and an agent handed the
+exact edit that clears its own refusal has been handed the instructions for
+widening its own bounds.
+
+**`frost context` and MODEL-CONTEXT.md, for the model doing the writing.**
+LANGUAGE.md argues a case across thousands of lines, which is the wrong
+document to paste into a context window. This one states the statement forms,
+the closed keyword set read from the parser itself, and the constructs frost
+deliberately lacks, because the mistakes a model actually makes are `${x}`,
+backticks and an invented `let`.
+
+Every snippet in it is parsed by the test suite. That caught the first
+version teaching `put "a" & "b" into joined`, where `joined` is a reserved
+word: a reference that teaches a form the parser rejects is worse than no
+reference, because the model believes it.
+
 **Ceilings on how much data a run may move.** `require at most 10 megabytes of
 output`, `require at most 2 megabytes from one command`, `require at most 500
 kilobytes written to files`, and the flags `--max-output`, `--max-one-command`

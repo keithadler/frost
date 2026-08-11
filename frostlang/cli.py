@@ -567,6 +567,20 @@ def main(argv=None):
         sys.stderr.write("frost: usage: frost diff <before.frost> "
                          "<after.frost>\n")
         return 2
+    # `frost mcp` serves the review tools to an agent over stdio. It reads and
+    # reports and cannot run a script, which is the design rather than a gap:
+    # a server that executes on request moves the decision to run back to the
+    # machine, and the point of frost is that it sits with a person.
+    if raw and raw[0] == "mcp":
+        from .mcp import serve
+        return serve()
+    # `frost context` prints what a model needs in order to write frost. The
+    # language reference argues a case at thousands of lines; this states the
+    # forms and the reserved words, which is what fits in a context window.
+    if raw and raw[0] == "context":
+        from .context import model_context
+        sys.stdout.write(model_context())
+        return 0
     # `frost keystore ...` administers a keystore rather than running a
     # script. Checked before the main parser so its own flags do not collide.
     if raw and raw[0] == "keystore":
