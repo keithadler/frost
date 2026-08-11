@@ -837,6 +837,12 @@ pip install frostlang
 frost --version
 ```
 
+Or with Homebrew:
+
+```bash
+brew install keithadler/frost/frost
+```
+
 The keystore is the one optional extra, because it needs a real cipher:
 
 ```bash

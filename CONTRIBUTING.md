@@ -109,6 +109,14 @@ git tag v0.9.0
 git push origin master --tags
 ```
 
+After the release publishes, the Homebrew formula points at a specific sdist
+by URL and hash, so it has to be moved by hand. Both come from
+`https://pypi.org/pypi/frostlang/<version>/json`, and the formula lives in
+[keithadler/homebrew-frost](https://github.com/keithadler/homebrew-frost).
+Check it with `brew audit --strict --online` and `brew test` before pushing,
+because a tap that installs a broken frost fails on somebody else's machine at
+the moment they were deciding whether to trust this.
+
 The workflow builds the sdist and the wheel, checks the metadata, installs the
 built wheel into a clean environment and runs a script through it. Installing
 the checkout instead would prove the checkout works, which was never in doubt.
