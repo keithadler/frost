@@ -7,6 +7,44 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
 
+## 0.9.4 - 2026-08-10
+
+### Fixed
+
+**The formatting pre-commit hook reformatted nothing.** Its entry was `frost
+--format`, which prints the canonical layout to standard output and leaves the
+file alone, so the hook passed every time and changed nothing. It is `frost
+--format --write` now. A formatting hook that silently does nothing is worse
+than no hook, because it is believed.
+
+`--write` already existed. The bug was in the hook, not the tool, which is
+worth saying: the flag was there and the file that shipped did not use it.
+
+**A hook that can stop a commit now says so.** `frost-explain` was described
+as printing the manifest for the record, and `--explain` exits 1 on a
+dangerous verdict, so it blocked commits exactly like `frost-check --strict`.
+Somebody adding it for a log line would have got a failing gate.
+
+Both are now checked rather than described. The suite runs the formatting
+hook's own command line against a messy file and asserts the file changed, and
+any hook that can fail a commit must say so in its description.
+
+### Changed
+
+**`--policy-from` covers the volume ceilings and shell escapes.** Both were
+added after the generator was written, so a starter policy went on describing
+an older frost and silently omitted two capabilities. A scaffold that omits a
+rule teaches that the rule does not exist.
+
+Neither can be sized from the text, because what a command returns is a fact
+about the run, so they are emitted as a figure to argue with rather than as a
+finding. The escape rule is commented out when the script already reaches an
+interpreter, since a suggestion that fails the build immediately is how a
+scaffold gets deleted rather than edited.
+
+There is now a test that no generated policy refuses the script it came from,
+across every example in the repository.
+
 ## 0.9.3 - 2026-08-10
 
 ### Fixed
