@@ -256,8 +256,13 @@ def read_source(absolute, spec, line):
         raise ModuleError(f"cannot read {spec!r}: {e}", line=line)
 
 
-def load(entry_path):
+def load(entry_path, source=None):
     """Read, parse and validate the whole closure, once.
+
+    `source` supplies the entry file's text instead of reading it, for a
+    script arriving on standard input. Imports still resolve against the
+    working directory, because a module path in a script from a pipe can mean
+    nothing else.
 
     Returns a Program. Raises ModuleError, ParseError or LexError, every one
     of which the caller must treat as fatal, because a manifest built from a
@@ -268,7 +273,8 @@ def load(entry_path):
     entry_name = os.path.basename(entry_absolute)
 
     program = Program(entry=entry_name, root=root)
-    _load_file(program, entry_name, entry_absolute, is_entry=True)
+    _load_file(program, entry_name, entry_absolute, is_entry=True,
+               source=source)
     _order(program)
     _check_name_collisions(program)
     _resolve_names(program)
@@ -289,11 +295,12 @@ def _resolve_names(program):
 
 
 def _load_file(program, relative, absolute, is_entry=False, spec=None,
-               line=None):
+               line=None, source=None):
     if relative in program.modules:
         return program.modules[relative]
 
-    source = read_source(absolute, spec or relative, line)
+    if source is None:
+        source = read_source(absolute, spec or relative, line)
     # Without resolution: the names this file may call are its own plus
     # what it imports, and the imports are not loaded yet.
     tree = parse(source, resolve=False)

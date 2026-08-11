@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost 0.9.4, language documentation</title>
+<title>frost 0.10.0, language documentation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -181,9 +181,9 @@ tbody tr:last-child td{border-bottom:none}
 
 <aside id="side">
   <p class="brand">fr<span>o</span>st</p>
-  <p class="brand-sub">v0.9.4 · language docs</p>
+  <p class="brand-sub">v0.10.0 · language docs</p>
   <button class="menu-btn" id="menu">Contents</button>
-  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-what-you-get">What you get</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-why">Why</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-structured-data-without-a-second-grammar">Structured data, without a second grammar</a></li><li><a href="#guide-knowing-why-it-failed">Knowing why it failed</a></li><li><a href="#guide-a-clock-that-replays">A clock that replays</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-knowing-what-it-did-not-just-what-it-could-do">Knowing what it did, not just what it could do</a></li><li><a href="#guide-telling-a-monitoring-system-what-happened">Telling a monitoring system what happened</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-starting-a-project">Starting a project</a></li><li><a href="#guide-in-a-pipeline">In a pipeline</a></li><li><a href="#guide-giving-it-to-an-agent">Giving it to an agent</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-the-name">The name</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-12a-modules">12a. Modules</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-13c-recording-and-replaying-a-run">13c. Recording and replaying a run</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-14aa-bounding-how-much-a-run-moves">14aa. Bounding how much a run moves</a></li><li><a href="#ref-14ab-interpreters-reached-through-another-program">14ab. Interpreters reached through another program</a></li><li><a href="#ref-14b-frost-diff">14b. frost diff</a></li><li><a href="#ref-14c-when-a-rule-refuses">14c. When a rule refuses</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
+  <div class="nav-body"><p class="nav-title">Guide</p><ul><li><a href="#guide-what-you-get">What you get</a></li><li><a href="#guide-three-things-it-fixes">Three things it fixes</a></li><li><a href="#guide-why">Why</a></li><li><a href="#guide-side-by-side">Side by side</a></li><li><a href="#guide-patterns-and-timeouts">Patterns and timeouts</a></li><li><a href="#guide-cleanup-that-actually-runs">Cleanup that actually runs</a></li><li><a href="#guide-lists-without-a-second-grammar">Lists, without a second grammar</a></li><li><a href="#guide-structured-data-without-a-second-grammar">Structured data, without a second grammar</a></li><li><a href="#guide-knowing-why-it-failed">Knowing why it failed</a></li><li><a href="#guide-a-clock-that-replays">A clock that replays</a></li><li><a href="#guide-secrets-that-cannot-be-logged-by-accident">Secrets that cannot be logged by accident</a></li><li><a href="#guide-knowing-what-it-did-not-just-what-it-could-do">Knowing what it did, not just what it could do</a></li><li><a href="#guide-telling-a-monitoring-system-what-happened">Telling a monitoring system what happened</a></li><li><a href="#guide-why-this-matters-for-ai-agents">Why this matters for AI agents</a></li><li><a href="#guide-the-feature-that-carries-the-language">The feature that carries the language</a></li><li><a href="#guide-a-script-you-can-check-before-you-run-it">A script you can check before you run it</a></li><li><a href="#guide-install">Install</a></li><li><a href="#guide-try-it-in-30-seconds">Try it in 30 seconds</a></li><li><a href="#guide-reviewing">Reviewing</a></li><li><a href="#guide-starting-a-project">Starting a project</a></li><li><a href="#guide-in-a-pipeline">In a pipeline</a></li><li><a href="#guide-giving-it-to-an-agent">Giving it to an agent</a></li><li><a href="#guide-tooling">Tooling</a></li><li><a href="#guide-usage">Usage</a></li><li><a href="#guide-layout">Layout</a></li><li><a href="#guide-status">Status</a></li><li><a href="#guide-the-name">The name</a></li><li><a href="#guide-license">License</a></li></ul><p class="nav-title">Reference</p><ul><li><a href="#ref-1-design-rules">1. Design rules</a></li><li><a href="#ref-2-lexical-structure">2. Lexical structure</a></li><li><a href="#ref-3-values">3. Values</a></li><li><a href="#ref-4-variables-and-names">4. Variables and names</a></li><li><a href="#ref-5-chunk-expressions">5. Chunk expressions</a></li><li><a href="#ref-5a-lists">5a. Lists</a></li><li><a href="#ref-5b-functions">5b. Functions</a></li><li><a href="#ref-6-operators">6. Operators</a></li><li><a href="#ref-6a-patterns">6a. Patterns</a></li><li><a href="#ref-7-statements">7. Statements</a></li><li><a href="#ref-8-running-programs">8. Running programs</a></li><li><a href="#ref-9-pipes">9. Pipes</a></li><li><a href="#ref-10-failure-handling">10. Failure handling</a></li><li><a href="#ref-10a-cleanup">10a. Cleanup</a></li><li><a href="#ref-11-files">11. Files</a></li><li><a href="#ref-12-handlers">12. Handlers</a></li><li><a href="#ref-12a-modules">12a. Modules</a></li><li><a href="#ref-13-special-values">13. Special values</a></li><li><a href="#ref-13a-secrets">13a. Secrets</a></li><li><a href="#ref-13b-talking-to-the-thing-that-wrote-the-script">13b. Talking to the thing that wrote the script</a></li><li><a href="#ref-13c-recording-and-replaying-a-run">13c. Recording and replaying a run</a></li><li><a href="#ref-14-grammar">14. Grammar</a></li><li><a href="#ref-14a-reading-a-script-before-you-run-it">14a. Reading a script before you run it</a></li><li><a href="#ref-14aa-bounding-how-much-a-run-moves">14aa. Bounding how much a run moves</a></li><li><a href="#ref-14ab-interpreters-reached-through-another-program">14ab. Interpreters reached through another program</a></li><li><a href="#ref-14b-frost-diff">14b. frost diff</a></li><li><a href="#ref-14c-when-a-rule-refuses">14c. When a rule refuses</a></li><li><a href="#ref-15-deliberate-omissions">15. Deliberate omissions</a></li></ul></div>
 </aside>
 
 <main>
@@ -1001,6 +1001,16 @@ risky.frost
 </code></pre>
 <p>A file was created with that literal name. Nothing was deleted. The same two
 lines in bash would have emptied the directory.</p>
+<h2 id="guide-reviewing">Reviewing</h2>
+<pre><code class="language-bash">frost --explain deploy.frost      # everything it can do, before it runs
+frost --brief scripts/            # one line each, for a log with forty
+frost --check --strict deploy.frost   # exits 1 on a dangerous verdict
+frost diff HEAD~1 deploy.frost    # did this rewrite widen what it can do?
+cat buffer.frost | frost --check -    # a buffer that is not on disk yet
+frost --watch deploy.frost        # re-review on every save
+</code></pre>
+<p>A <code>frost.policy</code> beside the script, or above it, is found and applied. The
+path used is printed, and <code>--no-policy</code> opts out.</p>
 <h2 id="guide-starting-a-project">Starting a project</h2>
 <pre><code class="language-bash">frost init
 </code></pre>
@@ -1013,7 +1023,7 @@ something that was true once.</p>
 <p>As a pre-commit hook:</p>
 <pre><code class="language-yaml">repos:
   - repo: https://github.com/keithadler/frost
-    rev: v0.9.4
+    rev: v0.10.0
     hooks:
       - id: frost-check
 </code></pre>
@@ -1168,7 +1178,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2132 tests, python3 -m pytest tests/ -q
+tests/                2143 tests, python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1185,7 +1195,7 @@ action.yml            the GitHub Action
 editors/              syntax highlighting
 </code></pre>
 <h2 id="guide-status">Status</h2>
-<p>Version 0.9.4. The language runs, the examples are real, and 2132 tests cover
+<p>Version 0.10.0. The language runs, the examples are real, and 2143 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.</p>

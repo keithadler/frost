@@ -925,3 +925,138 @@ def test_running_a_folder_is_refused(tmp_path, capsys):
 def test_an_empty_folder_says_so(tmp_path, capsys):
     assert cli.main(["--check", str(tmp_path)]) == 2
     assert "no .frost files" in capsys.readouterr().err
+
+
+# ------------------------------------- stdin, brief, watch, git revisions
+
+def test_a_script_arrives_on_standard_input(monkeypatch, capsys):
+    """An editor buffer, a pipe, an agent holding text it just wrote. The
+    analysis never needed a file; the MCP server already proves that."""
+    monkeypatch.setattr("sys.stdin", io.StringIO('run "echo" with "hi"\n'))
+    assert cli.main(["--check", "--no-policy", "-"]) == 0
+    assert "<stdin>" in capsys.readouterr().out
+
+
+def test_a_syntax_error_from_standard_input_still_points_at_a_line(
+        monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin", io.StringIO("put ${x}\n"))
+    assert cli.main(["--check", "--no-policy", "-"]) == 2
+    assert "<stdin>:1" in capsys.readouterr().err
+
+
+def test_running_a_script_from_standard_input_is_refused(monkeypatch,
+                                                         capsys):
+    """A script that runs wants its own standard input, and it cannot have
+    both."""
+    monkeypatch.setattr("sys.stdin", io.StringIO('put "x"\n'))
+    assert cli.main(["-"]) == 2
+    assert "for review" in capsys.readouterr().err
+
+
+def test_brief_is_one_line(tmp_path, capsys):
+    path = tmp_path / "s.frost"
+    path.write_text('run "curl" with "https://x.example" within 5 seconds\n'
+                    'put it into file "out.txt"\n')
+    assert cli.main(["--brief", "--no-policy", str(path)]) == 0
+    out = capsys.readouterr().out.strip()
+    assert len(out.splitlines()) == 1
+    assert "1 program" in out and "1 host" in out and "1 write" in out
+    assert "verdict" in out
+
+
+def test_brief_says_nothing_for_a_script_that_does_nothing(tmp_path, capsys):
+    path = tmp_path / "s.frost"
+    path.write_text('put "hello"\n')
+    cli.main(["--brief", "--no-policy", str(path)])
+    assert "nothing, verdict clean" in capsys.readouterr().out
+
+
+def test_brief_honours_strict(tmp_path):
+    path = tmp_path / "s.frost"
+    path.write_text('run "rm" with "-rf", "/tmp/x"\n')
+    assert cli.main(["--brief", "--no-policy", str(path)]) == 0
+    assert cli.main(["--brief", "--strict", "--no-policy", str(path)]) == 1
+
+
+def test_watch_reviews_once_and_stops_when_interrupted(tmp_path, capsys,
+                                                       monkeypatch):
+    """Bounded by a clock the test controls. A watch test that waited on a
+    real edit would be a test that sometimes hangs the suite."""
+    import time as real_time
+
+    path = tmp_path / "s.frost"
+    path.write_text('run "echo" with "one"\n')
+
+    polls = {"n": 0}
+
+    def stop_soon(_):
+        polls["n"] += 1
+        if polls["n"] >= 3:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(real_time, "sleep", stop_soon)
+    assert cli.main(["--brief", "--no-policy", "--watch", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "watching" in out
+    assert "1 program" in out
+
+
+def test_watch_survives_a_file_that_is_not_there_yet(tmp_path, monkeypatch):
+    """A file caught mid-save is the normal case, not a reason to stop."""
+    import time as real_time
+
+    polls = {"n": 0}
+
+    def stop_soon(_):
+        polls["n"] += 1
+        if polls["n"] >= 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(real_time, "sleep", stop_soon)
+    missing = tmp_path / "not-yet.frost"
+    assert cli.main(["--brief", "--watch", str(missing)]) == 0
+
+
+def test_diff_reads_a_git_revision(tmp_path, capsys):
+    """`frost diff HEAD~1 deploy.frost` is the question a reviewer has."""
+    import subprocess
+
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@x",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@x"}
+    run = lambda *a: subprocess.run(a, cwd=tmp_path, env=env,
+                                    capture_output=True, check=True)
+    run("git", "init", "-q")
+    script = tmp_path / "s.frost"
+    script.write_text('run "echo" with "one"\n')
+    run("git", "add", "s.frost")
+    run("git", "commit", "-qm", "first")
+
+    script.write_text('run "echo" with "one"\n'
+                      'run "curl" with "https://x.example" within 5 seconds\n')
+
+    here = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        assert cli.main(["diff", "HEAD", "s.frost"]) == 3
+    finally:
+        os.chdir(here)
+    out = capsys.readouterr().out
+    assert "wider" in out and "curl" in out
+
+
+def test_diff_prefers_a_file_that_exists_over_a_revision(tmp_path, capsys):
+    """A file called HEAD is a file. Guessing otherwise is a surprise nobody
+    could work around."""
+    a = tmp_path / "a.frost"
+    b = tmp_path / "b.frost"
+    a.write_text('run "echo" with "x"\n')
+    b.write_text('run "echo" with "x"\n')
+    assert cli.main(["diff", str(a), str(b)]) == 0
+    assert "unchanged" in capsys.readouterr().out
+
+
+def test_diff_says_so_when_a_revision_does_not_exist(tmp_path, capsys):
+    script = tmp_path / "s.frost"
+    script.write_text('run "echo" with "x"\n')
+    assert cli.main(["diff", "nosuchrev", str(script)]) == 2
+    assert "neither a file nor a revision" in capsys.readouterr().err

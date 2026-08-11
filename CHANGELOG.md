@@ -7,9 +7,31 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
 
-## Unreleased
+## 0.10.0 - 2026-08-10
 
 ### Added
+
+**A script on standard input.** `frost --check -` reviews a buffer that is not
+on disk yet, for an editor, a pipe, or an agent holding text it has just
+written. The analysis never needed a file, which the MCP server already
+demonstrated. Running one that way is refused: a script that runs wants its
+own standard input and cannot have both.
+
+**`--brief`.** One line naming what a script touches and the verdict, for a
+log with forty scripts in it. Not a shortened manifest: it answers "is this
+worth opening" and nothing else.
+
+**`frost diff` reads a git revision.** `frost diff HEAD~1 deploy.frost` is the
+question a reviewer actually has. A path that exists on disk is always treated
+as a path, because a file called HEAD is a file.
+
+**`--watch`.** Re-runs the review whenever the script changes. A loop around
+the review rather than a mode inside it, so what is watched stays exactly what
+CI runs.
+
+**A man page**, generated from the argument parser by `tools/build_man.py` and
+checked by the same job that keeps every other generated file current. A man
+page maintained by hand describes last year's flags.
 
 **A policy beside the script is found and used.** `frost init` wrote
 `frost.policy` next to `main.frost` and then required `--policy frost.policy`

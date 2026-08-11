@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import argparse
+import contextlib
 import os
 import sys
 import time
@@ -416,6 +417,12 @@ def build_parser():
     ap.add_argument("--policy", metavar="FILE",
                     help="check the script against a policy file, "
                          "then run it only if it passes")
+    ap.add_argument("--watch", action="store_true",
+                    help="re-run the review whenever the script changes, "
+                         "until interrupted")
+    ap.add_argument("--brief", action="store_true",
+                    help="one line per script: what it touches and the "
+                         "verdict, for a log with forty of them in it")
     ap.add_argument("--no-policy", action="store_true", dest="no_policy",
                     help="ignore a frost.policy found beside the script")
     ap.add_argument("--keystore", metavar="FILE",
@@ -599,6 +606,85 @@ def paint(text, kind, stream=None):
 POLICY_NAME = "frost.policy"
 
 
+def watch_script(opts, argv):
+    """Review on every change, until interrupted.
+
+    Polls rather than watching the filesystem, because the alternative is a
+    dependency and a different one per platform, and a script being edited
+    changes about as often as a person types. Errors do not end the loop: a
+    file caught mid-save is the normal case, not a reason to stop.
+    """
+    import time
+
+    base = [a for a in (argv or sys.argv[1:]) if a != "--watch"]
+    seen = None
+    print(paint(f"watching {opts.script}, control-C to stop", "note"))
+    try:
+        while True:
+            try:
+                stamp = os.path.getmtime(opts.script)
+            except OSError:
+                stamp = None
+            if stamp != seen:
+                seen = stamp
+                if stamp is not None:
+                    print()
+                    try:
+                        main(base)
+                    except SystemExit:
+                        pass
+            time.sleep(0.4)
+    except KeyboardInterrupt:
+        print()
+        return 0
+
+
+@contextlib.contextmanager
+def from_git(before, after):
+    """Materialise `before` when it names a git revision rather than a file.
+
+    `frost diff HEAD~1 deploy.frost` is the question a reviewer actually has,
+    and it was two `git show` calls and a temporary file away. A path that
+    exists on disk is always treated as a path: a file called HEAD is a file,
+    and guessing otherwise would be a surprise nobody could work around.
+    """
+    import subprocess
+    import tempfile
+
+    if os.path.exists(before):
+        yield before, after
+        return
+
+    revision, _, path = before.partition(":")
+    target = path or after
+    try:
+        blob = subprocess.run(
+            ["git", "show", f"{revision}:./{target}"],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        sys.stderr.write(f"frost: cannot run git: {e}\n")
+        yield None, None
+        return
+    if blob.returncode != 0:
+        sys.stderr.write(
+            f"frost: {before!r} is neither a file nor a revision of "
+            f"{target!r}\n")
+        detail = blob.stderr.strip().splitlines()
+        if detail:
+            sys.stderr.write(f"  git said: {detail[0]}\n")
+        yield None, None
+        return
+
+    holder = tempfile.NamedTemporaryFile(
+        "w", suffix=os.path.basename(target), delete=False)
+    try:
+        holder.write(blob.stdout)
+        holder.close()
+        yield holder.name, after
+    finally:
+        os.unlink(holder.name)
+
+
 def review_folder(ap, opts, argv):
     """Every .frost file under a folder, reviewed one at a time.
 
@@ -721,7 +807,10 @@ def main(argv=None):
     # `frost diff a b` compares two scripts. Checked before the main parser so
     # its own flags cannot collide, the same way `frost keystore` is.
     if len(raw) == 3 and raw[0] == "diff":
-        return diff_scripts(raw[1], raw[2])[0]
+        with from_git(raw[1], raw[2]) as (before, after):
+            if before is None:
+                return 2
+            return diff_scripts(before, after)[0]
     if raw and raw[0] == "diff":
         sys.stderr.write("frost: usage: frost diff <before.frost> "
                          "<after.frost>\n")
@@ -803,6 +892,12 @@ def main(argv=None):
         ap.print_help()
         return 2
 
+    # Watching is a loop around the review, not a mode inside it. Everything
+    # below stays exactly as it is when run once, which is what keeps the
+    # thing being watched the same thing CI runs.
+    if opts.watch:
+        return watch_script(opts, argv)
+
     # A folder of scripts, for the repository that has more than one. Review
     # only: running a directory means nothing, and guessing which script was
     # meant is worse than refusing.
@@ -816,12 +911,27 @@ def main(argv=None):
             return 2
         return review_folder(ap, opts, argv)
 
-    try:
-        with open(opts.script) as fh:
-            source = fh.read()
-    except OSError as e:
-        sys.stderr.write(f"frost: cannot read {opts.script}: {e}\n")
-        return 2
+    from_stdin = opts.script == "-"
+    if from_stdin:
+        # A buffer that is not on disk yet: an editor, a pipe, an agent
+        # holding text it has just written. The analysis never needed a file,
+        # which the MCP server already demonstrates.
+        source = sys.stdin.read()
+        opts.script = "<stdin>"
+        if not any((opts.check, opts.explain, opts.fmt, opts.ast,
+                    opts.brief, opts.policy_from)):
+            sys.stderr.write(
+                "frost: reading a script from standard input is for review.\n"
+                "  hint: a script that runs wants its own standard input, "
+                "and it cannot have both\n")
+            return 2
+    else:
+        try:
+            with open(opts.script) as fh:
+                source = fh.read()
+        except OSError as e:
+            sys.stderr.write(f"frost: cannot read {opts.script}: {e}\n")
+            return 2
 
     source_lines = source.splitlines()
 
@@ -836,7 +946,8 @@ def main(argv=None):
     # The whole closure, read once. Everything below audits and runs these
     # same bytes; nothing re-opens a module later.
     try:
-        program = M.load(opts.script)
+        program = M.load(opts.script,
+                         source=source if from_stdin else None)
     except (LexError, ParseError) as e:
         if opts.sarif:
             # A syntax error is the finding most worth annotating on a diff,
@@ -944,6 +1055,7 @@ def main(argv=None):
 
     # Analysis never runs a script, so it produces no run to report on.
     analysis_only = any((opts.check, opts.explain, opts.ast, opts.fmt,
+                         opts.brief,
                          opts.repair, opts.policy_from, opts.against,
                          opts.approve, opts.lock))
 
@@ -1195,6 +1307,30 @@ def main(argv=None):
         sys.stdout.write(S.dump(opts.script,
                                 collect_diagnostics(opts.script, source),
                                 __version__))
+        return 0
+
+    if opts.brief:
+        # Deliberately not a shortened manifest. It answers "is this worth
+        # opening" and nothing else, so the numbers are counts and the verdict
+        # is the same one --explain and --check report.
+        caps = audit(tree)
+        findings = find_dangers(caps)
+        seen = verdict(findings)
+        parts = []
+        for count, noun in (
+                (len(caps.commands), "program"),
+                (len({h for h, _ in caps.reaches}), "host"),
+                (len(caps.reads), "read"),
+                (len(caps.writes), "write"),
+                (len(caps.deletes), "delete"),
+                (len({n for n, _, _ in caps.secret_reads}), "secret")):
+            if count:
+                parts.append(f"{count} {noun}" + ("s" if count != 1 else ""))
+        tone = {"dangerous": "danger", "caution": "caution"}.get(seen, "clean")
+        summary = ", ".join(parts) or "nothing"
+        print(f"{opts.script}: {summary}, verdict {paint(seen, tone)}")
+        if opts.strict and seen == "dangerous":
+            return 1
         return 0
 
     if opts.check:

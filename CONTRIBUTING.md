@@ -81,6 +81,7 @@ python tools/build_play.py
 python tools/build_audit.py
 python tools/build_editors.py
 python tools/build_context.py
+python tools/build_man.py
 python tools/build_site.py       # only to preview what Pages will publish
 git diff --exit-code          # generated files must be committed up to date
 ```
