@@ -688,3 +688,75 @@ def test_a_widened_script_is_refused_without_any_flag(run_cli, script,
     status, _, err = run_cli(path)
     assert status == 3
     assert "it can now run curl" in err
+
+
+# --------------------------------------------------- what --check reports
+#
+# It printed "ok" and stopped. That is true and useless: `rm -rf /` parses.
+# The --json form carried the verdict and the human form dropped it, so the
+# reading most people get, from the flag most likely to sit in a pre-commit
+# hook, was the one that said nothing at all.
+
+DANGEROUS = 'run "rm" with "-rf", "/tmp/whatever"\n'
+HARMLESS = 'run "echo" with "hi"\nput it\n'
+
+
+def test_check_names_the_verdict(tmp_path, capsys):
+    path = tmp_path / "d.frost"
+    path.write_text(DANGEROUS)
+    assert cli.main(["--check", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "verdict: dangerous" in out
+    assert "Recursive forced delete" in out
+
+
+def test_check_still_exits_zero_without_strict(tmp_path, capsys):
+    """Deliberate. Changing the exit code would turn every existing
+    pre-commit hook into a failing one the day frost was upgraded, which is
+    how a safety feature gets removed rather than obeyed."""
+    path = tmp_path / "d.frost"
+    path.write_text(DANGEROUS)
+    assert cli.main(["--check", str(path)]) == 0
+    assert "--strict" in capsys.readouterr().out
+
+
+def test_check_strict_exits_one_on_a_dangerous_script(tmp_path, capsys):
+    path = tmp_path / "d.frost"
+    path.write_text(DANGEROUS)
+    assert cli.main(["--check", "--strict", str(path)]) == 1
+
+
+def test_check_strict_is_quiet_about_a_clean_one(tmp_path, capsys):
+    path = tmp_path / "c.frost"
+    path.write_text(HARMLESS)
+    assert cli.main(["--check", "--strict", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "verdict: clean" in out
+    assert "DANGER" not in out
+
+
+def test_check_json_carries_the_verdict_and_honours_strict(tmp_path, capsys):
+    path = tmp_path / "d.frost"
+    path.write_text(DANGEROUS)
+    assert cli.main(["--check", "--json", str(path)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["verdict"] == "dangerous"
+    assert cli.main(["--check", "--json", "--strict", str(path)]) == 1
+
+
+def test_check_and_explain_agree_about_the_verdict(tmp_path, capsys):
+    """--explain has always exited 1 on a dangerous verdict. --check was the
+    odd one out, and two answers to one question is worse than either."""
+    path = tmp_path / "d.frost"
+    path.write_text(DANGEROUS)
+    explained = cli.main(["--explain", str(path)])
+    checked = cli.main(["--check", "--strict", str(path)])
+    assert explained == checked == 1
+
+
+def test_a_script_that_does_not_parse_is_still_unusable(tmp_path):
+    """--strict must not turn a parse failure into a danger verdict. They are
+    different problems with different exit codes."""
+    path = tmp_path / "bad.frost"
+    path.write_text("put ${x} into y\n")
+    assert cli.main(["--check", "--strict", str(path)]) == 2

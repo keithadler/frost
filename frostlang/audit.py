@@ -1036,6 +1036,7 @@ _noun("untimed", "commands without a timeout", "command without a timeout")
 _noun("dynamic", "runtime names", "runtime name")
 _noun("handlers", "handlers", "handler")
 _noun("pipes", "pipes", "pipe")
+_noun("escapes", "shell escapes", "shell escape", "interpreter escapes")
 _noun("secret_reads", "secrets read", "secret read")
 _noun("secret_releases", "secret releases", "secret release")
 
@@ -1065,6 +1066,11 @@ RULE_PATTERNS = [
     # cannot. The two are different guarantees and the docs keep them apart.
     (re.compile(r'^(forbid|warn)\s+reaching\s+"([^"]+)"\s*$'), "reach"),
     (re.compile(r'^require\s+reaching\s+only\s+(.+?)\s*$'), "reach_only"),
+    # The allow-list for programs. Hosts had one and environment reads had
+    # one; the capability that matters most was deny-shaped only, so a policy
+    # could name what it feared and never what it trusted. A deny-list cannot
+    # be completed: it is a list of the programs somebody thought of.
+    (re.compile(r'^require\s+running\s+only\s+(.+?)\s*$'), "run_only"),
     # Enforced by the driver rather than here: whether an approval exists is a
     # fact about the filesystem, and `check` is given a parse tree and nothing
     # else on purpose.
@@ -1274,6 +1280,13 @@ def parse_policy(text):
                         f'  try: require reading only the environment '
                         f'"PATH", "HOME"')
                 rules.append(Rule(kind, "forbid", "the environment", names, n))
+            elif kind == "run_only":
+                programs = re.findall(r'"([^"]+)"', g[0])
+                if not programs:
+                    raise PolicyError(
+                        f"policy line {n}: name the programs in quotes.\n"
+                        f'  try: require running only "git", "npm"')
+                rules.append(Rule(kind, "forbid", "running only", programs, n))
             elif kind == "reach_only":
                 hosts = re.findall(r'"([^"]+)"', g[0])
                 if not hosts:
@@ -1407,6 +1420,8 @@ def count_lines(caps, key, subject=None):
                 if not c.checked and not c.result_examined]
     if key == "untimed":
         return [c.line for c in caps.commands if not c.timeout]
+    if key == "escapes":
+        return [line for line, _, _ in shell_escapes(caps)]
     if key == "pipes":
         return sorted({c.line for c in caps.commands if c.in_pipe})
     if key == "dynamic":
@@ -1540,6 +1555,23 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
                          "reaching a destination built at runtime, which "
                          "cannot be checked against this rule",
                          line))
+
+        elif rule.kind == "run_only":
+            allowed = rule.detail or []
+            for c in caps.commands:
+                if c.program is None:
+                    # A name that does not exist until the run cannot be shown
+                    # to be on the list, so it is refused rather than assumed
+                    # to be on it. Same answer the host allow-list gives.
+                    findings.append(
+                        (rule.severity,
+                         "a program named at runtime, so it cannot be shown "
+                         "to be one of the allowed ones", c.line))
+                elif not any(fnmatch.fnmatchcase(c.program, p)
+                             for p in allowed):
+                    findings.append(
+                        (rule.severity,
+                         f"running {c.program}, {NOT_IN_ALLOW_LIST}", c.line))
 
         elif rule.kind == "reach_only":
             allowed = rule.detail or []
@@ -1702,6 +1734,34 @@ FIND_ACTIONS = ("-exec", "-execdir", "-ok", "-okdir")
 SSH_FLAGS_WITH_VALUES = set("bcDEeFIiJLlmOopQRSWw")
 
 
+def shell_escapes(caps):
+    """Every place this script reaches an interpreter, as (line, title, why).
+
+    One function so the finding a reviewer reads and the number a policy acts
+    on cannot disagree. Reporting an escape that no rule can count is how a
+    manifest ends up describing a thing nobody can refuse: `forbid running
+    "sh"` matches the program frost spawns, which for `xargs sh -c` is xargs,
+    so the direct rule never fires on the indirect form.
+    """
+    found = []
+    for c in caps.commands:
+        prog = c.program
+        args = [a for a in c.args if a is not None]
+        if prog in SHELL_PROGRAMS and "-c" in args:
+            found.append((
+                c.line, f"Shell escape via {prog} -c",
+                "The text handed to -c is re-parsed as a command line, which "
+                "reintroduces exactly the injection risk frost removes."))
+            continue
+        nested = nested_interpreter(prog, args)
+        if nested:
+            ran, how, why = nested
+            shell = "-c" in how or how.endswith("remote command")
+            kind = "Shell escape" if shell else "Hidden command"
+            found.append((c.line, f"{kind} via {how}", why))
+    return found
+
+
 def nested_interpreter(program, args):
     """The interpreter this command reaches, if it reaches one indirectly.
 
@@ -1827,6 +1887,9 @@ def find_dangers(caps):
     """Checks that run with no policy file, on every script."""
     out = []
 
+    for line, title, why in shell_escapes(caps):
+        out.append(Finding("danger", title, why, line))
+
     for line, kind, name in caps.dead:
         out.append(Finding(
             "caution", "Code after the script has already stopped",
@@ -1907,23 +1970,6 @@ def find_dangers(caps):
             out.append(Finding(
                 "danger", f"Destructive system command ({prog})",
                 "This can overwrite or unmount storage devices.", c.line))
-
-        if prog in SHELL_PROGRAMS and "-c" in args:
-            out.append(Finding(
-                "danger", f"Shell escape via {prog} -c",
-                "The text handed to -c is re-parsed as a command line, which "
-                "reintroduces exactly the injection risk frost removes.",
-                c.line))
-        else:
-            nested = nested_interpreter(prog, args)
-            if nested:
-                ran, how, why = nested
-                shell = "-c" in how or how.endswith("remote command")
-                out.append(Finding(
-                    "danger",
-                    f"{'Shell escape' if shell else 'Hidden command'} "
-                    f"via {how}",
-                    why, c.line))
 
         if prog in NETWORK_PROGRAMS:
             targets = [a for a in args if "://" in a or a.count(".") >= 2]

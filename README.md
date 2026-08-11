@@ -832,15 +832,22 @@ things, both refused, alongside a health check and a log analyzer that pass.
 Requires Python 3.10+. No dependencies.
 
 ```bash
-git clone https://github.com/keithadler/frost.git && cd frost
-ln -s "$PWD/frost" /usr/local/bin/frost
-frost examples/hello.frost
+pip install frostlang
+frost --version
 ```
 
 The keystore is the one optional extra, because it needs a real cipher:
 
 ```bash
 pip install "frostlang[keystore]"
+```
+
+From a checkout instead, which is what you want if you are changing frost:
+
+```bash
+git clone https://github.com/keithadler/frost.git && cd frost
+ln -s "$PWD/frost" /usr/local/bin/frost
+frost examples/hello.frost
 ```
 
 Coexists with zsh — you are adding an interpreter, not replacing your shell.
@@ -914,6 +921,50 @@ risky.frost
 
 A file was created with that literal name. Nothing was deleted. The same two
 lines in bash would have emptied the directory.
+
+## Giving it to an agent
+
+Two commands, for the two halves of the loop.
+
+`frost context` prints what a model needs in order to write frost: the
+statement forms, the reserved words taken from the parser itself, and the
+constructs frost deliberately lacks, since the mistakes a model makes are
+`${x}`, backticks and an invented `let`. It is a few thousand characters,
+which is the point: [LANGUAGE.md](LANGUAGE.md) argues a case across thousands
+of lines and is the wrong document to paste into a context window. The same
+text is committed as [MODEL-CONTEXT.md](MODEL-CONTEXT.md), and every snippet
+in it is parsed by the test suite, so it cannot teach a form that does not
+work.
+
+`frost mcp` serves the review tools over Model Context Protocol on stdio:
+`frost_check`, `frost_explain`, `frost_policy`, `frost_diff` and
+`frost_grammar`. Add it to Claude Code with:
+
+```bash
+claude mcp add frost -- frost mcp
+```
+
+or by hand, in `claude_desktop_config.json` or any other MCP client:
+
+```json
+{
+  "mcpServers": {
+    "frost": {
+      "command": "frost",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**It cannot run a script, and it reads no files.** That is the design rather
+than a gap. frost exists because a machine writes the script and a person
+decides whether it runs; a server that executes on request moves the decision
+back to the machine, and a tool that took a file path would let whatever holds
+the other end of the pipe read anything the process can reach. A refusal comes
+back with the rule that fired and a refusal to draft the widening, because an
+agent handed the exact edit that clears its own refusal has been handed the
+instructions for widening its own bounds.
 
 ## Tooling
 
@@ -1045,7 +1096,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2071 tests — python3 -m pytest tests/ -q
+tests/                2089 tests — python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1064,7 +1115,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.8.0. The language runs, the examples are real, and 2071 tests cover
+Version 0.8.0. The language runs, the examples are real, and 2089 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

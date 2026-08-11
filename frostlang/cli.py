@@ -463,6 +463,9 @@ def build_parser():
     ap.add_argument("--deadline", metavar="SECONDS", type=float,
                     help="stop the whole run after this long, running any "
                          "cleanup on the way out")
+    ap.add_argument("--strict", action="store_true",
+                    help="with --check, exit 1 when the verdict is dangerous "
+                         "rather than only reporting it")
     ap.add_argument("--max-output", metavar="SIZE", dest="max_output",
                     help="the most a run may return from its commands, as "
                          "'10MB' or '500kb'; the child is killed at the "
@@ -1006,16 +1009,33 @@ def main(argv=None):
         # Parse-only. Deliberately before the keystore: checking that a script
         # is well formed must not require the credentials it will use, or it
         # stops being usable as a pre-commit hook.
+        #
+        # It used to print "ok" and stop there, which was true and useless:
+        # `rm -rf /` parses. --json carried the verdict and the human form
+        # dropped it, so the reading most people get, from the flag most
+        # likely to be in a hook, was the one that said nothing.
+        findings = find_dangers(audit(tree))
+        seen = verdict(findings)
         if opts.json:
-            findings = find_dangers(audit(tree))
             emit_json(diagnostics.report(
                 opts.script,
                 [diagnostics.from_finding(f, source) for f in findings],
-                True, 0, {"statements": len(tree),
-                          "verdict": verdict(findings)}))
-            return 0
-        print(f"{opts.script}: ok ({len(tree)} top-level statements)")
-        return 0
+                True, 0, {"statements": len(tree), "verdict": seen}))
+            return 1 if opts.strict and seen == "dangerous" else 0
+
+        print(f"{opts.script}: ok ({len(tree)} top-level statements), "
+              f"verdict: {seen}")
+        for f in findings:
+            if f.severity == "danger":
+                print(f"  [DANGER ] line {f.line}  {f.title}")
+        if seen == "dangerous" and not opts.strict:
+            print("  (--check reports; --check --strict exits 1 on this)")
+        # The exit code stays 0 without --strict. Changing it would turn every
+        # existing pre-commit hook into a failing one on the day frost was
+        # upgraded, which is how a safety feature gets removed rather than
+        # obeyed. --explain has always exited 1 on a dangerous verdict, and
+        # --strict is the same answer under the same conditions.
+        return 1 if opts.strict and seen == "dangerous" else 0
 
     if not opts.ignore_approval:
         from . import baseline as B

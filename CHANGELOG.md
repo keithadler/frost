@@ -11,6 +11,41 @@ bump may change the language.
 
 ### Added
 
+**A program allow-list: `require running only "git", "npm"`.** Hosts had one
+and environment reads had one; the capability that matters most was
+deny-shaped only, so a policy could name what it feared and never what it
+trusted. A deny-list cannot be completed, because it is a list of the programs
+somebody thought of. A program named at runtime is refused rather than assumed
+to be on the list, which is the same answer the host allow-list gives.
+
+**Shell escapes are countable, so a policy can refuse them.** `forbid running
+"sh"` matches the program frost spawns, which for `xargs sh -c` is xargs, so
+the rule never fired on the indirect form. The manifest named an escape that
+no rule could act on. `require at most 0 shell escapes` now covers both forms,
+and the finding and the count come from one detector so they cannot disagree.
+
+### Changed
+
+**`--check` reports the verdict.** It printed `ok` and stopped, which is true
+and useless: `rm -rf /` parses. The `--json` form carried the verdict and the
+human form dropped it, so the reading most people get, from the flag most
+likely to sit in a pre-commit hook, was the one that said nothing.
+
+It now names the verdict and lists any dangers. The exit code is unchanged
+without `--strict`, deliberately: flipping it would turn every existing hook
+into a failing one on upgrade day, which is how a safety feature gets removed
+rather than obeyed. `--check --strict` exits 1 on a dangerous verdict, which
+is what `--explain` has always done.
+
+**Published to PyPI.** `pip install frostlang` works, and the README has been
+telling people to run it since before there was anything there. The release
+workflow builds on a version tag, checks the tag matches the declared version,
+installs the built wheel into a clean environment and runs a script through
+it. Testing the source tree would prove the source tree works, which was never
+in doubt.
+
+### Added
+
 **`frost mcp`, the review tools over Model Context Protocol.** A stdio
 JSON-RPC server exposing `frost_check`, `frost_explain`, `frost_policy`,
 `frost_diff` and `frost_grammar`. An agent already shells out to frost, parses
