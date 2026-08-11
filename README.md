@@ -929,6 +929,20 @@ risky.frost
 A file was created with that literal name. Nothing was deleted. The same two
 lines in bash would have emptied the directory.
 
+## Reviewing
+
+```bash
+frost --explain deploy.frost      # everything it can do, before it runs
+frost --brief scripts/            # one line each, for a log with forty
+frost --check --strict deploy.frost   # exits 1 on a dangerous verdict
+frost diff HEAD~1 deploy.frost    # did this rewrite widen what it can do?
+cat buffer.frost | frost --check -    # a buffer that is not on disk yet
+frost --watch deploy.frost        # re-review on every save
+```
+
+A `frost.policy` beside the script, or above it, is found and applied. The
+path used is printed, and `--no-policy` opts out.
+
 ## Starting a project
 
 ```bash
@@ -949,7 +963,7 @@ As a pre-commit hook:
 ```yaml
 repos:
   - repo: https://github.com/keithadler/frost
-    rev: v0.9.4
+    rev: v0.10.0
     hooks:
       - id: frost-check
 ```
@@ -1142,7 +1156,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2132 tests, python3 -m pytest tests/ -q
+tests/                2143 tests, python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1161,7 +1175,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.9.4. The language runs, the examples are real, and 2132 tests cover
+Version 0.10.0. The language runs, the examples are real, and 2143 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
