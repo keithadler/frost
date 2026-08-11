@@ -3,7 +3,7 @@
 The attack this is for is not injection. frost already stops a value becoming
 syntax, which covers hostile text flowing into a command. It covers nothing
 about an agent that *reads* something hostile and writes perfectly valid frost
-obeying it — the script parses, formats canonically, and passes `--check`. The
+obeying it: the script parses, formats canonically, and passes `--check`. The
 model is not confused about syntax; it has been persuaded to use authority it
 legitimately holds.
 
@@ -239,7 +239,7 @@ def test_the_approval_and_the_lockfile_answer_different_questions(project):
 def test_a_new_destination_is_a_widening():
     """The hole this closes. Recording only program names made
     `curl https://api.github.com` and `curl https://telemetry.example` the
-    same capability — and a persuaded model does not need a new program, only
+    same capability: and a persuaded model does not need a new program, only
     a new destination."""
     before = B.capability_set(caps_of(
         'run "curl" with "https://api.github.com/x" within 30 seconds\n'))
@@ -318,7 +318,7 @@ def test_an_approval_binds_without_being_asked_for(project):
     """The hole that made the rest of this decorative.
 
     `--as-approved` was opt-in, so a poisoned agent did not have to defeat the
-    check — it just left the flag off, and in most agent loops the agent is
+    check. It just left the flag off, and in most agent loops the agent is
     the thing composing the command line. An approval that only applies when
     the caller remembers is a guard the attacker controls.
     """
@@ -332,7 +332,7 @@ def test_an_approval_binds_without_being_asked_for(project):
 
 
 def test_bypassing_takes_a_deliberate_flag(project):
-    """Not impossible — deliberate. The point is that skipping the guard has
+    """Not impossible, deliberate. The point is that skipping the guard has
     to be something a person chose and a reviewer can see, rather than the
     default that happens when nobody types anything."""
     project("deploy.frost", 'run "echo" with "a"\nput it\n')
@@ -401,7 +401,7 @@ def hosts(source):
 def test_a_host_survives_being_joined_to_a_path():
     """`"https://api.github.com/repos/" & repo` was called an unknowable
     destination. The authority is closed inside the literal, so nothing after
-    the slash can move it, and reporting it as unknown is not honesty — it is
+    the slash can move it, and reporting it as unknown is not honesty. It is
     a manifest declining to read what is in front of it."""
     assert hosts('put item 1 of the arguments into repo\n'
                  'run "curl" with ("https://api.github.com/repos/" & repo) '

@@ -229,12 +229,12 @@ def corpus():
 # ---------------------------------------------------- coverage of the corpus
 #
 # The corpus is hand-written, so until now a new expression form was compared
-# only if somebody remembered to add it — and records shipped in 0.6.0 with no
+# only if somebody remembered to add it, and records shipped in 0.6.0 with no
 # browser support at all, silently, because nothing here asked. The check below
 # turns that omission into a build failure: every expression node the parser
 # can produce must appear in the corpus, or be excused here with a reason.
 
-# Nodes that need a host — a process, a filesystem, an environment, a clock.
+# Nodes that need a host: a process, a filesystem, an environment, a clock.
 # The browser evaluator is a slice of the language on purpose: it evaluates
 # expressions against a subject, and none of these mean anything without a
 # machine underneath.

@@ -1,0 +1,49 @@
+# frost as a pre-commit hook.
+#
+# `--check --strict` is the form that belongs in a hook: it parses the script,
+# reports the verdict, and exits 1 when that verdict is dangerous. Plain
+# `--check` reports and exits 0 on purpose, which is right for a person at a
+# terminal and useless as a gate.
+#
+# Add to .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/keithadler/frost
+#       rev: v0.9.0
+#       hooks:
+#         - id: frost-check
+#
+# The policy hook takes the policy path as an argument, because there is no
+# sensible default: a policy that frost invented would be one nobody agreed to.
+#
+#         - id: frost-policy
+#           args: [--policy, .frost-policy]
+
+- id: frost-check
+  name: frost check
+  description: Parse every frost script and refuse a dangerous verdict.
+  entry: frost --check --strict
+  language: python
+  files: \.frost$
+
+- id: frost-explain
+  name: frost explain
+  description: Print what each frost script can do, for the record.
+  entry: frost --explain
+  language: python
+  files: \.frost$
+  verbose: true
+
+- id: frost-policy
+  name: frost policy
+  description: Check every frost script against a policy. Pass --policy PATH.
+  entry: frost --check --strict
+  language: python
+  files: \.frost$
+
+- id: frost-format
+  name: frost format
+  description: Rewrite frost scripts in canonical form.
+  entry: frost --format
+  language: python
+  files: \.frost$

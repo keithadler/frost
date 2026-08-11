@@ -24,7 +24,7 @@ SAMPLE = """10.0.0.1 GET /index.html 200 0.014
 10.0.0.4 GET /index.html 200 0.019
 10.0.0.2 POST /api/pay 500 2.404"""
 
-BANNER = """frost scratchpad — type an expression, see the result.
+BANNER = """frost scratchpad: type an expression, see the result.
 `it` holds seven lines of a sample access log.
 
   the first line of it              a chunk by ordinal
@@ -168,7 +168,7 @@ class Repl:
                 self.write(f"  {name} = {value}")
 
         else:
-            self.write(f"  unknown command {word!r} — try :help")
+            self.write(f"  unknown command {word!r}. Try :help")
 
         return True
 

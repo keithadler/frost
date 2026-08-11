@@ -3,13 +3,13 @@ examples/healthcheck.frost
 This script runs curl, reaches the internet using curl, and reads 1 file (runtime). It can exit with status 1, 2.
 
 Runs these programs:
-  curl  — line 29
+  curl  at line 29
 
 Reads these files:
-  (path built at runtime)  — line 16
+  (path built at runtime)  at line 16
 
 Reaches these hosts:
-  (destination built at runtime)  — line 29
+  (destination built at runtime)  at line 29
 
 Can exit with:
   status 1

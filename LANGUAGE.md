@@ -129,8 +129,8 @@ put the current folder into working directory
 
 This is the reason the keyword list is short. A word is available for use in a
 name unless it is structurally load-bearing. Chunk nouns (`line`, `word`,
-`item`, `character`) are *not* reserved — `line count` is a perfectly good
-variable — because frost recognises chunk expressions by context rather than by
+`item`, `character`) are *not* reserved, `line count` is a perfectly good
+variable, because frost recognises chunk expressions by context rather than by
 reserving the noun.
 
 Assignment is `put ... into ...`. Reading a name that was never assigned is an
@@ -233,7 +233,7 @@ put the "attempt" of build + 1
 ```
 
 This exists because the alternative was `run "jq" with ".status"`, which puts
-a second language in a file whose whole argument is that it needs only one —
+a second language in a file whose whole argument is that it needs only one,
 and hands the auditor a string it cannot see into. `--explain` could say the
 script runs `jq`; it could never say what `jq` was asked for.
 
@@ -251,7 +251,7 @@ prints as JSON, because a record that printed as its type name would send you
 straight back to jq to look at your own data.
 
 **Missing keys.** Asking for a key a record does not have yields empty,
-exactly as `word 99 of` does, and a field of empty is empty — so
+exactly as `word 99 of` does, and a field of empty is empty, so
 `the "name" of the "user" of build` is safe on a payload with no `user`.
 Asking for a field of *text* is an error: that means the value is not the
 shape the script thinks it is, and empty would hide the bug while it is still
@@ -315,7 +315,7 @@ end if
 ```
 
 Without this the only way to see why something failed was
-`run "sh" with "-c", "... 2>&1"` — which reintroduces the shell frost exists
+`run "sh" with "-c", "... 2>&1"`: which reintroduces the shell frost exists
 to avoid, and which the auditor flags. Needing an error message should not
 require defeating the language's main guarantee.
 
@@ -340,8 +340,8 @@ The unit is required, for the same reason `within` requires one: a bare `3`
 means seconds to one reader and milliseconds to another.
 
 Both are recorded. `--replay` serves back the clock reading that was recorded
-rather than reading the clock again — a fixture whose timestamps move on every
-replay is a diff generator, not a fixture — and it does not actually sleep, so
+rather than reading the clock again, a fixture whose timestamps move on every
+replay is a diff generator, not a fixture: and it does not actually sleep, so
 replaying a script that backs off for thirty seconds is no slower than
 replaying anything else.
 
@@ -448,8 +448,8 @@ require reaching only "api.github.com", "*.internal"
 
 Checked against the text, before anything runs. That is possible because the
 analyser reads a host out of a joined URL when the literal closes the
-authority — `"https://api.github.com/repos/" & repo` reaches
-`api.github.com`, and nothing after the slash can move it — and because a name
+authority, `"https://api.github.com/repos/" & repo` reaches
+`api.github.com`, and nothing after the slash can move it, and because a name
 whose definitions are all literals contributes every one of them, so a branch
 choosing between two hosts is two known hosts rather than an unknown one.
 
@@ -525,7 +525,7 @@ Three separate questions, all decidable from the text. **Unreachable**:
 statements after a `quit`, `return`, `exit repeat` or `next repeat` in the
 same block, reported once per block rather than once per line, because a run
 of ten dead lines is one mistake. **Never called**: a handler used nowhere in
-the program — across an import, not within one file, since defined here and
+the program: across an import, not within one file, since defined here and
 called there is the normal shape of a module. **Never read**: a name assigned
 and never used, where reading it by any route counts, including `add 1 to n`,
 which reads the value before writing it.
@@ -592,7 +592,7 @@ frost --deadline 300 deploy.frost
 require the run to finish within 5 minutes
 ```
 
-The run stops when the budget is spent, exiting 124 — what a shell reports for
+The run stops when the budget is spent, exiting 124, what a shell reports for
 a timeout, and what frost already returns when a single command runs too long.
 The same answer to the same question at a different scale.
 
@@ -769,7 +769,7 @@ for a script a model regenerates: every regeneration trips it, so you re-lock
 every time, and re-locking every time means the check has stopped telling you
 anything.
 
-`--approve` asks the question that survives regeneration — did it get *more
+`--approve` asks the question that survives regeneration, did it get *more
 powerful*?
 
 ```bash
@@ -801,7 +801,7 @@ REFUSED: it can now let a secret leave the process as an argument to curl
 ```
 
 Binding by default is the difference between a guard and a suggestion. While
-it was opt-in, a poisoned agent did not have to defeat it — it just left the
+it was opt-in, a poisoned agent did not have to defeat it. It just left the
 flag off, and in most agent loops the agent is the thing composing the command
 line. Skipping it now takes `--ignore-approval`: still possible, but a choice
 someone made and a reviewer can see, rather than what happens when nobody
@@ -809,7 +809,7 @@ types anything. Deleting the approval file works too, and shows up in a diff.
 
 `--as-approved` keeps a stronger meaning for CI: not *honour an approval if
 there is one* but *there had better be one*, refusing with exit 2 when none
-exists. `--check`, `--explain` and `--format` are never blocked — they are how
+exists. `--check`, `--explain` and `--format` are never blocked. They are how
 you review the change, and blocking them would push people straight to
 `--ignore-approval`.
 
@@ -818,7 +818,7 @@ asymmetry is the point: a script that stops touching the network needs no
 ceremony, and one that starts needs a person. Re-approving prints what changed,
 so the moment of approval has something in it to read.
 
-The baseline covers imported modules too — a capability that arrives through
+The baseline covers imported modules too, a capability that arrives through
 an import is still a capability, and measuring only the entry file would make
 "add an import" the way around this.
 
@@ -827,13 +827,13 @@ syntax. This is for the case where an agent reads something hostile and writes
 perfectly valid frost obeying it. The script parses, formats canonically and
 passes `--check`; the model was never confused about syntax, it was persuaded
 to use authority it legitimately holds. A policy file answers that properly,
-by being written by a person ahead of time — but a policy has to be written,
+by being written by a person ahead of time: but a policy has to be written,
 and a baseline needs no rules at all. It compares against the reviewer's own
 past judgement instead of a security model they had to author.
 
 Destinations are recorded, not just program names. Without that,
 `curl https://api.github.com` and `curl https://telemetry.example` are the same
-capability — and a persuaded model does not need a new program, only a new
+capability: and a persuaded model does not need a new program, only a new
 destination. The host is taken from literal arguments only: a scheme, or an
 scp-style `user@host:path`. A bare `example.com` is indistinguishable from a
 filename and is not guessed at, and a network command whose destination is not
@@ -1047,7 +1047,7 @@ reads better in a sentence.
 
 Two forms, because the two jobs are different.
 
-### Globs — `is like`
+### Globs, `is like`
 
 For filename-shaped matching, where regex is overkill and unreadable:
 
@@ -1060,7 +1060,7 @@ if log is like "log-????-??.txt" then put "dated log"
 `*` matches any run of characters, `?` matches one, `[abc]` matches a set.
 Case-sensitive.
 
-### Regular expressions — `matches`
+### Regular expressions, `matches`
 
 For everything else. frost does not pretend regex is readable; it makes it
 explicit instead, so a reader knows to slow down at exactly the places that
@@ -1247,7 +1247,7 @@ run "make" with "test" within 10 minutes
 try to run "ping" with "-c", "1", host within 500 milliseconds
 ```
 
-Units are required — `within 5` is a syntax error, because a bare number could
+Units are required: `within 5` is a syntax error, because a bare number could
 mean seconds or milliseconds and the reader should not have to guess. Accepted
 units: `milliseconds` (or `ms`), `seconds`, `minutes`, `hours`, singular or
 plural.
@@ -1270,7 +1270,7 @@ end if
 ```
 
 Putting `within` on an individual stage is a syntax error that says so. When a
-pipe times out, every stage is killed and reaped — no orphans.
+pipe times out, every stage is killed and reaped, no orphans.
 
 ### Output
 
@@ -1311,7 +1311,7 @@ run "make" with "all" in folder build path
 
 The folder applies to that command only, so a reader need not track a mutable
 working directory while reading the rest of the script. To move the script
-itself, assign to `the current folder` — see section 11.
+itself, assign to `the current folder`: see section 11.
 
 ### Watching a program work
 
@@ -1333,7 +1333,7 @@ These clauses may appear in any order, and each may appear once.
 ## 9. Pipes
 
 A pipe is a block, not a connective. English has no graceful N-ary connective
-for this, so frost does not invent one — position carries the meaning.
+for this, so frost does not invent one, position carries the meaning.
 
 ```
 pipe
@@ -1401,7 +1401,7 @@ Failure aborts the script. That is the right default, and on its own it leaks
 every lock file and temporary directory the script had taken.
 
 `ensure` registers a block when execution reaches it. Registered blocks run
-when the script ends — normally, on error, on `quit`, or on interrupt — most
+when the script ends: normally, on error, on `quit`, or on interrupt, most
 recent first, so cleanup unwinds in the reverse of the order things were
 acquired.
 
@@ -1421,7 +1421,7 @@ The lock is released whether `make` succeeds or not.
 A block that is never reached is never registered, so a lock taken inside a
 branch is only released if it was actually taken. A failure inside a cleanup
 block is reported on standard error and does not stop the other blocks, and it
-never replaces the error that ended the script — that error is the one the
+never replaces the error that ended the script. That error is the one the
 reader needs first.
 
 ---
@@ -1435,7 +1435,7 @@ put file "config.txt" into settings
 put the first line of file "VERSION"
 ```
 
-If the path is in a variable, parenthesise it — this is how frost tells
+If the path is in a variable, parenthesise it. This is how frost tells
 `file "x"` from a variable named `file path`:
 
 ```
@@ -1490,13 +1490,13 @@ A handler is a named block of statements.
 
 ```
 to warn about with subject, detail
-    put "WARNING:" && subject & " — " & detail into standard error
+    put "WARNING:" && subject & ": " & detail into standard error
 end warn about
 
 warn about with "disk", "92% full"
 ```
 
-The handler name may be several words. `end` must repeat the name — a rule that
+The handler name may be several words. `end` must repeat the name, a rule that
 costs one word and makes long scripts navigable.
 
 Handlers may return a value, which arrives in `it`:
@@ -1518,7 +1518,7 @@ call.
 ### Reaching a global
 
 A handler can read a global directly, but a plain `put` inside one creates a
-local — even when a global of that name exists. To write through, say so:
+local, even when a global of that name exists. To write through, say so:
 
 ```
 put 0 into error total
@@ -1580,7 +1580,7 @@ executes.
 Everything frost is worth using for rests on one invariant: **the tree you
 audit is the program you run, and the audit sees all of it.** A module system
 is the feature most likely to break that. If a module could contribute a
-`run` that `--explain` does not print, frost would be worse than bash — bash
+`run` that `--explain` does not print, frost would be worse than bash, bash
 never claimed to have audited anything.
 
 So the design goal is not *safe modules*. It is **modules that cannot put
@@ -1604,7 +1604,7 @@ Module error at deploy.frost
 ```
 
 Import-time side effects are the most abused feature of every module system
-ever shipped — Python's `__init__.py`, npm's `postinstall` — and they turn
+ever shipped: Python's `__init__.py`, npm's `postinstall`: and they turn
 `use` into *run this file*. Refusing them means `use` can never do anything,
 which is what makes it safe to read the whole graph before deciding anything.
 
@@ -1624,14 +1624,14 @@ to one file, the same way on every machine.
 The boundary is the entry script's directory, not the repository root, so a
 script in `tools/` cannot reach a sibling `lib/`. That is restrictive on
 purpose: the directory a reviewer opens is the directory the program lives
-in. Vendoring is the feature — if a module has to live with the script, then
+in. Vendoring is the feature: if a module has to live with the script, then
 the review that covered the repository covered the module.
 
 ### Imports are explicit, and the graph is a DAG
 
 `for the connect, the migrate` names exactly what arrives. Only those names
 are in scope; the module's other handlers are not. Two imports bringing in
-the same name is an error, as is an import shadowing a local handler — with
+the same name is an error, as is an import shadowing a local handler, with
 a single flat table one would silently replace the other, which is a hijack
 rather than a hygiene problem.
 
@@ -1673,18 +1673,18 @@ from, and names the import it arrived through:
 ```text
 lib/db.frost   (imported by deploy.frost:1)
   Runs these programs:
-    psql  — line 2  (no timeout)
+    psql  at line 2  (no timeout)
 ```
 
 A module's handlers are audited whether or not anything calls them, which is
-the sound direction. An unresolvable module fails closed — exit 2 and no
+the sound direction. An unresolvable module fails closed, exit 2 and no
 manifest at all, because a manifest with a hole in it is the one output that
 would actively mislead a reviewer.
 
 ### The ceiling at the import site
 
 This is the part that makes single-file review survive multi-file code. A
-module defaults to **no capabilities** — pure computation, chunk expressions
+module defaults to **no capabilities**: pure computation, chunk expressions
 and the string and number functions. Widen it explicitly:
 
 ```
@@ -1704,7 +1704,7 @@ REFUSED: lib/sneaky.frost may not run curl
 Two things fall out. A reviewer who reads only the entry file has a sound
 upper bound on what the entire program can do. And a shared module that later
 grows a network call breaks the build at the import site instead of quietly
-widening somebody's manifest — which is the supply-chain shape you become
+widening somebody's manifest, which is the supply-chain shape you become
 exposed to the moment modules can be shared at all.
 
 The vocabulary is the policy language's, pointed inward: `run`, `read`,
@@ -1772,7 +1772,7 @@ put "connecting as" && token
 in a generated script, running in CI, writing a credential into a log that is
 retained for a year and readable by everyone in the organisation. That mistake
 is made by being ordinary, not by being careless, so the fix is structural
-rather than a rule to remember — the same argument frost makes about
+rather than a rule to remember, the same argument frost makes about
 injection.
 
 ### Sealed values
@@ -1826,7 +1826,7 @@ returned from a handler. Anything derived from a secret is a secret.
 
 The rule: **streams redact, boundaries release.** Printing is the accidental
 path and is closed. Handing a value to a program is a deliberate act, so it
-works — and `--explain` reports every place it happens.
+works, and `--explain` reports every place it happens.
 
 Comparisons and measurements see through the seal, because the alternative is
 answering a different question:
@@ -1899,7 +1899,7 @@ Each role has an X25519 keypair whose private half is encrypted under a
 passphrase with scrypt; each value has a random data key sealed to every
 authorised role's public key, with AES-256-GCM throughout. The consequence
 worth knowing is that **storing a secret and granting a role need no
-passphrase — only reading does.** Somebody can add a credential for a role
+passphrase, only reading does.** Somebody can add a credential for a role
 whose passphrase they do not have, which is the usual case.
 
 This needs the `cryptography` package: `pip install "frostlang[keystore]"`.
@@ -1915,14 +1915,14 @@ manifest and is checked before anything executes:
 $ frost --explain release.frost
 
 Reads these secrets:
-  db password  — line 4  (from the keystore)
+  db password  at line 4  (from the keystore)
 
 Lets a secret leave the process:
-  on the standard input of psql  — line 9
+  on the standard input of psql  at line 9
 ```
 
 If the role cannot open a secret the script names, frost exits 3 and nothing
-runs — the same contract as `--policy`. A policy can also refuse outright:
+runs, the same contract as `--policy`. A policy can also refuse outright:
 
 ```policy
 forbid reading secret "prod/*"
@@ -1993,13 +1993,13 @@ so one flag covers every way a script can be refused.
 ### Repairs
 
 A repair is an edit, not advice. Most come from information the front end
-already had — several hints in this document literally contain the corrected
-line — so handing it over as data costs nothing and saves a round trip.
+already had, several hints in this document literally contain the corrected
+line, so handing it over as data costs nothing and saves a round trip.
 
 | Confidence | Meaning |
 |---|---|
 | `high` | a mechanical rewrite; the parser knew the answer |
-| `likely` | the fix is right, a detail is inferred — which unit a timeout meant, where a missing `end repeat` goes |
+| `likely` | the fix is right, a detail is inferred: which unit a timeout meant, where a missing `end repeat` goes |
 | `guess` | a name that looks close to one that exists |
 
 ```bash
@@ -2007,7 +2007,7 @@ frost --repair --write report.frost
 ```
 
 applies `high` repairs only, and repeats until nothing is left that it is
-sure about — a recursive-descent parser stops at the first error, so fixing
+sure about: a recursive-descent parser stops at the first error, so fixing
 one reveals the next, and a single pass would give up on any script with two
 mistakes.
 
@@ -2021,7 +2021,7 @@ wrong repair costs a round trip and teaches the wrong grammar.
 ## 13c. Recording and replaying a run
 
 What a script *can* do is knowable before it runs. What it *did* was not
-knowable at all — you ran it and watched.
+knowable at all, you ran it and watched.
 
 ```bash
 frost --record run.json deploy.frost      # run it, write down everything
@@ -2035,7 +2035,7 @@ spawned, no file is written, nothing is deleted. The recorded answers are
 served back in order.
 
 That makes a recording a fixture. Change the script, replay it, and every
-command it would run is compared against what it ran before — so a refactor
+command it would run is compared against what it ran before, so a refactor
 meant to preserve behaviour either did or did not, and you find out without a
 database or a network.
 
@@ -2047,13 +2047,13 @@ DIVERGED at deploy.frost:3
     this run wants:  echo CHANGED
 ```
 
-Matching is on the identity of the effect — which program with which
-arguments, which path — not on line numbers, so reformatting or adding
+Matching is on the identity of the effect, which program with which
+arguments, which path: not on line numbers, so reformatting or adding
 comments replays clean. Exit status is 4 for a divergence, distinct from a
 policy refusal.
 
 Secret *values* are never recorded, only their names, and any plaintext the
-run revealed is scrubbed from everything written down — including command
+run revealed is scrubbed from everything written down, including command
 arguments, which is where the first version of this leaked. So a recording is
 safe to commit, which is the point: a fixture you cannot check in is not a
 fixture. The scrubbing is exact-match, so a program that transforms a secret
@@ -2220,7 +2220,7 @@ visible in the tree. Two tools use that.
 
 ### `--explain`
 
-A capability manifest — what the script touches, without running it.
+A capability manifest: what the script touches, without running it.
 
 ```text
 $ frost --explain cleanup.frost
@@ -2286,7 +2286,7 @@ warning: running "curl"
 
 Subjects are globs, so `forbid writing to "/etc/*"` covers the whole tree.
 `forbid running "rm" with "-rf"` matches the program *and* an argument, so
-ordinary `rm` still works — the rule targets the dangerous combination rather
+ordinary `rm` still works, the rule targets the dangerous combination rather
 than banning a useful tool.
 
 `require every command to be checked` understands the difference between an
@@ -2294,8 +2294,8 @@ ignored failure and a handled one: a `try to run` whose result is examined in
 the next statement or two passes, while one whose failure is silently dropped
 does not.
 
-The capabilities added since — setting an environment variable and changing
-the working folder — have rules of their own, because otherwise they would be
+The capabilities added since, setting an environment variable and changing
+the working folder: have rules of their own, because otherwise they would be
 a way around the rest of the policy:
 
 ```policy
@@ -2373,7 +2373,7 @@ unknowable rather than guessed. That honesty is also the gap. Once the script
 runs, an unknowable path is a real path.
 
 A boundary closes it. Declared in the same file, but **allow-shaped**, because
-a deny-list cannot become a sandbox — `forbid writing to "/etc/*"` says
+a deny-list cannot become a sandbox, `forbid writing to "/etc/*"` says
 nothing about what writing *is* permitted:
 
 ```policy
@@ -2392,14 +2392,14 @@ confinement never needed it resolved.
 
 ##### Two enforcers, and the difference is real
 
-**Child processes are confined by the operating system** — `sandbox-exec` on
+**Child processes are confined by the operating system**: `sandbox-exec` on
 macOS, `bubblewrap` on Linux. Once a program runs inside one, frost is not in
 the loop: the kernel refuses the write. That holds even if the program is
 hostile, even if frost has a bug.
 
 **frost's own file operations are confined by frost.** `put X into file
 (path)` never becomes a child process, so the check is a check in the
-interpreter — enforced by the same code being trusted to run the script at
+interpreter, enforced by the same code being trusted to run the script at
 all. A weaker claim, and named differently here for that reason.
 
 ##### What it cannot do
@@ -2419,7 +2419,7 @@ under-enforced. A boundary that does not hold is worse than no boundary,
 because somebody relies on it.
 
 **Platforms with no backend.** If a boundary is declared and cannot be
-enforced here, frost refuses to run — it does not warn and continue. Before
+enforced here, frost refuses to run. It does not warn and continue. Before
 each run it also executes a real confined command that tries to write outside
 its boundary, and refuses if that write succeeds: present is not the same as
 working.
@@ -2431,7 +2431,7 @@ read intent.
 #### Bounded timeouts
 
 `require timeout on "curl"` asks only that a deadline exists. A deadline of
-six hours satisfies it, and so does one of a millisecond — the first hangs the
+six hours satisfies it, and so does one of a millisecond, the first hangs the
 script, the second kills healthy work. So the bound can be given:
 
 ```policy
@@ -2445,11 +2445,11 @@ seconds catches a script written in minutes, because `within 2 minutes` is
 already `2 * 60` in the tree and folds to 120 before the comparison.
 
 A timeout computed at runtime cannot be checked ahead of time, and is refused
-rather than assumed acceptable — the same rule the manifest follows for a
+rather than assumed acceptable, the same rule the manifest follows for a
 program name built at runtime.
 
 Sensitive-path detection works on literal *fragments*, so a path assembled at
-runtime — `file (home & "/.ssh/id_rsa")` — is still recognised even though no
+runtime, `file (home & "/.ssh/id_rsa")`: is still recognised even though no
 whole-string literal ever appears in the source.
 
 This is the part a traditional shell cannot offer. `rm -rf "$DIR"` is a string
@@ -2651,7 +2651,7 @@ shell explicitly: `run "sh" with "-c", script text`. That line is greppable in
 review, which is the point.
 
 **Globbing in `run` arguments.** `run "rm" with "*.tmp"` passes a literal
-asterisk. Expansion happens where you can see it — loop over the output of
+asterisk. Expansion happens where you can see it, loop over the output of
 `find`, or hand the pattern to a program that expands it.
 
 **Background jobs, job control, `&`, `fg`, `bg`.** These belong to an

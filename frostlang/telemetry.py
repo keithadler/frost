@@ -112,7 +112,7 @@ class OtelSink(Sink):
     line-oriented file survives a run that is killed halfway. OTLP is what New
     Relic and Datadog would rather have, because a run with a span per command
     renders as a flame graph instead of a table, and the instrumentation for
-    that already existed — a command has a start, an end and a status, which
+    that already existed: a command has a start, an end and a status, which
     is a span with the labels changed.
 
     The trade-off is inherent and worth stating rather than discovering: OTLP
@@ -247,7 +247,7 @@ class Observer:
 
     frost already routes every effect through one interface so a recording can
     be made without the interpreter knowing. Telemetry is the same shape, so
-    this wraps whatever journal is in use — a Recorder, a Player, or nothing —
+    this wraps whatever journal is in use: a Recorder, a Player, or nothing,
     rather than adding a second set of hooks to the interpreter that would
     drift from the first.
     """
@@ -384,7 +384,7 @@ def utilisation(caps, observer):
 
     The signal nothing else can produce. A script approved to run six programs
     and reaching four hosts, which in practice uses two and reaches one, is an
-    approval that should be tightened — and that is visible only by holding
+    approval that should be tightened, and that is visible only by holding
     the manifest and the run side by side.
     """
     from .audit import RUNTIME_HOST

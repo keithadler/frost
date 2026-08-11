@@ -119,7 +119,7 @@ def main():
     print("""
 So the front end costs about one trivial spawn, and a fraction of one command
 that does any work. It is a fixed price paid once, against a per-command cost
-paid every time — which is the property the design actually relies on.
+paid every time, which is the property the design actually relies on.
 
 Note the floor moves a lot by platform: fork+exec of `true` is roughly 0.7ms
 on Linux and 2.4ms on macOS. A flat claim that parsing beats spawning is true

@@ -1,6 +1,6 @@
 """What a child process is given: input, a folder, and an environment.
 
-Three gaps closed at once, because they are the same gap — the script could
+Three gaps closed at once, because they are the same gap, the script could
 choose a program and its arguments, but nothing else about the context it ran
 in.
 

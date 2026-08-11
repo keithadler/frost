@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate MODEL-SPEC.md — a compact frost reference to paste into a prompt.
+"""Generate MODEL-SPEC.md, a compact frost reference to paste into a prompt.
 
 Generated rather than hand-written so the keyword list cannot drift from the
 parser. Kept short on purpose: it is meant to fit in a system prompt.
@@ -18,7 +18,7 @@ def main():
         fh.write(spec)
     print(f"wrote MODEL-SPEC.md ({len(spec):,} bytes, {len(words)} keywords)")
 
-HEAD = '''# frost — reference for code-generating models
+HEAD = '''# frost, reference for code-generating models
 
 Paste this into a system prompt when you want a model to emit frost instead of
 bash. It is deliberately short; the full reference is LANGUAGE.md.
@@ -80,7 +80,7 @@ within N seconds                  a deadline; the unit is required
 showing output                    write straight to the terminal; `it` stays empty
 ```
 
-## Chunk expressions — prefer these over cut/awk/sed
+## Chunk expressions, prefer these over cut/awk/sed
 
 ```text
 the first word of X          the third line of X       the last item of X
@@ -129,7 +129,7 @@ X matches "^(\\d{3})"         regex; then match 1, the last match,
 every match of "\\d+" in X    list of matches
 ```
 
-## Records and JSON — never shell out to jq
+## Records and JSON, never shell out to jq
 
 ```text
 the json of TEXT             parse; objects become records, arrays become lists
@@ -148,7 +148,7 @@ field then fails `--check` instead of silently reading as empty, and a
 response missing a declared field fails at the line that parsed it.
 
 A missing key is empty, exactly as `word 99 of` is, and a field of empty is
-empty — so an optional field needs no guard. A field of *text* is an error:
+empty, so an optional field needs no guard. A field of *text* is an error:
 that means the value is not the shape you think it is.
 
 Numbers stay numbers, so `the "count" of r + 1` works. Parsing a secret seals
@@ -187,7 +187,7 @@ survives concatenation, chunks and transformations. It is released only where
 a program needs it: arguments, `reading`, the child environment, a file write.
 
 Emit `run "psql" reading password`, not `run "psql" with "--password",
-password` — arguments are visible to every process on the machine, and the
+password`: arguments are visible to every process on the machine, and the
 auditor flags them. Never write a secret to a file unless asked to.
 
 ## Reading a file
@@ -228,7 +228,7 @@ put "server errors:" && error count
 if error count is greater than 2 then quit with status 1
 ```
 
-## Reserved words — cannot appear in a name
+## Reserved words, cannot appear in a name
 
 '''
 
@@ -244,7 +244,7 @@ so `line count` and `error count` are valid variables.
 use "lib/db.frost" for the connect, the migrate which may run "psql"
 ```
 
-A module contains handler definitions and imports, nothing else — a top-level
+A module contains handler definitions and imports, nothing else, a top-level
 statement in one is an error. The path is a literal, relative to the importing
 file, and cannot go above the entry script's directory. Name only the handlers
 you use.
@@ -257,7 +257,7 @@ globs, joined with `and`. Declare the narrowest thing that works.
 ## Sandboxing
 
 If the caller runs with `--sandbox`, the policy declares an allow-list and the
-runtime holds it — child processes are confined by the OS, so a path built at
+runtime holds it: child processes are confined by the OS, so a path built at
 runtime is confined too:
 
 ```text
@@ -279,7 +279,7 @@ frost --check --json script.frost
 ```
 
 Each diagnostic has a `code`, a `line`, and often a `repairs` list. A repair
-with `"confidence": "high"` is a mechanical rewrite — apply it verbatim.
+with `"confidence": "high"` is a mechanical rewrite, apply it verbatim.
 `frost --repair --write script.frost` applies all of those for you and
 repeats until nothing certain is left.
 

@@ -4,8 +4,8 @@ Because a frost script is parsed rather than string-substituted, everything it
 can do is visible in the tree. That makes two things possible that a shell
 script cannot offer:
 
-  * a capability manifest — a plain reading of what the script will touch
-  * policy enforcement — rules checked before a single process is spawned
+  * a capability manifest, a plain reading of what the script will touch
+  * policy enforcement, rules checked before a single process is spawned
 
 Both work on literals only. A program name or path built at runtime is reported
 as unknown rather than guessed at, because a manifest that quietly omits things
@@ -47,15 +47,15 @@ class Capabilities:
     env_reads: List[tuple] = field(default_factory=list)
     env_writes: List[tuple] = field(default_factory=list)   # (name, line)
     folder_changes: List[tuple] = field(default_factory=list)  # (path, line)
-    # (name, source, line) — source is keystore | environment | file
+    # (name, source, line): source is keystore | environment | file
     secret_reads: List[tuple] = field(default_factory=list)
-    # (where, program-or-None, line) — where the plaintext leaves the process
+    # (where, program-or-None, line): where the plaintext leaves the process
     secret_releases: List[tuple] = field(default_factory=list)
     cleanups: List[int] = field(default_factory=list)       # ensure block lines
     exit_codes: List[tuple] = field(default_factory=list)
     handlers: List[str] = field(default_factory=list)
-    # (seconds|None, line, repeats) — repeats when the wait is inside a loop
-    # (host, line) — where the script reaches. RUNTIME_HOST when a network
+    # (seconds|None, line, repeats): repeats when the wait is inside a loop
+    # (host, line): where the script reaches. RUNTIME_HOST when a network
     # command's destination is not a literal, because a destination nobody can
     # read ahead of time is still a destination.
     reaches: List[tuple] = field(default_factory=list)
@@ -97,7 +97,7 @@ NOT_IN_ALLOW_LIST = "which is not in the allow-list"
 # unambiguously a destination; a bare `example.com` is indistinguishable from
 # a filename, and guessing would put invented hosts in a manifest people are
 # meant to trust. Where nothing can be read, the destination is reported as
-# unknowable instead of omitted — omitting it would understate.
+# unknowable instead of omitted, omitting it would understate.
 _URL = re.compile(r"^[a-z][a-z0-9+.\-]*://(?:[^/@\s]*@)?([^/:?#\s]+)",
                   re.IGNORECASE)
 _SCP = re.compile(r"^(?:[^@/\s]+@)([^:/\s]+):", re.IGNORECASE)
@@ -105,7 +105,7 @@ _SCP = re.compile(r"^(?:[^@/\s]+@)([^:/\s]+):", re.IGNORECASE)
 
 # A host is settled once the authority is closed inside a literal: in
 # `"https://api.github.com/repos/" & repo` nothing after the slash can move
-# it. Without the terminator — `"https://" & host` — it genuinely is unknown.
+# it. Without the terminator, `"https://" & host`: it genuinely is unknown.
 _URL_PREFIX = re.compile(
     r"[a-z][a-z0-9+.\-]*://(?:[^/@\s]*@)?([^/:?#\s]+)[/:?#]", re.IGNORECASE)
 
@@ -174,8 +174,8 @@ def literal(node, known=None):
 def literal_number(node):
     """The numeric value of an expression made only of literals, else None.
 
-    A timeout reaches the tree already scaled — `within 2 minutes` parses as
-    2 * 60 — so a policy bound expressed in any unit can be compared against a
+    A timeout reaches the tree already scaled, `within 2 minutes` parses as
+    2 * 60, so a policy bound expressed in any unit can be compared against a
     script written in any other, without running anything.
     """
     if isinstance(node, A.Lit):
@@ -217,9 +217,9 @@ def constants(stmts):
     definition of it anywhere in the file is the *same* literal, and it is
     never mutated afterwards.
 
-    Anything else — two different literals, an append, an arithmetic
+    Anything else: two different literals, an append, an arithmetic
     statement, a loop variable, a handler parameter, a value that came from a
-    command — makes the name unknown. Unknown is the safe answer, and the
+    command, makes the name unknown. Unknown is the safe answer, and the
     manifest already knows how to say it.
     """
     values = {}          # name -> literal text
@@ -483,7 +483,7 @@ def tainted_names(stmts):
 
     `put the secret "x" into password` then `run "psql" with password` has to
     be reported as a release, or the manifest would only ever catch the case
-    where somebody inlined the secret at the call site — which is the case
+    where somebody inlined the secret at the call site, which is the case
     nobody writes. Repeated to a fixed point so taint flows through a chain
     of assignments.
 
@@ -624,7 +624,7 @@ class Auditor:
         """Does this subtree read `the result`?
 
         Follows a handler call into the handler, because factoring the check
-        into a helper — `check outcome with "build"` — is good practice, and
+        into a helper: `check outcome with "build"`: is good practice, and
         flagging it as an ignored failure would punish exactly that.
         """
         if node is None:
@@ -732,7 +732,7 @@ class Auditor:
     def on_Wait(self, node):
         """A sleeping script is a script somebody is waiting on.
 
-        Not a capability — it touches nothing — but a reviewer approving a job
+        Not a capability. It touches nothing, but a reviewer approving a job
         that runs in CI wants to know it backs off for ten minutes, and that
         is exactly the sort of thing which is invisible until it is slow.
 
@@ -834,7 +834,7 @@ class Auditor:
         """Where a secret's plaintext leaves the process.
 
         These are the points a reviewer needs, because once the plaintext is
-        handed to another program frost cannot follow it — the output of that
+        handed to another program frost cannot follow it, the output of that
         program is ordinary text again, and the manifest should say so rather
         than imply a seal that does not hold.
         """
@@ -925,7 +925,7 @@ def describe(caps):
         out.append("")
 
     def where(path, line):
-        return (path or "(path built at runtime)", f"— line {line}")
+        return (path or "(path built at runtime)", f"at line {line}")
 
     programs = {}
     for c in caps.commands:
@@ -950,7 +950,7 @@ def describe(caps):
             detail.append("in " + ", ".join(folders))
         note = f"  ({', '.join(detail)})" if detail else ""
         at = ", ".join(str(u.line) for u in uses)
-        rows.append((name, f"— line {at}{note}"))
+        rows.append((name, f"at line {at}{note}"))
     section("Runs these programs:", rows)
 
     section("Reads these files:",
@@ -960,32 +960,32 @@ def describe(caps):
     section("Deletes these files:",
             [where(p, ln) for p, ln in caps.deletes])
     section("Reads these environment variables:",
-            [(n or "(name built at runtime)", f"— line {ln}")
+            [(n or "(name built at runtime)", f"at line {ln}")
              for n, ln in caps.env_reads])
     section("Sets these environment variables:",
-            [(n or "(name built at runtime)", f"— line {ln}")
+            [(n or "(name built at runtime)", f"at line {ln}")
              for n, ln in caps.env_writes])
     section("Changes the working folder to:",
             [where(p, ln) for p, ln in caps.folder_changes])
     section("Reads these secrets:",
-            [(n or "(name built at runtime)", f"— line {ln}  (from the {src})")
+            [(n or "(name built at runtime)", f"at line {ln}  (from the {src})")
              for n, src, ln in caps.secret_reads])
     section("Lets a secret leave the process:",
             [({"argument": f"as an argument to {what or 'a program'}",
                "input": f"on the standard input of {what or 'a program'}",
                "file": f"written to {what or 'a file'}",
                "environment": f"in the environment variable {what}"}[where],
-              f"— line {ln}")
+              f"at line {ln}")
              for where, what, ln in caps.secret_releases])
     section("Reaches these hosts:",
-            [(h, f"— line {ln}") for h, ln in caps.reaches])
+            [(h, f"at line {ln}") for h, ln in caps.reaches])
     section("Waits:",
             [(format_duration(sec) if sec is not None
               else "(duration built at runtime)",
-              f"— line {ln}" + ("  (each time round a loop)" if rep else ""))
+              f"at line {ln}" + ("  (each time round a loop)" if rep else ""))
              for sec, ln, rep in caps.waits])
     section("Cleans up on exit:",
-            [(f"ensure block", f"— line {ln}") for ln in caps.cleanups])
+            [(f"ensure block", f"at line {ln}") for ln in caps.cleanups])
     section("Can exit with:",
             [(f"status {c}", "") for c in sorted({c for c, _ in
                                                   caps.exit_codes})])
@@ -1002,11 +1002,11 @@ def describe(caps):
 #
 # Two kinds of rule. The original ones ask whether something appears at all;
 # the counting ones ask how much of it there is, which is what a business rule
-# usually needs — "no more than three files written", "at least one cleanup
+# usually needs: "no more than three files written", "at least one cleanup
 # block", "curl gets a deadline, and no more than thirty seconds of one".
 
 # Every countable noun. The first phrase of each row is the one suggested
-# back to a policy author who mistypes, so it has to be a phrase that parses —
+# back to a policy author who mistypes, so it has to be a phrase that parses,
 # not the internal key.
 COUNT_NOUNS = {}
 COUNT_VOCABULARY = []
@@ -1060,8 +1060,8 @@ RULE_PATTERNS = [
      "readsecret"),
     (re.compile(r'^(forbid|warn)\s+changing\s+folder\s*$'), "chfolder"),
     # Per-host rules, checked against the text before anything runs. The
-    # sandbox cannot hold these — macOS filters addresses and a Linux
-    # namespace has no middle setting — but the analyser can now read a host
+    # sandbox cannot hold these, macOS filters addresses and a Linux
+    # namespace has no middle setting, but the analyser can now read a host
     # out of a joined URL, so the policy layer can say what the kernel layer
     # cannot. The two are different guarantees and the docs keep them apart.
     (re.compile(r'^(forbid|warn)\s+reaching\s+"([^"]+)"\s*$'), "reach"),
@@ -1692,7 +1692,7 @@ def check(caps, rules, defer_unknown_hosts=False):
     """Every rule violation, each carrying the rule's own explanation.
 
     Wraps the plain checker so the hint is attached once, at the boundary,
-    rather than at each of the fourteen places a violation is constructed —
+    rather than at each of the fourteen places a violation is constructed,
     which would be fourteen chances to forget.
     """
     out = []

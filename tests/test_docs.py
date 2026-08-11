@@ -2,7 +2,7 @@
 
 README.md, LANGUAGE.md and MODEL-SPEC.md are full of frost. MODEL-SPEC.md in
 particular is meant to be dropped into a system prompt, so a model will copy
-its syntax verbatim — a stale example there teaches every generated script the
+its syntax verbatim, a stale example there teaches every generated script the
 wrong grammar. Every frost block in the docs is extracted here and parsed, and
 every policy block is fed to the policy parser.
 
@@ -74,7 +74,7 @@ def test_the_extractor_found_the_documentation():
 @pytest.mark.parametrize("source", FROST_BLOCKS)
 def test_every_documented_frost_snippet_parses(source):
     # A snippet that imports cannot have its handler names resolved on its
-    # own — the names it may call are its own plus what it imported, and the
+    # own: the names it may call are its own plus what it imported, and the
     # imported file is not here. That is the same reason the module loader
     # parses without resolution and checks names once the closure is known.
     resolve = not re.search(r"^\s*use\s+\"", source, re.M)
@@ -167,7 +167,7 @@ def test_the_readme_status_section_matches_the_real_test_count():
 
     Only meaningful with every optional extra installed. Without
     `cryptography` the keystore module is not collected at all, so the count
-    is legitimately lower — and asserting the full number there made CI fail
+    is legitimately lower, and asserting the full number there made CI fail
     on a job whose entire purpose was to prove frost works without it.
     """
     import subprocess
@@ -190,3 +190,39 @@ def test_the_readme_status_section_matches_the_real_test_count():
     assert actual, result.stdout[-2000:]
     assert int(claimed.group(1).replace(",", "")) == int(actual.group(1)), (
         f"README claims {claimed.group(1)} tests; there are {actual.group(1)}")
+
+
+def test_nothing_here_uses_an_em_dash():
+    """A house style, enforced rather than remembered.
+
+    Swept once by hand across the documentation, the source, the tests and the
+    manifest's own output. A sweep that is not enforced is a sweep somebody
+    repeats in six months, and the ones in program output had gone stale in
+    the docs before anyone noticed: samples pasted into README.md still showed
+    a separator the manifest had stopped printing.
+
+    Both characters, because an en dash reads as an em dash to everyone who
+    is not setting type.
+    """
+    offenders = []
+    roots = [("", [f for f in os.listdir(REPO) if f.endswith(".md")]),
+             ("frostlang", None), ("tests", None), ("tools", None)]
+    for folder, names in roots:
+        base = os.path.join(REPO, folder) if folder else REPO
+        if names is None:
+            names = [f for f in sorted(os.listdir(base)) if f.endswith(".py")]
+        for name in names:
+            path = os.path.join(base, name)
+            if not os.path.isfile(path):
+                continue
+            with open(path, encoding="utf-8") as fh:
+                for number, line in enumerate(fh, 1):
+                    # Built rather than written, so this file does not
+                    # trip its own check.
+                    for dash in (chr(8212), chr(8211)):
+                        if dash in line:
+                            offenders.append(
+                                f"{os.path.join(folder, name)}:{number}")
+    assert not offenders, (
+        "em dashes are house style here, and these have one:\n  "
+        + "\n  ".join(offenders[:40]))

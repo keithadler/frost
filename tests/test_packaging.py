@@ -2,7 +2,7 @@
 
 These rot silently. A version declared in two places drifts, a CI workflow
 stops mentioning a Python version the package claims to support, and a
-hand-written keyword list for an editor falls behind the parser — and none of
+hand-written keyword list for an editor falls behind the parser, and none of
 it shows up when you run the interpreter.
 """
 
@@ -212,7 +212,7 @@ def test_ci_verifies_the_two_evaluators_agree():
 
 
 def test_the_chunk_corpus_is_not_passed_to_node_on_the_command_line():
-    """It is over a megabyte of JSON — under macOS's argument limit and over
+    """It is over a megabyte of JSON, under macOS's argument limit and over
     Linux's, so as argv it passed locally and failed in CI with
     `Argument list too long`. It goes in on stdin instead."""
     source = read("tools", "verify_chunks.py")

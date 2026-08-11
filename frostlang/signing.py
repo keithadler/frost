@@ -71,7 +71,7 @@ def _require():
     if not available():
         raise SigningError(
             "signing needs the cryptography package",
-            hint="pip install 'frostlang[keystore]' — the same extra the "
+            hint="pip install 'frostlang[keystore]', the same extra the "
                  "keystore uses")
 
 

@@ -6,7 +6,7 @@ that the wrapper was constructed would prove nothing: the question is whether
 the write happened.
 
 The tests are skipped where no backend exists rather than passing vacuously,
-and `test_the_backend_actually_confines` is the canary — if that fails, every
+and `test_the_backend_actually_confines` is the canary: if that fails, every
 other result in this file is meaningless.
 """
 
@@ -29,7 +29,7 @@ BACKEND = S.detect_backend()
 # whole lesson of this module and the suite fell for it anyway: a machine can
 # have bwrap installed and still refuse it the user namespace it needs, and
 # gating on `which bwrap` turned that into a wall of failures instead of a
-# reason. frost itself gets this right — it refuses to run there.
+# reason. frost itself gets this right. It refuses to run there.
 if BACKEND == S.BACKEND_NONE:
     WORKING, WHY = False, f"no backend on this platform ({sys.platform})"
 else:
@@ -119,7 +119,7 @@ def test_a_boundary_defaults_to_nothing():
 
 def test_a_per_host_rule_is_refused_rather_than_faked():
     """The single most important refusal here. macOS filters on addresses,
-    not names, and a Linux namespace is all or nothing — so a host allow-list
+    not names, and a Linux namespace is all or nothing, so a host allow-list
     would be accepted and not enforced, and somebody would rely on it."""
     with pytest.raises(PolicyError) as e:
         parse_policy('sandbox may reach "api.github.com"')
@@ -158,7 +158,7 @@ put "finished"
 # Every policy in this section says `may reach the network`, and deliberately.
 # These tests are about files and programs. Network isolation is a namespace
 # with its own probe and its own tests, and on a machine that will not let one
-# be entered a boundary requiring it is refused outright — which would turn
+# be entered a boundary requiring it is refused outright, which would turn
 # every filesystem assertion below into a test of the refusal instead.
 POLICY = '''
 sandbox may run "sh"
@@ -182,7 +182,7 @@ def test_a_write_outside_the_boundary_is_blocked(project, tmp_path):
 
 @needs_sandbox
 def test_the_same_script_escapes_without_the_sandbox(project, tmp_path):
-    """Guards the test above from passing for the wrong reason — the write
+    """Guards the test above from passing for the wrong reason, the write
     has to be one that would otherwise succeed."""
     outside = tmp_path / "escaped.txt"
     project("rules.policy", POLICY)
@@ -326,7 +326,7 @@ def test_a_sandbox_that_runs_nothing_is_not_reported_as_working(monkeypatch):
 
     A backend that dies before executing anything blocks the forbidden write,
     because it blocks everything. Checking only for the forbidden write's
-    absence therefore calls a completely broken sandbox healthy — which is
+    absence therefore calls a completely broken sandbox healthy, which is
     what happened, in CI, on Linux, for four runs. Here the wrapper is
     replaced by a command that does nothing at all, and the self-test has to
     notice.
@@ -389,7 +389,7 @@ def test_a_backend_that_does_not_confine_is_refused(monkeypatch, project,
     project("s.frost", 'put "x"\n')
     import frostlang.sandbox as module
     # A backend has to look present, or require_backend refuses first and the
-    # path being tested is never reached — which is what happened on Linux,
+    # path being tested is never reached: which is what happened on Linux,
     # where the runners have no bubblewrap.
     monkeypatch.setattr(module, "require_backend",
                         lambda: module.BACKEND_MACOS)
@@ -486,7 +486,7 @@ def test_the_bubblewrap_argv_unshares_the_network_by_default(tmp_path):
 def test_a_boundary_pattern_is_resolved_through_symlinks(tmp_path):
     """macOS matches sandbox rules on the real path, and /tmp and /var are
     both symlinks there. An unresolved pattern names something the kernel
-    never sees, so every write the boundary allows is denied — strict-looking
+    never sees, so every write the boundary allows is denied, strict-looking
     and broken."""
     real = tmp_path / "real"
     real.mkdir()

@@ -2,7 +2,7 @@
 
 These four landed together because they share one cause: without them a real
 script has to leave frost. JSON meant shelling out to `jq`, an unreadable
-error meant `sh -c "... 2>&1"`, and a timestamp meant `run "date"` — each one
+error meant `sh -c "... 2>&1"`, and a timestamp meant `run "date"`: each one
 handing capability to a program the auditor can describe but not see into.
 
 So the tests here care most about the seams: that a secret is still a secret
@@ -97,8 +97,8 @@ def test_a_missing_path_can_be_walked_through():
 
 
 def test_a_field_of_plain_text_is_an_error():
-    """The other half of the rule. Empty here would hide a real mistake — the
-    value is not the shape the script thinks it is — at the only moment when
+    """The other half of the rule. Empty here would hide a real mistake, the
+    value is not the shape the script thinks it is, at the only moment when
     finding it is cheap."""
     _, error = run_failing('put the "status" of "not a record"\n')
     assert "only a record has named fields" in error.hint
@@ -274,7 +274,7 @@ def test_a_wait_needs_a_unit():
 
 def test_wait_is_not_a_reserved_word():
     """It is recognised at the start of a statement, which costs nothing from
-    the identifier vocabulary — `wait time` stays a usable name."""
+    the identifier vocabulary, `wait time` stays a usable name."""
     out = run_source('put 5 into wait time\nput wait time\n')
     assert out.strip() == "5"
 
@@ -327,7 +327,7 @@ def test_a_replay_does_not_actually_sleep(tmp_path):
 # ----------------------------------------------------------------- manifest
 
 def test_a_wait_appears_in_the_manifest():
-    """Not a capability — it touches nothing — but a reviewer approving a CI
+    """Not a capability. It touches nothing, but a reviewer approving a CI
     job wants to know it sleeps for ten minutes."""
     caps = audit(parse('wait 90 seconds\nrun "echo" with "x"\n'))
     assert caps.waits == [(90.0, 1, False)]

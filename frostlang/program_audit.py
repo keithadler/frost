@@ -19,7 +19,7 @@ refused if it exceeds it. That is `--policy` pointed inward, and it buys the
 property that makes single-file review survive multi-file code: reading only
 the entry script gives a sound upper bound on what the whole program can do.
 It also means a shared module that later grows a `curl` call breaks the build
-at the import site rather than silently appearing in someone's manifest —
+at the import site rather than silently appearing in someone's manifest,
 which is the supply-chain shape you become exposed to the moment modules can
 be shared at all.
 
@@ -86,7 +86,7 @@ def cross_file_taint(program, tables):
     handler defined elsewhere. Everything else stays local, so two variables
     that merely share a name stay separate.
 
-    Deliberately over-approximate at the boundary — if any argument carries a
+    Deliberately over-approximate at the boundary, if any argument carries a
     secret, every parameter of the callee is treated as carrying one. Erring
     towards reporting is the right direction for a manifest.
     """
@@ -160,7 +160,7 @@ def merge(into, other):
     """Combine one file's capabilities into the running total.
 
     Derived from the dataclass rather than a hand-written list of field
-    names. The list version silently dropped any capability added later —
+    names. The list version silently dropped any capability added later,
     `waits` was collected correctly, survived the single-file audit, and
     vanished from `--explain`, because nobody remembers to edit a tuple in a
     different module. A manifest that quietly omits a capability is the one
@@ -302,7 +302,7 @@ def check_all_ceilings(program, program_caps):
     A ceiling constrains the whole subtree an import pulls in, not just the
     file it names. Checking only the named file left the guarantee with a hole
     exactly one level deep: a module that was allowed to run `psql` could
-    import a second module that runs `curl`, and nothing objected — so the
+    import a second module that runs `curl`, and nothing objected, so the
     upper bound a reviewer got from the entry file was not an upper bound at
     all. Every capability that arrives because of an import is checked against
     the ceiling that import declared, however far down it actually lives.

@@ -1,20 +1,20 @@
 This script runs curl, reaches the internet using curl (telemetry.example), waits at least 2 seconds, reads 1 secret (~/.aws/credentials), and lets a secret leave the process in 1 place. It can exit with status 1, 2.
 
 Runs these programs:
-  curl  — line 14, 40
+  curl  at line 14, 40
 
 Reads these secrets:
-  ~/.aws/credentials  — line 39  (from the file)
+  ~/.aws/credentials  at line 39  (from the file)
 
 Lets a secret leave the process:
-  as an argument to curl  — line 40
+  as an argument to curl  at line 40
 
 Reaches these hosts:
-  (destination built at runtime)  — line 14
-  telemetry.example               — line 40
+  (destination built at runtime)  at line 14
+  telemetry.example               at line 40
 
 Waits:
-  2 seconds  — line 18  (each time round a loop)
+  2 seconds  at line 18  (each time round a loop)
 
 Can exit with:
   status 1

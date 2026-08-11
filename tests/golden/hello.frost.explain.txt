@@ -3,6 +3,6 @@ examples/hello.frost
 This script runs date.
 
 Runs these programs:
-  date  — line 7  (no timeout)
+  date  at line 7  (no timeout)
 
 Verdict: clean

@@ -148,7 +148,10 @@ def test_a_scaffold_describes_what_the_script_does(tmp_path):
     path = script(tmp_path, DANGEROUS)
     status, out, _ = frost("--policy-from", path, cwd=str(tmp_path))
     assert status == 0
-    assert 'warn running "curl"' in out
+    # An allow-list, matching what it already did for hosts. A starter policy
+    # is where the habit gets set, and a deny-list is a list of the programs
+    # somebody thought of.
+    assert 'require running only "curl"' in out
     assert 'require reaching only "x.example"' in out
 
 
@@ -265,8 +268,8 @@ def test_the_scaffold_lists_programs_and_marks_the_networked_ones():
     text = scaffold.policy_for("s.frost", caps_for(
         'run "git" with "status"\n'
         'run "curl" with "https://x.example" within 30 seconds\n'))
-    assert 'warn running "git"' in text
-    assert 'warn running "curl"  -- reaches the network' in text
+    assert 'require running only "curl", "git"' in text
+    assert "curl reaches the network" in text
 
 
 def test_the_scaffold_flags_a_program_chosen_at_runtime():

@@ -3,7 +3,7 @@
 Three things that were on the "still missing" list, and each is tested for
 the property that makes it worth having rather than for the mechanism.
 
-*Replay performs nothing.* Not "usually" and not "except writes" — a replayed
+*Replay performs nothing.* Not "usually" and not "except writes": a replayed
 run spawns no process, writes no file and deletes nothing. A canary directory
 proves it rather than a reading of the code.
 

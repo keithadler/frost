@@ -3,7 +3,7 @@
 Two corpora, because they find different bugs.
 
 *Random characters* exercise the rejection path: whatever a model emits, the
-front end has to answer with a LexError or ParseError carrying a line number —
+front end has to answer with a LexError or ParseError carrying a line number,
 never a Python traceback, never a hang.
 
 *Generated programs* (tests/gen.py) exercise the accept path, which random
@@ -161,7 +161,7 @@ def test_the_auditor_is_total_on_anything_that_parses(seed):
 def test_running_a_safe_program_never_leaks_a_python_exception(seed):
     """The subset with no subprocesses, no writes and only bounded loops.
 
-    A frost script may fail — that is a FrostError with a line number. What it
+    A frost script may fail. That is a FrostError with a line number. What it
     may never do is surface a TypeError or an IndexError from the evaluator.
     """
     for src in programs(10, seed=seed, safe=True):

@@ -31,7 +31,7 @@ class ResultRef:
 
 @dataclass
 class ErrorRef:
-    """`the error output` — what the last command wrote to standard error."""
+    """`the error output`: what the last command wrote to standard error."""
     line: int = 0
 
 
@@ -79,7 +79,7 @@ class ValuesOf:
 
 @dataclass
 class RunIdRef:
-    """`the run id` — this execution's identity, stable for the whole run."""
+    """`the run id`: this execution's identity, stable for the whole run."""
     line: int = 0
 
 
@@ -208,26 +208,26 @@ class CurrentFolder:
 
 @dataclass
 class GlobalRef:
-    """`the global total` — reads past a handler's local of the same name."""
+    """`the global total`: reads past a handler's local of the same name."""
     name: str
     line: int = 0
 
 
 @dataclass
 class ArgList:
-    """`the arguments` — command line arguments as a list value."""
+    """`the arguments`: command line arguments as a list value."""
     line: int = 0
 
 
 @dataclass
 class StdInRef:
-    """`the standard input` — everything piped into the script."""
+    """`the standard input`: everything piped into the script."""
     line: int = 0
 
 
 @dataclass
 class SecretRef:
-    """`the secret "db password"` — a value read from the keystore.
+    """`the secret "db password"`: a value read from the keystore.
 
     Which secrets a script asks for is a capability, so it is reported by
     --explain and can be refused by a policy or by the role before the script
@@ -239,21 +239,21 @@ class SecretRef:
 
 @dataclass
 class SecretEnvRef:
-    """`the secret environment variable "GITHUB_TOKEN"` — sealed on read."""
+    """`the secret environment variable "GITHUB_TOKEN"`: sealed on read."""
     name: Any
     line: int = 0
 
 
 @dataclass
 class SecretFileRef:
-    """`the secret file "~/.ssh/id_rsa"` — sealed on read."""
+    """`the secret file "~/.ssh/id_rsa"`: sealed on read."""
     path: Any
     line: int = 0
 
 
 @dataclass
 class ChunkList:
-    """`the words of X` — every chunk at once, as a list.
+    """`the words of X`: every chunk at once, as a list.
 
     The singular form addresses one chunk; the plural with no index is the
     whole set. That makes splitting fall out of the grammar already there.
@@ -265,13 +265,13 @@ class ChunkList:
 
 @dataclass
 class EmptyList:
-    """`the empty list` — something to append to."""
+    """`the empty list`: something to append to."""
     line: int = 0
 
 
 @dataclass
 class Transform:
-    """`the uppercase X` — one value in, one value out."""
+    """`the uppercase X`: one value in, one value out."""
     op: str                    # uppercase | lowercase | trimmed | sorted
                                # | reversed | unique | rounded | absolute
     source: Any
@@ -280,7 +280,7 @@ class Transform:
 
 @dataclass
 class Aggregate:
-    """`the sum of X` — a list of numbers in, one number out."""
+    """`the sum of X`: a list of numbers in, one number out."""
     op: str                    # sum | largest | smallest | average
     source: Any
     line: int = 0
@@ -288,7 +288,7 @@ class Aggregate:
 
 @dataclass
 class SplitBy:
-    """`X split by "|"` — text to a list on any delimiter."""
+    """`X split by "|"`: text to a list on any delimiter."""
     source: Any
     separator: Any
     line: int = 0
@@ -296,7 +296,7 @@ class SplitBy:
 
 @dataclass
 class JoinedBy:
-    """`X joined by ", "` — a list back to text."""
+    """`X joined by ", "`: a list back to text."""
     source: Any
     separator: Any
     line: int = 0
@@ -304,7 +304,7 @@ class JoinedBy:
 
 @dataclass
 class FuncCall:
-    """`the double of 5` — a handler called from inside an expression."""
+    """`the double of 5`: a handler called from inside an expression."""
     name: str
     args: List[Any] = field(default_factory=list)
     line: int = 0
@@ -329,7 +329,7 @@ class FileTarget:
 
 @dataclass
 class GlobalTarget:
-    """`the global total` in target position — writes past the local scope."""
+    """`the global total` in target position, writes past the local scope."""
     name: str
 
 
@@ -351,7 +351,7 @@ class Put:
     # | FolderTarget | None
     target: Any
     mode: str = "into"         # into | before | after
-    # `with fields "a", "b"` — the shape the author says the value has. None
+    # `with fields "a", "b"`: the shape the author says the value has. None
     # means no claim was made, which is not the same as claiming nothing.
     fields: Optional[List[str]] = None
     line: int = 0
@@ -363,9 +363,9 @@ class Run:
     args: List[Any] = field(default_factory=list)
     checked: bool = True
     timeout: Optional[Any] = None
-    stdin: Optional[Any] = None     # `reading EXPR` — text on the child's stdin
-    folder: Optional[Any] = None    # `in folder EXPR` — the child's cwd
-    streaming: bool = False         # `showing output` — inherit the terminal
+    stdin: Optional[Any] = None     # `reading EXPR`: text on the child's stdin
+    folder: Optional[Any] = None    # `in folder EXPR`: the child's cwd
+    streaming: bool = False         # `showing output`: inherit the terminal
     line: int = 0
 
 
@@ -389,7 +389,7 @@ class Use:
 
     `names` is explicit, so a collision between two modules is an error at
     load time rather than one silently shadowing the other. `ceiling` is the
-    capability limit declared at the import site — empty means the module may
+    capability limit declared at the import site, empty means the module may
     do nothing but compute.
     """
     path: str
@@ -514,7 +514,7 @@ class DeleteFile:
 
 @dataclass
 class Matches:
-    """`X matches "regex"` — boolean, and records capture groups."""
+    """`X matches "regex"`: boolean, and records capture groups."""
     subject: Any
     pattern: Any
     line: int = 0
@@ -522,7 +522,7 @@ class Matches:
 
 @dataclass
 class IsLike:
-    """`X is like "*.tmp"` — shell-style glob, no regex knowledge needed."""
+    """`X is like "*.tmp"`: shell-style glob, no regex knowledge needed."""
     subject: Any
     pattern: Any
     line: int = 0

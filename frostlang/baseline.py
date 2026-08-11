@@ -16,7 +16,7 @@ than what was approved?**
 Not injection. frost already makes a value unable to become syntax, and that
 closes the case where hostile text flows into a command. It does nothing about
 the case where an agent *reads* something hostile and then writes perfectly
-valid frost that obeys it — the script parses, formats canonically, and would
+valid frost that obeys it: the script parses, formats canonically, and would
 survive any grammar. The model is not confused about syntax. It has been
 persuaded to use authority it legitimately holds.
 
@@ -40,8 +40,8 @@ reading is worse than no check, because it launders exactly the change it was
 meant to catch.
 
 What is not recorded: how long a script waits, and which exit codes it can
-return. Neither is authority — a script that sleeps longer is slower, not more
-powerful — and putting them here would produce churn that trains people to
+return. Neither is authority: a script that sleeps longer is slower, not more
+powerful, and putting them here would produce churn that trains people to
 approve without looking.
 """
 # SPDX-License-Identifier: MIT
@@ -51,7 +51,7 @@ import json
 SCHEMA = 1
 RUNTIME = "(built at runtime)"
 
-# Each entry is (key, heading) — the heading is what a refusal says, so it has
+# Each entry is (key, heading): the heading is what a refusal says, so it has
 # to read as a sentence: "it can now run curl".
 SETS = (
     ("programs", "run"),
@@ -82,7 +82,7 @@ def capability_set(caps):
     return {
         "programs": sorted({c.program or RUNTIME for c in caps.commands}),
         # Where it goes, not just what it runs. Without this, swapping the URL
-        # a `curl` points at is invisible — and a persuaded model does not need
+        # a `curl` points at is invisible, and a persuaded model does not need
         # a new program, only a new destination.
         "reaches": sorted({h for h, _ in caps.reaches}),
         "reads": paths(caps.reads),
@@ -127,7 +127,7 @@ def widenings(approved, current):
     now = current.get("unknowable", 0)
     if now > before:
         out.append(
-            f"it now builds {now} name(s) at runtime, up from {before} — "
+            f"it now builds {now} name(s) at runtime, up from {before}: "
             f"a name nobody can read ahead of time is a capability nobody "
             f"can bound")
     return out

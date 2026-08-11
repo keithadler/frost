@@ -3,7 +3,7 @@
 Everything frost is worth using for rests on one thing: the tree you audit is
 the program you run, and the audit sees all of it. A module system is the
 feature most likely to put capability outside the manifest, and if it does,
-frost is worse than bash — bash never claimed to have audited anything.
+frost is worse than bash, bash never claimed to have audited anything.
 
 So these tests are organised by the rule each one buys, and the two that
 matter most are the last two sections: that a module cannot do anything when
@@ -175,7 +175,7 @@ def test_a_path_above_the_entry_directory_is_refused(workspace, spec):
 
 
 def test_the_boundary_is_the_entry_scripts_own_directory(workspace):
-    """Not the repository root — the entry script's directory. A script in
+    """Not the repository root, the entry script's directory. A script in
     tools/ cannot reach a sibling lib/, which is restrictive on purpose: the
     directory a reviewer opens is the directory the program lives in."""
     workspace("lib/text.frost", LIB)

@@ -3,16 +3,16 @@ examples/backup.frost
 This script runs date, tar, reads 1 file (runtime), and writes 3 files (runtime). It can exit with status 1, 2.
 
 Runs these programs:
-  date  — line 13  (no timeout)
-  tar   — line 20, 27  (no timeout)
+  date  at line 13  (no timeout)
+  tar   at line 20, 27  (no timeout)
 
 Reads these files:
-  (path built at runtime)  — line 22
+  (path built at runtime)  at line 22
 
 Writes these files:
-  (path built at runtime)  — line 32
-  (path built at runtime)  — line 33
-  (path built at runtime)  — line 34
+  (path built at runtime)  at line 32
+  (path built at runtime)  at line 33
+  (path built at runtime)  at line 34
 
 Can exit with:
   status 1

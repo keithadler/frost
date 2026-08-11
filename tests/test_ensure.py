@@ -5,7 +5,7 @@ the headline default, and there was no way to release anything on the way out.
 A lock file taken on line 3 outlived every script that failed on line 4.
 
 `ensure` registers a block when execution reaches it. Registered blocks run
-when the script ends — normally, on error, on `quit`, or on interrupt — most
+when the script ends: normally, on error, on `quit`, or on interrupt, most
 recent first, so cleanup unwinds in the reverse of the order things were
 acquired. A failure inside a cleanup block is reported but never replaces the
 error that ended the script, because that error is what the reader needs.

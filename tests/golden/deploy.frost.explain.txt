@@ -3,7 +3,7 @@ examples/deploy.frost
 This script runs git. It can exit with status 1, 2.
 
 Runs these programs:
-  git  — line 20, 32, 36  (no timeout)
+  git  at line 20, 32, 36  (no timeout)
 
 Can exit with:
   status 1

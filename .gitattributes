@@ -1,0 +1,21 @@
+# GitHub guesses at unfamiliar extensions, so .frost scripts were being
+# counted as whatever they resembled and the repository's language bar
+# described a project this is not. Marking them keeps the statistics honest
+# and stops the examples being read as somebody else's language.
+*.frost linguist-language=HyperTalk
+*.policy linguist-language=INI
+
+# Generated. Large, committed on purpose so the page works from a clone, and
+# not worth reviewing as a diff or counting as authored code.
+play.html linguist-generated=true
+docs.html linguist-generated=true
+audit.html linguist-generated=true
+MODEL-SPEC.md linguist-generated=true
+MODEL-CONTEXT.md linguist-generated=true
+editors/** linguist-generated=true
+
+# Text, so a checkout on Windows does not rewrite the line endings a golden
+# file is compared against byte for byte.
+*.frost text eol=lf
+*.policy text eol=lf
+tests/golden/** text eol=lf

@@ -2,7 +2,7 @@
 
 The gap this closes is the one that pushed people back into a second
 language. A script that calls an API gets JSON back, and until now the only
-way to read a field was `run "jq" with ".status"` — which puts a second
+way to read a field was `run "jq" with ".status"`: which puts a second
 dialect in a file whose whole argument is that it needs only English, and
 hands the auditor an opaque string it cannot see into. `--explain` could tell
 you the script runs `jq`; it could never tell you what `jq` was asked for.
@@ -15,7 +15,7 @@ So a record is a first-class value:
 
 A record is an ordered mapping from text keys to values. JSON objects become
 records, JSON arrays become the lists frost already has, and the scalars map
-the obvious way — so `item 1 of` and `repeat for each` keep working on
+the obvious way, so `item 1 of` and `repeat for each` keep working on
 anything that came out of an API.
 
 ## Missing keys, and why the rule is not uniform
@@ -27,7 +27,7 @@ error.
 Those look inconsistent until you write the failing script. `the "name" of
 the "user" of report` on a payload with no `user` yields empty at the inner
 step, and if the outer step then errored, every optional field in an API
-response would need a guard — people would stop using the feature. So empty
+response would need a guard, people would stop using the feature. So empty
 propagates: a field of empty is empty. But a field of `"some text"` is a
 mistake about what the value *is*, and returning empty there would hide the
 bug at the point where it is still cheap to find.
@@ -82,7 +82,7 @@ def field(source, key, line=None):
     if isinstance(source, list):
         raise FrostError(
             f"cannot ask for {key!r} of a list", line,
-            hint=f'a list is numbered, not named — try: item 1 of X, or '
+            hint=f'a list is numbered, not named: try: item 1 of X, or '
                  f'"the {key} of item 1 of X"')
     raise FrostError(
         f"cannot ask for {key!r} of text", line,
@@ -219,7 +219,7 @@ def _emit(value, indent, depth, spans):
         return
     if isinstance(value, (int, float)):
         # The same rule `to_text` uses, so `2.0` serialises as `2`. frost has
-        # no visible int/float split — `put 4 / 2` already prints `2` — and a
+        # no visible int/float split, `put 4 / 2` already prints `2`: and a
         # JSON writer that disagreed with every other printing path would be
         # the odd one out, not the correct one.
         if isinstance(value, float) and value.is_integer():

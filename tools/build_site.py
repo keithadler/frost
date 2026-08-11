@@ -40,7 +40,7 @@ INDEX = """<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost — a shell scripting language you can check before you run it</title>
+<title>frost, a shell scripting language you can check before you run it</title>
 <style>
 :root{{--ink:#1a1d24;--muted:#5c6b7f;--rule:#e2e8f0;--bg:#fff;--accent:#1d3557}}
 @media (prefers-color-scheme:dark){{

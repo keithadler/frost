@@ -6,8 +6,8 @@ line, and most carry a hint. That is the right output for a person reading at
 
 An agent that gets `expected 'then' but found end of line` has to parse
 English, guess the edit, and try again. The information needed to make the
-edit already exists — several of the parser's hints literally contain the
-corrected line — it is just buried in prose. This turns it into data:
+edit already exists, several of the parser's hints literally contain the
+corrected line. It is just buried in prose. This turns it into data:
 
     {"code": "missing-then", "line": 3, "column": 10,
      "message": "expected 'then' but found end of line",
@@ -22,7 +22,7 @@ Confidence is deliberately three-valued and honest about it:
 
     high    a mechanical rewrite. The parser knew the answer; this is only
             the plumbing to hand it over.
-    likely  the fix is right, the placement or a detail is inferred — where
+    likely  the fix is right, the placement or a detail is inferred, where
             to put a missing `end repeat`, which unit a timeout meant.
     guess   a name that looks close to one that exists. Worth offering to a
             human or a model, never worth applying unattended.
@@ -281,7 +281,7 @@ def from_policy_finding(finding, source):
     """A Diagnostic from a policy violation.
 
     The hint is the rule's own trailing comment where the author wrote one.
-    A refusal that says only "no" leaves the reader — or the agent — to guess
+    A refusal that says only "no" leaves the reader, or the agent, to guess
     what to do instead, which is the whole reason rules carry hints.
     """
     source_lines = source.split("\n")
@@ -385,7 +385,7 @@ def repair_until_stuck(source):
     """Apply repairs until nothing is left that frost is sure about.
 
     One pass is not enough. A recursive-descent parser stops at the first
-    error, so fixing it reveals the next one — a single round would look like
+    error, so fixing it reveals the next one, a single round would look like
     it had failed whenever a script had two mistakes, which is most of them.
 
     A pass is kept only if it made progress: either the script now parses, or

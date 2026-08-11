@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build audit.html — a visual audit report for three example scripts.
+"""Build audit.html, a visual audit report for three example scripts.
 
 Every report on the page is produced by running the real static analyzer at
 build time and embedding its JSON. Nothing on the page is simulated in
@@ -100,7 +100,7 @@ TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>frost — audit report</title>
+<title>frost, audit report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -260,13 +260,13 @@ footer{margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--rule);
 <div class="wrap">
 
 <header>
-  <p class="eyebrow">frost — static audit</p>
+  <p class="eyebrow">frost, static audit</p>
   <h1>Read the script before you trust it.</h1>
   <p class="lede">A frost script is parsed, not assembled from strings, so what
   it can do is visible before anything runs. These three reports were produced
   by the analyzer itself.</p>
   <p class="note">In bash, <code>rm -rf "$DIR"</code> is just text until the
-  moment it executes — there is nothing to inspect. Here the program and each
+  moment it executes. There is nothing to inspect. Here the program and each
   argument are separate nodes in a tree.</p>
 
   <p class="kicker">Before you run it, you can read exactly what it is allowed
@@ -297,7 +297,7 @@ footer{margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--rule);
     </div>
 
     <div class="panel">
-      <h3>Policy — production.policy</h3>
+      <h3>Policy, production.policy</h3>
       <div class="body">
         <div id="policy-result" style="margin-bottom:.9rem"></div>
         <pre class="policy-src" id="policy-src"></pre>
@@ -426,7 +426,7 @@ function render(idx){
         <span class="at">line ${p.line}</span></div>
         <div class="src">${highlight(p.source)}</div></div>`).join('')
       + (refused.length
-         ? `<p class="empty" style="margin-top:.6rem"><strong>${refused.length} violation(s) — frost exits 3 and the script never starts.</strong></p>`
+         ? `<p class="empty" style="margin-top:.6rem"><strong>${refused.length} violation(s): frost exits 3 and the script never starts.</strong></p>`
          : '<p class="empty" style="margin-top:.6rem">Warnings only; the script would run.</p>');
   }
   document.getElementById('policy-src').textContent = POLICY.trim();
