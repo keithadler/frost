@@ -1156,7 +1156,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2143 tests, python3 -m pytest tests/ -q
+tests/                2267 tests, python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1175,7 +1175,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.10.0. The language runs, the examples are real, and 2143 tests cover
+Version 0.10.0. The language runs, the examples are real, and 2267 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.
