@@ -780,11 +780,11 @@ are visible in the tree. `--explain` prints them:
 
 ```text
 Runs these programs:
-  rm    - line 8   (no timeout)
-  curl  - line 12  (1 allowed to fail, no timeout)
+  rm  at line 8   (no timeout)
+  curl  at line 12  (1 allowed to fail, no timeout)
 
 Writes these files:
-  /etc/cleanup.state  - line 11
+  /etc/cleanup.state  at line 11
 ```
 
 And `--policy` enforces rules before anything is spawned:
@@ -892,10 +892,10 @@ Now ask what that script is allowed to do, without running it:
 This script runs date, and reads 1 file (system).
 
 Runs these programs:
-  date  - line 1  (no timeout)
+  date  at line 1  (no timeout)
 
 Reads these files:
-  /etc/hosts  - line 4
+  /etc/hosts  at line 4
 
 Verdict: clean
 ```
@@ -922,6 +922,45 @@ risky.frost
 
 A file was created with that literal name. Nothing was deleted. The same two
 lines in bash would have emptied the directory.
+
+## Starting a project
+
+```bash
+frost init
+```
+
+Writes `main.frost` and `frost.policy` beside it, and prints the three
+commands worth running next. The policy is generated from the script, so the
+two agree before you have typed anything: every later edit is measured against
+something that was true once.
+
+It will not overwrite either file.
+
+## In a pipeline
+
+As a pre-commit hook:
+
+```yaml
+repos:
+  - repo: https://github.com/keithadler/frost
+    rev: v0.9.1
+    hooks:
+      - id: frost-check
+```
+
+`frost-check` runs `--check --strict`, which exits 1 on a dangerous verdict.
+`frost-explain`, `frost-policy` and `frost-format` are there too.
+
+In a container, for CI without a Python setup step:
+
+```bash
+docker run --rm -v "$PWD:/work" ghcr.io/keithadler/frost:latest \
+  --check --strict deploy.frost
+```
+
+It reviews scripts. It is a poor place to run one, deliberately: the image has
+none of the tools a real script calls, and an image built for reviewing should
+not become the place things execute.
 
 ## Giving it to an agent
 
@@ -1097,7 +1136,7 @@ frostlang/
     repl.py           the --try scratchpad
     cli.py            driver and error reporting
 examples/             runnable scripts
-tests/                2090 tests, python3 -m pytest tests/ -q
+tests/                2100 tests, python3 -m pytest tests/ -q
     gen.py            generates valid frost, for the property tests
     golden/           recorded --explain output for every example
 LANGUAGE.md           full reference and grammar
@@ -1116,7 +1155,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.9.0. The language runs, the examples are real, and 2090 tests cover
+Version 0.9.1. The language runs, the examples are real, and 2100 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

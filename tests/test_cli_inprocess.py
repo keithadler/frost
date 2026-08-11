@@ -760,3 +760,70 @@ def test_a_script_that_does_not_parse_is_still_unusable(tmp_path):
     path = tmp_path / "bad.frost"
     path.write_text("put ${x} into y\n")
     assert cli.main(["--check", "--strict", str(path)]) == 2
+
+
+# ------------------------------------------------------------ frost init
+#
+# A script and the policy that describes it, together. A policy written later
+# is written against a script somebody has stopped reading, and the blank file
+# is the reason the policy engine went unused: it was the most useful thing
+# here and the last thing anyone reached for.
+
+def test_init_writes_a_script_and_a_policy(tmp_path, capsys):
+    assert cli.main(["init", str(tmp_path)]) == 0
+    assert (tmp_path / "main.frost").exists()
+    assert (tmp_path / "frost.policy").exists()
+    out = capsys.readouterr().out
+    assert "--explain" in out and "--policy" in out
+
+
+def test_the_starter_script_parses_and_is_clean(tmp_path, capsys):
+    cli.main(["init", str(tmp_path)])
+    script = str(tmp_path / "main.frost")
+    assert cli.main(["--check", "--strict", script]) == 0
+    assert "verdict: clean" in capsys.readouterr().out
+
+
+def test_the_starter_policy_allows_the_starter_script(tmp_path):
+    """The pair has to agree on the first run. A generated policy that
+    refuses its own script teaches that the policy engine is an obstacle."""
+    cli.main(["init", str(tmp_path)])
+    assert cli.main(["--check",
+                     "--policy", str(tmp_path / "frost.policy"),
+                     str(tmp_path / "main.frost")]) == 0
+
+
+def test_the_starter_script_actually_does_something(tmp_path):
+    """`put "hello"` teaches nothing: there is no point reading --explain on
+    a script with an empty manifest. The starter runs a program, checks the
+    status, handles the failure and cleans up, so the manifest has something
+    to say."""
+    from frostlang.audit import audit
+    from frostlang.parser import parse
+
+    cli.main(["init", str(tmp_path)])
+    caps = audit(parse((tmp_path / "main.frost").read_text()))
+    assert caps.commands, "the manifest would be empty"
+    assert caps.cleanups, "nothing demonstrates ensure"
+    assert caps.exit_codes, "nothing demonstrates quit with status"
+
+
+def test_init_refuses_to_overwrite(tmp_path, capsys):
+    """`init` in a directory somebody has worked in is a typo far more often
+    than an instruction, and there is no undo for what it would replace."""
+    cli.main(["init", str(tmp_path)])
+    (tmp_path / "main.frost").write_text('put "mine"\n')
+    assert cli.main(["init", str(tmp_path)]) == 2
+    assert (tmp_path / "main.frost").read_text() == 'put "mine"\n'
+    assert "already exists" in capsys.readouterr().err
+
+
+def test_init_creates_a_folder_that_is_not_there(tmp_path):
+    target = tmp_path / "fresh" / "nested"
+    assert cli.main(["init", str(target)]) == 0
+    assert (target / "main.frost").exists()
+
+
+def test_init_rejects_more_than_one_folder(tmp_path, capsys):
+    assert cli.main(["init", str(tmp_path), "extra"]) == 2
+    assert "usage" in capsys.readouterr().err
