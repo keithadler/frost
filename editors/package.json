@@ -2,7 +2,7 @@
   "name": "frost-language",
   "displayName": "frost",
   "description": "Syntax highlighting for the frost scripting language",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "engines": {
     "vscode": "^1.60.0"
   },
