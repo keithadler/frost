@@ -66,6 +66,19 @@ import secrets
 
 VERSION = 1
 
+
+def _now():
+    """An ISO timestamp in UTC, for the trail.
+
+    Keystore administration is a person at a terminal, not a script being
+    replayed, so a real clock here does not put determinism at risk the way
+    one inside the interpreter would.
+    """
+    import datetime
+
+    return datetime.datetime.now(datetime.timezone.utc).replace(
+        microsecond=0).isoformat()
+
 # scrypt parameters. n=2**15 costs roughly 100ms and 32MB per derivation,
 # which is a reasonable brick wall in front of a passphrase and imperceptible
 # once per script run.
@@ -204,7 +217,8 @@ class Keystore:
 
     @classmethod
     def create(cls, path=None):
-        return cls({"version": VERSION, "roles": {}, "secrets": {}}, path)
+        return cls({"version": VERSION, "roles": {}, "secrets": {},
+                    "history": []}, path)
 
     @classmethod
     def load(cls, path):
@@ -374,8 +388,11 @@ class Keystore:
         entry = self.data["secrets"].get(name)
         if entry is None:
             raise KeyError(name)
-        if name in self._cache:
-            return self._cache[name]
+        # Every permission question is answered before the cache is consulted.
+        # It used to be the other way round, so once any role had read a
+        # secret in this process, any other role got the plaintext back with
+        # no check at all. One run uses one role, which is why it went
+        # unnoticed, and "usually only one role" is not an access rule.
         if role is None:
             raise PermissionError(
                 f"no role was given, so the secret {name!r} cannot be read; "
@@ -385,6 +402,8 @@ class Keystore:
             raise PermissionError(
                 f"the role {role!r} may not read the secret {name!r} "
                 f"(allowed: {allowed})")
+        if name in self._cache:
+            return self._cache[name]
         data_key = self._unwrap(role, entry["wrapped"][role], name)
         plaintext = _decrypt(data_key, entry["value"], name.encode("utf-8"),
                              what="value").decode("utf-8")
@@ -411,23 +430,95 @@ class Keystore:
         data_key = self._unwrap(from_role, entry["wrapped"][from_role], name)
         entry["wrapped"][role] = self._wrap(role, data_key, name)
 
-    def revoke(self, name, role):
+    def revoke(self, name, role, by=None):
+        """Stop `role` reading `name`, and say what that does not achieve.
+
+        Removing the wrapped key removes future access. It does not remove
+        what the role already read: if that credential was ever opened by
+        this role, it is known, and no amount of re-encryption unknows it.
+
+        So this re-keys the secret as well, which means a later `rotate` is
+        not readable with anything the revoked role kept, and it returns a
+        warning the caller is expected to show. A revoke that reported plain
+        success would let somebody believe a credential was safe when the
+        only safe move is to change it at the source.
+        """
         entry = self.data["secrets"].get(name)
         if entry is None:
             raise KeyError(name)
         if role not in entry["wrapped"]:
-            return
+            return None
         if len(entry["wrapped"]) == 1:
             raise KeystoreError(
                 f"revoking {role!r} would leave {name!r} readable by nobody; "
                 f"grant another role first, or remove the secret")
         del entry["wrapped"][role]
+        self._note("revoke", name=name, role=role, by=by)
+        return (f"{role!r} can no longer read {name!r}. If it ever did read "
+                f"it, it still knows the value: change the credential where "
+                f"it lives, then `keystore rotate {name}`.")
 
-    def remove_secret(self, name):
+    def rotate(self, name, value, by):
+        """Replace the value of `name` under a fresh data key.
+
+        Two things at once, deliberately. A new value, because the old one is
+        known to whoever has read it and that is the only thing that makes a
+        leaked credential harmless. And a new data key, so a role removed
+        earlier cannot use anything it kept.
+
+        The role set is preserved. Rotation is not the moment to quietly
+        change who can read a credential; that is what grant and revoke are
+        for, and doing both at once means the trail cannot say which was
+        intended.
+        """
+        entry = self.data["secrets"].get(name)
+        if entry is None:
+            raise KeyError(name)
+        roles = sorted(entry["wrapped"])
+        if by is not None and by not in roles:
+            # Not a security boundary: set_secret needs no passphrase either,
+            # because sealing to a public key does not require reading. It is
+            # a check that the trail records somebody who was actually there.
+            raise KeystoreError(
+                f"the role {by!r} does not have access to {name!r}, so it "
+                f"should not be recorded as rotating it")
+
+        data_key = secrets.token_bytes(KEY_BYTES)
+        self.data["secrets"][name] = {
+            "value": _encrypt(data_key, value, name.encode("utf-8")),
+            "wrapped": {r: self._wrap(r, data_key, name) for r in roles},
+        }
+        self._cache.pop(name, None)
+        self._note("rotate", name=name, by=by, roles=roles)
+        return roles
+
+    # -- the trail
+    #
+    # Administrative changes only: who granted, revoked, rotated or removed
+    # what, and when. Not reads.
+    #
+    # Reads are deliberately absent and the documentation says so. A keystore
+    # is a file somebody copies; a read happens on their machine, against
+    # their copy, and nothing here would ever see it. A "read log" that only
+    # recorded the reads performed through this CLI would be worse than
+    # having none, because it would be believed exactly when it mattered.
+
+    def _note(self, action, **fields):
+        entry = {"action": action, "when": _now()}
+        entry.update({k: v for k, v in fields.items() if v is not None})
+        self.data.setdefault("history", []).append(entry)
+
+    @property
+    def history(self):
+        return list(self.data.get("history", []))
+
+    def remove_secret(self, name, by=None):
         if name not in self.data["secrets"]:
             raise KeyError(name)
+        roles = sorted(self.data["secrets"][name]["wrapped"])
         del self.data["secrets"][name]
         self._cache.pop(name, None)
+        self._note("remove", name=name, by=by, roles=roles)
 
     # -- reporting, for `keystore list` and --explain
 

@@ -54,7 +54,7 @@ def reopen(store):
 def test_the_file_is_readable_json(stocked):
     with open(stocked.path) as fh:
         data = json.load(fh)
-    assert set(data) == {"version", "roles", "secrets"}
+    assert set(data) == {"version", "roles", "secrets", "history"}
 
 
 def test_the_names_and_roles_are_in_plaintext(stocked):
@@ -550,3 +550,137 @@ def test_the_keystore_subcommand_works_through_the_real_cli(tmp_path):
     assert status == 0, err
     status, out, err = frost("keystore", "list", path)
     assert (status, "no secrets yet" in out) == (0, True)
+
+
+# ------------------------------------------------- rotation and the trail
+
+def test_a_revoked_role_cannot_read_the_rotated_value():
+    """The property rotation exists for.
+
+    Removing a wrapped key removes future access. It does not remove what the
+    role already read, and no re-encryption can. What rotation buys is that
+    whatever the revoked role kept is useless against the *next* value.
+    """
+    store = Keystore.create()
+    store.add_role("admin", "pw-admin")
+    store.add_role("deploy", "pw-deploy")
+    store.set_secret("db", "first", ["admin", "deploy"])
+
+    store.unlock("deploy", "pw-deploy")
+    assert store.open_secret("db", "deploy") == "first"
+
+    store.revoke("db", "deploy", by="admin")
+    store.rotate("db", "second", by="admin")
+
+    store._cache.clear()
+    store.unlock("admin", "pw-admin")
+    assert store.open_secret("db", "admin") == "second"
+
+    store.unlock("deploy", "pw-deploy")
+    with pytest.raises(PermissionError):
+        store.open_secret("db", "deploy")
+
+
+def test_revoking_says_what_it_does_not_achieve():
+    """A revoke reporting plain success lets somebody believe a credential is
+    safe when the only safe move is changing it at the source."""
+    store = Keystore.create()
+    store.add_role("admin", "pw")
+    store.add_role("deploy", "pw2")
+    store.set_secret("db", "v", ["admin", "deploy"])
+    warning = store.revoke("db", "deploy", by="admin")
+    assert warning
+    assert "still knows the value" in warning
+    assert "rotate" in warning
+
+
+def test_rotation_keeps_the_role_set():
+    """Rotation is not the moment to change who can read a credential. Doing
+    both at once means the trail cannot say which was intended."""
+    store = Keystore.create()
+    for role in ("admin", "deploy", "ci"):
+        store.add_role(role, "pw-" + role)
+    store.set_secret("db", "v", ["admin", "deploy", "ci"])
+    roles = store.rotate("db", "v2", by="admin")
+    assert roles == ["admin", "ci", "deploy"]
+    assert store.roles_for("db") == ["admin", "ci", "deploy"]
+
+
+def test_rotation_uses_a_fresh_data_key():
+    store = Keystore.create()
+    store.add_role("admin", "pw")
+    store.set_secret("db", "v", ["admin"])
+    before = store.data["secrets"]["db"]["wrapped"]["admin"]
+    store.rotate("db", "v2", by="admin")
+    assert store.data["secrets"]["db"]["wrapped"]["admin"] != before
+
+
+def test_rotation_refuses_a_role_that_cannot_read_it():
+    """Not a security boundary, since sealing to a public key never needed a
+    passphrase. It keeps the trail from naming somebody who was not there."""
+    store = Keystore.create()
+    store.add_role("admin", "pw")
+    store.add_role("other", "pw2")
+    store.set_secret("db", "v", ["admin"])
+    with pytest.raises(KeystoreError):
+        store.rotate("db", "v2", by="other")
+
+
+def test_the_trail_records_administrative_changes():
+    store = Keystore.create()
+    store.add_role("admin", "pw")
+    store.add_role("deploy", "pw2")
+    store.set_secret("db", "v", ["admin", "deploy"])
+    store.revoke("db", "deploy", by="admin")
+    store.rotate("db", "v2", by="admin")
+    store.remove_secret("db", by="admin")
+
+    actions = [e["action"] for e in store.history]
+    assert actions == ["revoke", "rotate", "remove"]
+    assert all(e["when"] for e in store.history)
+    assert all(e.get("by") == "admin" for e in store.history)
+
+
+def test_the_trail_does_not_claim_to_record_reads():
+    """It cannot. A keystore is a file people copy, and a read happens
+    against their copy. A read log that only saw reads through this CLI
+    would be believed exactly when it mattered and wrong exactly then."""
+    store = Keystore.create()
+    store.add_role("admin", "pw")
+    store.set_secret("db", "v", ["admin"])
+    store.unlock("admin", "pw")
+    store.open_secret("db", "admin")
+    assert [e["action"] for e in store.history] == []
+
+
+def test_the_trail_survives_a_save_and_load(tmp_path):
+    path = str(tmp_path / "k.json")
+    store = Keystore.create(path)
+    store.add_role("admin", "pw")
+    store.set_secret("db", "v", ["admin"])
+    store.rotate("db", "v2", by="admin")
+    store.save()
+
+    reopened = Keystore.load(path)
+    assert [e["action"] for e in reopened.history] == ["rotate"]
+
+
+def test_the_cache_does_not_answer_for_a_role_that_may_not_read():
+    """Found while testing rotation, and older than rotation.
+
+    `open_secret` consulted its cache before checking the role, so once any
+    role had read a secret in this process, every other role got the
+    plaintext back with no check. A single run uses a single role, which is
+    why nobody hit it, and "usually only one role" is not an access rule.
+    """
+    store = Keystore.create()
+    store.add_role("admin", "pw")
+    store.add_role("deploy", "pw2")
+    store.set_secret("db", "v", ["admin"])
+
+    store.unlock("admin", "pw")
+    assert store.open_secret("db", "admin") == "v"
+
+    store.unlock("deploy", "pw2")
+    with pytest.raises(PermissionError):
+        store.open_secret("db", "deploy")
