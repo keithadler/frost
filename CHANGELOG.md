@@ -57,6 +57,18 @@ has heard of takes a `--command` flag.
 
 ### Fixed
 
+**A policy comment marker inside quotes ended the line.** Policy comments
+start with `--`, and the stripper partitioned on the first one anywhere. An
+Ed25519 public key is urlsafe base64, so it contains `-`, so about one key in
+a hundred contains `--`. `require an approval signed by "kA--bQ..."` was cut
+mid-string, leaving an unterminated quote and a policy that did not parse.
+
+That is the intermittent CI failure that has been chased for several rounds:
+it failed roughly one run in five, never once locally, and looked like a flaky
+approval test rather than a policy parser that could not hold a value frost
+had itself generated. Quoted text is now respected, so a program named
+`my--tool` or a path holding `#` survives too.
+
 **A NUL in an argument printed a Python traceback.** It cannot be passed to
 `execve`, the standard library reports that by raising out of the fork, and
 what reached the terminal said nothing about the script and everything about

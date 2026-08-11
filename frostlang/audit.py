@@ -1345,11 +1345,30 @@ def parse_policy(text):
 
 
 def _split_comment(raw):
-    """Split a policy line into code, marker and trailing comment."""
-    for marker in ("--", "#"):
-        if marker in raw:
-            code, _, comment = raw.partition(marker)
-            return code, marker, comment.strip()
+    """Split a policy line into code, marker and trailing comment.
+
+    A marker inside quotes is not a comment. This used to partition on the
+    first `--` anywhere in the line, which is right for every rule somebody
+    types by hand and wrong for one holding a generated value.
+
+    An Ed25519 public key is urlsafe base64, so it contains `-`, so roughly
+    one key in a hundred contains `--`. `require an approval signed by
+    "kA--bQ..."` was truncated mid-string, leaving an unterminated quote and a
+    policy that did not parse. It failed on about one CI run in five, never
+    reproduced locally, and read as a flaky test rather than as a policy
+    parser that could not hold a value it had itself produced.
+    """
+    quoted = False
+    i = 0
+    while i < len(raw):
+        ch = raw[i]
+        if ch == '"':
+            quoted = not quoted
+        elif not quoted:
+            for marker in ("--", "#"):
+                if raw.startswith(marker, i):
+                    return raw[:i], marker, raw[i + len(marker):].strip()
+        i += 1
     return raw, "", ""
 
 
