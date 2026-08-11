@@ -7,7 +7,7 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/) — before 1.0, a minor
 bump may change the language.
 
-## Unreleased
+## 0.9.0 - 2026-08-10
 
 ### Added
 
