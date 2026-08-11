@@ -2226,13 +2226,13 @@ A capability manifest: what the script touches, without running it.
 $ frost --explain cleanup.frost
 
 Runs these programs:
-  chmod  - line 13  (no timeout)
-  curl   - line 12  (1 allowed to fail, no timeout)
-  find   - line 4   (no timeout)
-  rm     - line 8   (no timeout)
+  chmod  at line 13  (no timeout)
+  curl  at line 12  (1 allowed to fail, no timeout)
+  find  at line 4   (no timeout)
+  rm  at line 8   (no timeout)
 
 Writes these files:
-  /etc/cleanup.state  - line 11
+  /etc/cleanup.state  at line 11
 
 Can exit with:
   status 1

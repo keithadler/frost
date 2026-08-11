@@ -226,3 +226,99 @@ def test_nothing_here_uses_an_em_dash():
     assert not offenders, (
         "em dashes are house style here, and these have one:\n  "
         + "\n  ".join(offenders[:40]))
+
+
+# ------------------------------------- pasted manifest output in the docs
+#
+# README.md and LANGUAGE.md quote `--explain` output. Those samples drifted
+# once already: the manifest stopped using a dash between the subject and the
+# line number and every pasted sample still showed one, with nothing in the
+# suite to notice.
+#
+# Generating them is not possible without rewriting the documentation, because
+# most quote a fragment of the manifest of a script that is never shown in
+# full, and printing the whole thing would make the page worse. What is
+# checkable is that a pasted sample uses vocabulary the manifest can actually
+# produce: a section header it really emits, and the separator it really
+# prints. That is exactly the drift that happened, and it is the drift that
+# will happen again.
+
+def manifest_vocabulary():
+    """Section headers the real manifest emits, from the real examples."""
+    import contextlib
+    import io as _io
+
+    from frostlang import cli
+
+    heads = set()
+    folder = os.path.join(REPO, "examples")
+    for name in sorted(os.listdir(folder)):
+        if not name.endswith(".frost"):
+            continue
+        # The whole of --explain, not just describe(): the driver adds
+        # sections of its own, and a vocabulary missing them would call a
+        # correct sample stale.
+        captured = _io.StringIO()
+        with contextlib.redirect_stdout(captured):
+            with contextlib.suppress(SystemExit):
+                cli.main(["--explain", os.path.join(folder, name)])
+        for line in captured.getvalue().split("\n"):
+            if line.endswith(":") and not line.startswith(" "):
+                heads.add(line)
+    return heads
+
+
+def manifest_samples():
+    """Every fenced block in the docs that quotes manifest output."""
+    import re
+
+    found = []
+    for doc in ("README.md", "LANGUAGE.md"):
+        for kind, line, bodytext in code_blocks(doc):
+            if kind not in ("text", ""):
+                continue
+            if not re.search(r"\bline \d", bodytext):
+                continue
+            if not any(l.rstrip().endswith(":") for l in bodytext.split("\n")):
+                continue
+            found.append((doc, line, bodytext))
+    return found
+
+
+def test_the_extractor_found_the_pasted_manifests():
+    """Without this the two tests below would pass on an empty list, which is
+    how a check that has stopped looking reports success."""
+    assert len(manifest_samples()) >= 2, \
+        "no pasted manifest output found; the extractor is broken"
+
+
+def test_every_pasted_manifest_uses_the_real_separator():
+    import re
+
+    wrong = []
+    for doc, at, bodytext in manifest_samples():
+        for offset, line in enumerate(bodytext.split("\n")):
+            # A finding prints "[DANGER ] line 12", which is its own format
+            # and not the subject-and-location columns this checks.
+            if line.lstrip().startswith("["):
+                continue
+            if re.search(r"\bline \d", line) and "at line" not in line:
+                wrong.append(f"{doc}:{at + offset}  {line.strip()}")
+    assert not wrong, (
+        "the manifest prints 'at line N'; these samples show something else "
+        "and have gone stale:\n  " + "\n  ".join(wrong))
+
+
+def test_every_pasted_manifest_uses_a_real_section_header():
+    known = manifest_vocabulary()
+    unknown = []
+    for doc, at, bodytext in manifest_samples():
+        for offset, line in enumerate(bodytext.split("\n")):
+            stripped = line.rstrip()
+            if (stripped.endswith(":") and stripped == stripped.lstrip()
+                    and stripped not in known):
+                unknown.append(f"{doc}:{at + offset}  {stripped}")
+    assert not unknown, (
+        "these look like manifest sections and the manifest never prints "
+        "them:\n  " + "\n  ".join(unknown)
+        + "\n  it prints: " + ", ".join(sorted(known)))

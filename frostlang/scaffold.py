@@ -135,3 +135,44 @@ def _would_refuse(rule, caps):
     except Exception:                          # pragma: no cover
         return False
     return any(f.severity == "forbid" for f in findings)
+
+
+# ------------------------------------------------------------ frost init
+
+STARTER = '''\
+-- {name}, a starting point.
+--
+-- Read this with `frost --explain {name}`, which prints every program it
+-- runs, every file it touches and every host it reaches, before running any
+-- of it. Check it against the policy next to it with:
+--
+--   frost --check --policy {policy} {name}
+
+put "starting" && the current time
+
+run "git" with "status", "--short"
+if the result is not 0 then
+    put "not a git repository" into standard error
+    quit with status 1
+end if
+
+put the number of lines of it into changed
+put changed && "changed file(s)"
+
+ensure
+    put "finished" && the current time
+end ensure
+'''
+
+
+def starter_script(name, policy):
+    """A first script that does something real and passes its own policy.
+
+    Deliberately not `put "hello"`. The first script somebody runs is the one
+    that teaches them what the language is for, and a manifest listing nothing
+    teaches nothing: there is no point reading `--explain` on a script that
+    cannot do anything. This one runs a program, checks the status, handles
+    the failure and cleans up, so the manifest has something to say and the
+    policy beside it has something to allow.
+    """
+    return STARTER.format(name=name, policy=policy)

@@ -99,3 +99,54 @@ jobs:
           path: dist/
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  container:
+    name: Publish the container
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # ghcr, using the workflow's own token
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Wait for PyPI to serve the new version
+        # The image installs from PyPI rather than the checkout, so it cannot
+        # be built until the index has the version this tag published. A build
+        # that raced ahead would either fail or, worse, quietly bake the
+        # previous release into an image labelled with this one.
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for attempt in $(seq 1 30); do
+            if pip download --no-deps --dest /tmp/probe \
+                 "frostlang==$version" >/dev/null 2>&1; then
+              echo "frostlang $version is available"
+              exit 0
+            fi
+            echo "attempt $attempt: not on PyPI yet"
+            sleep 10
+          done
+          echo "::error::frostlang $version never appeared on PyPI"
+          exit 1
+
+      - name: The version, without the leading v
+        # github.ref_name is "v0.9.1" and pip needs "0.9.1". Passing the tag
+        # straight through asked for a version that does not exist.
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            FROST_VERSION=${{ steps.version.outputs.value }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/frost:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/frost:latest

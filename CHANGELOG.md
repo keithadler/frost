@@ -7,9 +7,39 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/), and
 frost follows [semantic versioning](https://semver.org/): before 1.0, a minor
 bump may change the language.
 
-## Unreleased
+## 0.9.1 - 2026-08-10
 
 ### Added
+
+**`frost init`** writes a first script and the policy that describes it. The
+pair, not the script alone: a policy written later is written against a script
+somebody has stopped reading, and the blank file is why the policy engine went
+unused. The policy is generated from the script just written, so the two agree
+on the first run.
+
+The starter script is not `put "hello"`. It runs a program, checks the status,
+handles the failure and cleans up, because there is nothing to learn from
+`--explain` on a script with an empty manifest. It refuses to overwrite: init
+in a directory somebody has worked in is a typo far more often than it is an
+instruction.
+
+**A container image**, `ghcr.io/keithadler/frost`, published on each tag. For
+a pipeline that wants `--check --strict` without a Python setup step. It
+installs the released version from PyPI rather than the build context, so the
+image holds a version somebody can name, and it runs as a non-root user. It
+reviews scripts and does not run them well, which is the right shape: an image
+built for reviewing is not a place to execute what it reviewed.
+
+**A guard on manifest output quoted in the documentation.** README.md and
+LANGUAGE.md paste fragments of `--explain`, and those had drifted twice: once
+when the separator became a dash and once when it stopped being one. Ten
+samples across the two files were stale, and nothing would ever have said so.
+
+They cannot be generated, because most quote a fragment of a script the page
+never shows in full and printing the whole manifest would make the page worse.
+What is enforced instead is that a pasted sample uses vocabulary the manifest
+can actually produce: a section header it really prints, and the separator it
+really uses. That is the drift that happened, twice.
 
 **A pre-commit hook.** `.pre-commit-hooks.yaml` provides `frost-check`,
 `frost-explain`, `frost-policy` and `frost-format`. `--check --strict` is the

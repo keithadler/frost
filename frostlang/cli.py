@@ -496,6 +496,70 @@ def build_parser():
     return ap
 
 
+def init_project(args):
+    """Write a starter script and a policy that already agrees with it.
+
+    The two together, rather than a script alone, because a policy written
+    later is a policy written against a script somebody has stopped reading.
+    The policy here is generated from the script that was just written, so it
+    passes on the first run and every later edit is measured against something
+    that was true once.
+
+    It refuses to overwrite. `init` in a directory somebody has already worked
+    in is a typo far more often than it is an instruction, and there is no
+    undo for the version it would have replaced.
+    """
+    import os
+    from . import scaffold
+    from .parser import parse
+
+    folder = args[0] if args else "."
+    if len(args) > 1:
+        sys.stderr.write("frost: usage: frost init [folder]\n")
+        return 2
+
+    script_name, policy_name = "main.frost", "frost.policy"
+    script_path = os.path.join(folder, script_name)
+    policy_path = os.path.join(folder, policy_name)
+
+    existing = [p for p in (script_path, policy_path) if os.path.exists(p)]
+    if existing:
+        for path in existing:
+            sys.stderr.write(f"frost: {path} already exists\n")
+        sys.stderr.write("  hint: init will not overwrite; move them aside "
+                         "or pick an empty folder\n")
+        return 2
+
+    if folder != "." and not os.path.isdir(folder):
+        try:
+            os.makedirs(folder)
+        except OSError as e:
+            sys.stderr.write(f"frost: cannot create {folder}: {e}\n")
+            return 2
+
+    source = scaffold.starter_script(script_name, policy_name)
+    try:
+        with open(script_path, "w") as fh:
+            fh.write(source)
+        # Generated from the script just written, so the pair is consistent
+        # from the first second rather than after somebody reconciles them.
+        caps = audit(parse(source))
+        with open(policy_path, "w") as fh:
+            fh.write(scaffold.policy_for(script_name, caps))
+    except OSError as e:
+        sys.stderr.write(f"frost: cannot write in {folder}: {e}\n")
+        return 2
+
+    print(f"wrote {script_path}")
+    print(f"wrote {policy_path}")
+    print()
+    print("Read what it can do:      frost --explain " + script_path)
+    print("Check it against the policy:")
+    print(f"  frost --check --policy {policy_path} {script_path}")
+    print("Run it:                   frost " + script_path)
+    return 0
+
+
 def parse_size(text):
     """A size written on the command line, as bytes.
 
@@ -570,6 +634,11 @@ def main(argv=None):
         sys.stderr.write("frost: usage: frost diff <before.frost> "
                          "<after.frost>\n")
         return 2
+    # `frost init` writes a first script and the policy that describes it.
+    # Checked before the main parser, like the other subcommands, so its
+    # arguments cannot collide with the flags for running a script.
+    if raw and raw[0] == "init":
+        return init_project(raw[1:])
     # `frost mcp` serves the review tools to an agent over stdio. It reads and
     # reports and cannot run a script, which is the design rather than a gap:
     # a server that executes on request moves the decision to run back to the
