@@ -10,6 +10,7 @@ Fence convention in these files: a bare ``` block is frost, and a labelled
 one (```text, ```bash, ```policy, ```ebnf) is whatever the label says.
 """
 
+import json
 import os
 import re
 
@@ -322,3 +323,55 @@ def test_every_pasted_manifest_uses_a_real_section_header():
         "these look like manifest sections and the manifest never prints "
         "them:\n  " + "\n  ".join(unknown)
         + "\n  it prints: " + ", ".join(sorted(known)))
+
+
+# ------------------------------------------- the published output schema
+
+def test_the_explain_schema_describes_every_recorded_manifest():
+    """`--explain --json` carries "schema": 1 and nothing said what 1 was.
+
+    A schema is a promise to whoever consumes the output, and a promise
+    nothing checks is a comment. Every golden manifest in the suite is
+    validated against it, so the schema cannot drift from the program: the
+    goldens are regenerated from real runs, and a field that changed shape
+    fails here rather than in somebody's parser.
+    """
+    jsonschema = pytest.importorskip("jsonschema")
+
+    with open(os.path.join(REPO, "schema", "explain-1.schema.json")) as fh:
+        schema = json.load(fh)
+    jsonschema.Draft202012Validator.check_schema(schema)
+    validator = jsonschema.Draft202012Validator(schema)
+
+    folder = os.path.join(REPO, "tests", "golden")
+    checked = 0
+    for name in sorted(os.listdir(folder)):
+        if not name.endswith(".explain.json"):
+            continue
+        with open(os.path.join(folder, name)) as fh:
+            payload = json.load(fh)
+        errors = sorted(validator.iter_errors(payload), key=str)
+        assert not errors, (
+            f"{name} does not match the published schema:\n  "
+            + "\n  ".join(f"{list(e.path)}: {e.message}" for e in errors[:5]))
+        checked += 1
+
+    assert checked >= 10, f"only checked {checked} manifests; the walk broke"
+
+
+def test_the_schema_would_reject_a_manifest_missing_a_field():
+    """The guard, pointed at something it must refuse. A schema that accepts
+    anything validates nothing, and would pass the test above unchanged."""
+    jsonschema = pytest.importorskip("jsonschema")
+
+    with open(os.path.join(REPO, "schema", "explain-1.schema.json")) as fh:
+        schema = json.load(fh)
+    validator = jsonschema.Draft202012Validator(schema)
+
+    assert list(validator.iter_errors({"script": "x.frost"})), \
+        "the schema accepts a manifest with almost nothing in it"
+    assert list(validator.iter_errors(
+        {"script": "x", "summary": "s", "verdict": "maybe", "commands": [],
+         "reads": [], "writes": [], "deletes": [], "environment": [],
+         "exits": [], "findings": []})), \
+        "the schema accepts a verdict frost never produces"

@@ -9,6 +9,41 @@ bump may change the language.
 
 ## Unreleased
 
+### Added
+
+**A policy beside the script is found and used.** `frost init` wrote
+`frost.policy` next to `main.frost` and then required `--policy frost.policy`
+on every run, which is a papercut this changelog created a few entries ago.
+The search walks up from the script's own folder and stops at a `.git`,
+because a policy from outside the project is somebody else's contract. The
+path used is printed, since a rule that applies without being asked for has to
+be visible, and `--no-policy` opts out.
+
+**Colour, on a terminal only.** A manifest is read under time pressure and a
+danger that looks like a note gets skimmed. Off when standard output is not a
+terminal, so SARIF, JSON, pipes and CI logs are byte for byte what they were,
+and `NO_COLOR` wins over `FORCE_COLOR` because people who set it mean it.
+
+**A folder of scripts.** `frost --check examples/` used to fail with `Is a
+directory`, so any repository with more than one script wrote a shell loop:
+precisely the shell frost is trying to replace. Review only, and the worst
+exit code wins. Running a folder is refused, because guessing which script was
+meant is worse than saying no.
+
+**The manifest on the GitHub run summary.** The Action emitted SARIF, which
+lands on the diff where reviewers read it, and left the run page saying
+nothing about what the scripts can do. That page is the one people open first
+when a job fails.
+
+**A published JSON Schema for `--explain --json`.** The output has always
+carried `"schema": 1` and nothing said what 1 was. `schema/explain-1.schema.json`
+now says, and every golden manifest in the suite is validated against it, so
+the promise cannot drift from the program.
+
+Writing it caught the author guessing: `reads` and `writes` are lists of
+objects, and the first draft called them strings because the manifest used for
+reference happened to have both arrays empty.
+
 ### Fixed
 
 **A cached secret was returned without checking the role.** `open_secret`

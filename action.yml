@@ -83,6 +83,27 @@ runs:
           echo "::endgroup::"
         done
 
+        # The same manifest on the run page, not only in a collapsed log
+        # group. SARIF puts findings on the diff, which is where a reviewer
+        # reads them, and leaves the summary page saying nothing at all about
+        # what the scripts can do. This is the page people open first when a
+        # job fails.
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          {
+            echo "## What these scripts can do"
+            echo
+            for script in ${{ inputs.scripts }}; do
+              echo "<details><summary><code>$script</code></summary>"
+              echo
+              echo '```'
+              NO_COLOR=1 frost --explain "$script" 2>&1 || true
+              echo '```'
+              echo
+              echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
     - name: Enforce the policy
       if: inputs.policy != ''
       shell: bash
