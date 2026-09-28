@@ -235,13 +235,13 @@ def test_every_single_character_deletion_is_handled(seed_src):
 
 
 def test_deep_nesting_is_reported_not_crashed():
+    # Asserted rather than skipped. The skip is how a RecursionError reached
+    # the terminal as a traceback for a hundred nested parentheses while the
+    # suite stayed green.
     src = "put " + "(" * 200 + "1" + ")" * 200
-    try:
+    with pytest.raises(EXPECTED) as e:
         parse(src)
-    except EXPECTED:
-        pass
-    except RecursionError:
-        pytest.skip("recursion limit reached before the parser could report")
+    assert e.value.line == 1
 
 
 def test_unbalanced_block_keywords_are_reported():

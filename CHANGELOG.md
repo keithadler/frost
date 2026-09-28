@@ -42,6 +42,98 @@ both were being recorded.
 No understatement was found across 500 seeds. That is a weaker claim than a
 proof and a much stronger one than a list of examples.
 
+### Fixed
+
+A review went looking for the places frost's own promises held for the
+inputs somebody thought of and not for the next one along. Each fix below is
+pinned by the smallest script that showed it, in
+`tests/test_found_in_review.py`.
+
+**A policy could be walked around.** Programs were compared as written, so
+`run "/usr/bin/sudo"` passed `forbid running "sudo"`, `"/bin/rm" -rf` passed
+the rule about `rm`, and the danger findings missed both, along with
+`/bin/sh -c` and the secrets-then-network pattern through `/usr/bin/curl`.
+Forbid rules and findings now match the program's name as well; an allow-list
+still matches exactly, since loosening it would admit any file called `git`.
+Paths were matched as written too: `/tmp/../etc/x` counted as temporary and
+`//etc/x` as merely absolute, and neither met `forbid writing to "/etc/*"`.
+Absolute paths are now matched where they point.
+
+**One readable URL vouched for every destination beside it.** `curl
+https://api.github.com/zen target` recorded only api.github.com, so a
+script under `require reaching only "api.github.com"` fetched whatever
+`target` held, and a second destination written without a scheme,
+`evil.example/x`, was invisible to the static check and to `--enforce-hosts`
+alike. For curl and wget, anything in a destination's position that is not a
+readable URL is now a destination nobody can read, which an allow-list
+refuses. Option values such as `-o out.json` and `-H` are skipped.
+
+**`--repair` could delete a guard.** The fix for `run "rm -rf build"`
+replaced the whole line with its suggestion, so `if ready then run "rm -rf
+build"` came back as an unconditional delete, and a trailing `within`,
+`reading` or `in folder` was dropped with it. Only the offending `run "..."`
+is replaced now, and its arguments are quoted the way the lexer reads them:
+`a\\tb` was coming back as a tab.
+
+**Any policy made `--json` stop early.** A passing policy returned right
+after its report, so the script never ran and `--check --json --strict` never
+reached its verdict: a dangerous script passed that gate whenever a
+`frost.policy` sat beside it. Only a refusal stops there now.
+
+**A symlink carried a module out of the script's directory.** The boundary
+was checked on the spelling of the path, so `vendor/lib.frost` loaded when
+`vendor` pointed somewhere above. It is checked on the real path as well; a
+link that stays inside still works.
+
+**Tracebacks where there should have been sentences.** A hundred nested
+parentheses (`RecursionError`); a program marked executable with no `#!`
+line; `run ""` and a NUL byte inside a `pipe`; output that is not UTF-8,
+which `run` misreported as a bad argument and `pipe` did not catch at all; a
+revealed secret on a pipe's standard error (`mask()` then `.rstrip()`, in
+that order, on a sealed value); a script file that is not UTF-8; and the
+numeric edge: `repeat "inf" times`, `quit with status "nan"`, `10.0 ^ 400`,
+`0 ^ -1`, `10 ^ 5000`, which printed nothing but a ValueError about digit
+limits, and `(0 - 8) ^ 0.5`, which printed a complex number. Text is a
+number when it is written as one, in both the interpreter and the browser
+evaluator, so `"Infinity" is "inf"` and `"1_000" is "1000"` are no longer
+true and `"nan" is "nan"` no longer false.
+
+**The formatter changed two kinds of script.** A backslash before a
+newline, tab, CR or NUL in a value came back as an escaped backslash and a
+letter, and a float such as `0.00001` came back as `1e-05`, which the lexer
+cannot read; `--format --write` wrote that to disk. A backslash before a real
+newline inside a string is now an unterminated string, as any other newline
+is, instead of a string that ran on without counting the line.
+
+**`else if` on one line.** `else if C then put x` followed by `end if` was
+refused, and the same chain with no `end if` was accepted. It is the other
+way round now, as the grammar says.
+
+**Smaller ones.** `pipe reading` a secret sent the child the redaction marker
+instead of the value, where `run ... reading` sent the value. A handler
+defined inside a block could not be called once the file had a `use`.
+Replaying a run that released a secret into a command's arguments always
+diverged, and so did one where a `try to run ... within` timed out, because
+that command was never written down. `--format --write -` created a file
+called `<stdin>`. `--exit-codes` left out 124 and 125. And an abbreviated
+flag, `--trace-to` for `--trace-to-file`, made its value the script.
+
+**The schema and hook tests ran nowhere.** `jsonschema` and `pyyaml` were
+added to the `keystore` extra instead of `dev`, so `pip install -e ".[dev]"`,
+which is what CI and the contributing guide both use, left them out and six
+tests skipped quietly on every run: the two that hold `--explain --json` to
+the published schema, and the four that read `.pre-commit-hooks.yaml` and
+`action.yml`. Meanwhile everyone who installed `frostlang[keystore]`, the
+container image included, got two test-only packages they never asked for.
+Both now live in `dev`.
+
+**The unreadable site policy tests failed as root.** They made the file
+unreadable with `chmod 000`, which root ignores, so a suite run inside a
+container reported frost as failing open when it was the test that could not
+arrange the case. Where permission bits do not bind, the test now puts a
+directory where the policy file should be, which fails the same `open` for
+anyone.
+
 ## 0.10.0 - 2026-08-10
 
 ### Added

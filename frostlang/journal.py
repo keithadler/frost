@@ -41,6 +41,7 @@ manifest already reports that the secret was released there.
 # SPDX-License-Identifier: MIT
 
 import json
+import subprocess
 
 SCHEMA_VERSION = 1
 
@@ -114,7 +115,18 @@ class Recorder:
 
     def command(self, line, argv, stdin, folder, run):
         """`run` performs the real thing and returns (stdout, stderr, status)."""
-        stdout, stderr, status = run()
+        try:
+            stdout, stderr, status = run()
+        except subprocess.TimeoutExpired:
+            # Written down before it propagates. A command that ran out of
+            # time still happened, and a recording without it made every
+            # replay of a `try to run ... within` diverge at that line.
+            self._append({
+                "kind": "command", "line": line, "argv": list(argv),
+                "stdin": _scrub(stdin, self.secrets),
+                "folder": folder, "timed_out": True,
+            })
+            raise
         self._append({
             "kind": "command", "line": line, "argv": list(argv),
             "stdin": _scrub(stdin, self.secrets),
@@ -215,6 +227,7 @@ class Player:
         self.recording = recording
         self.events = list(recording.get("events", []))
         self.position = 0
+        self.secrets = {}            # plaintext -> name, for matching
         self.performed = []          # effects suppressed during replay
         self.divergences = []
 
@@ -247,9 +260,15 @@ class Player:
             line, None, described)
 
     def note_secret(self, name, plaintext):
-        pass
+        # Kept only to compare against. The recording holds the marker where
+        # a secret reached a command's arguments, so this run's arguments are
+        # scrubbed the same way before they are matched, or every replay of a
+        # script that releases a secret would diverge on it.
+        if plaintext:
+            self.secrets[plaintext] = name
 
     def command(self, line, argv, stdin, folder, run):
+        argv = _scrub_event(list(argv), self.secrets)
         described = "run " + " ".join(argv)
         event = self._next("command", line, described)
         if list(event["argv"]) != list(argv):
@@ -257,6 +276,8 @@ class Player:
                 f"the recording ran: {' '.join(event['argv'])}\n"
                 f"    this run wants:  {' '.join(argv)}",
                 line, " ".join(event["argv"]), " ".join(argv))
+        if event.get("timed_out"):
+            raise subprocess.TimeoutExpired(argv, 0)
         return event.get("stdout", ""), event.get("stderr", ""), \
             event.get("status", 0)
 

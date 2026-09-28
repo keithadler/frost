@@ -328,6 +328,9 @@ EXIT_CODES = [
     (3, "refused", "a policy, an import ceiling, a sandbox boundary or an "
                    "approval said no; nothing ran"),
     (4, "diverged", "a replay did not match its recording"),
+    (124, "deadline", "the run passed its --deadline"),
+    (125, "too much data", "the run passed a --max-output or --max-written "
+                           "limit"),
     (130, "interrupted", "somebody pressed control-C"),
     (141, "pipe closed", "the reader went away, as with `| head`"),
 ]
@@ -372,9 +375,14 @@ def emit_completion(shell):
 
 def build_parser():
     """frost's own options. One definition, so nothing can drift from it."""
+    # No abbreviations. split_argv decides where frost's options end by
+    # knowing which of them take a value, and `--trace-to` for
+    # `--trace-to-file` was accepted by argparse and unknown to it, so the
+    # file name became the script.
     ap = argparse.ArgumentParser(
         prog="frost",
-        description="Run a frost script.")
+        description="Run a frost script.",
+        allow_abbrev=False)
     ap.add_argument("--version", action="version",
                     version=f"frost {__version__}")
     ap.add_argument("script", nargs="?", help="path to a .frost file")
@@ -918,6 +926,15 @@ def main(argv=None):
         # which the MCP server already demonstrates.
         source = sys.stdin.read()
         opts.script = "<stdin>"
+        if opts.write:
+            # There is no file to write back to, and opening "<stdin>" for
+            # writing made one by that name in the working directory.
+            sys.stderr.write(
+                "frost: --write needs a file, and this script came from "
+                "standard input\n"
+                "  hint: drop --write and the result goes to standard "
+                "output\n")
+            return 2
         if not any((opts.check, opts.explain, opts.fmt, opts.ast,
                     opts.brief, opts.policy_from)):
             sys.stderr.write(
@@ -931,6 +948,12 @@ def main(argv=None):
                 source = fh.read()
         except OSError as e:
             sys.stderr.write(f"frost: cannot read {opts.script}: {e}\n")
+            return 2
+        except UnicodeDecodeError as e:
+            sys.stderr.write(
+                f"frost: {opts.script} is not UTF-8 text: {e.reason} at byte "
+                f"{e.start}\n"
+                f"  hint: frost scripts are UTF-8; convert it with iconv\n")
             return 2
 
     source_lines = source.splitlines()
@@ -1244,12 +1267,18 @@ def main(argv=None):
         findings = check(audit_program(program).merged, rules,
                          defer_unknown_hosts=opts.enforce_hosts)
         blocked = [f for f in findings if f.severity == "forbid"]
-        if opts.json:
+        # Only a refusal ends things here. Returning on a pass as well meant
+        # that any policy at all turned `--json` into "report the policy and
+        # stop": the script never ran, and `--check --json --strict` never
+        # reached its verdict, so a dangerous script passed the gate whenever
+        # a frost.policy sat beside it. A pass falls through with its
+        # warnings on standard error, leaving standard output one document.
+        if opts.json and blocked:
             emit_json(diagnostics.report(
                 opts.script,
                 [diagnostics.from_policy_finding(f, source) for f in findings],
-                not blocked, 3 if blocked else 0))
-            return 3 if blocked else 0
+                False, 3))
+            return 3
         for finding in findings:
             label = "REFUSED" if finding.severity == "forbid" else "warning"
             sys.stderr.write(f"{label}: {finding.what}\n")

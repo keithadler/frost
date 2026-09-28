@@ -177,7 +177,7 @@
       var l = this.multiplicative();
       while (this.atOp("+", "-")) {
         var op = this.next().v, r = this.multiplicative();
-        l = op === "+" ? num(l) + num(r) : num(l) - num(r);
+        l = finite(op === "+" ? num(l) + num(r) : num(l) - num(r));
       }
       return l;
     },
@@ -185,9 +185,12 @@
       var l = this.unary();
       while (this.atOp("*", "/", "^")) {
         var op = this.next().v, r = this.unary();
-        if (op === "*") l = num(l) * num(r);
-        else if (op === "^") l = Math.pow(num(l), num(r));
-        else { if (num(r) === 0) throw new Err("cannot divide by zero"); l = num(l) / num(r); }
+        if (op === "*") l = finite(num(l) * num(r));
+        else if (op === "^") {
+          if (num(l) === 0 && num(r) < 0) throw new Err("cannot divide by zero");
+          l = finite(Math.pow(num(l), num(r)));
+        }
+        else { if (num(r) === 0) throw new Err("cannot divide by zero"); l = finite(num(l) / num(r)); }
       }
       return l;
     },
@@ -536,17 +539,25 @@
     if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(v);
     return String(v);
   }
+  // The same pattern as NUMBER_TEXT in frostlang/interp.py. Number() alone
+  // takes "Infinity", "0x10" and "" and Python takes "inf" and "1_000", so
+  // neither side's own parser can be the rule.
+  var NUMBER_TEXT = /^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$/;
+  function finite(n) {
+    if (isNaN(n)) throw new Err("that has no real-number answer");
+    if (!isFinite(n)) throw new Err("that number is too large to work with");
+    return n;
+  }
   function num(v) {
     if (typeof v === "boolean") return v ? 1 : 0;
-    if (typeof v === "number") return v;
+    if (typeof v === "number") return finite(v);
     var t = text(v).trim();
-    if (t !== "" && !isNaN(Number(t))) return Number(t);
+    if (NUMBER_TEXT.test(t)) return finite(Number(t));
     throw new Err(JSON.stringify(t) + " is not a number");
   }
   function numberish(v) {
     if (typeof v === "number" || typeof v === "boolean") return true;
-    var t = text(v).trim();
-    return t !== "" && !isNaN(Number(t));
+    return NUMBER_TEXT.test(text(v).trim());
   }
   function truthy(v) {
     if (typeof v === "boolean") return v;

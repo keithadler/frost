@@ -14,6 +14,7 @@ is worse than no manifest.
 # SPDX-License-Identifier: MIT
 
 import fnmatch
+import posixpath
 import re
 from dataclasses import dataclass, field
 from typing import List, NamedTuple, Optional
@@ -108,6 +109,102 @@ _SCP = re.compile(r"^(?:[^@/\s]+@)([^:/\s]+):", re.IGNORECASE)
 # it. Without the terminator, `"https://" & host`: it genuinely is unknown.
 _URL_PREFIX = re.compile(
     r"[a-z][a-z0-9+.\-]*://(?:[^/@\s]*@)?([^/:?#\s]+)[/:?#]", re.IGNORECASE)
+
+
+def program_name(program):
+    """The program a path names: `/usr/bin/sudo` is sudo.
+
+    Everything that asks "is this sudo" or "is this curl" asks it of this.
+    Comparing the text as written let `run "/usr/bin/sudo"` past every danger
+    finding and every `forbid running "sudo"`, while the runtime, which checks
+    hosts on the basename, already knew better.
+    """
+    return program.rsplit("/", 1)[-1] if program else program
+
+
+def names_program(program, pattern):
+    """Whether a rule about `pattern` covers `program`, as written or by name.
+
+    For rules that forbid: matching more is the safe direction. An allow-list
+    must not use this, or allowing "git" would admit "/tmp/anything/git".
+    """
+    if not program:
+        return False
+    return (fnmatch.fnmatchcase(program, pattern)
+            or fnmatch.fnmatchcase(program_name(program), pattern))
+
+
+# Every argument curl or wget is given in a destination's position is a
+# destination, scheme or not: `curl evil.example/x` fetches it. These are the
+# options whose next argument is a value instead, `-o out.json` above all. An
+# option missing from here makes its value look like a destination nobody can
+# read, which overstates; that is the safe direction.
+VALUE_OPTIONS = {
+    "curl": {
+        "-o", "--output", "-d", "--data", "--data-raw", "--data-binary",
+        "--data-urlencode", "-H", "--header", "-u", "--user", "-X",
+        "--request", "-A", "--user-agent", "-e", "--referer", "-b",
+        "--cookie", "-c", "--cookie-jar", "-T", "--upload-file", "-F",
+        "--form", "-m", "--max-time", "--connect-timeout", "--retry",
+        "--retry-delay", "--retry-max-time", "-w", "--write-out", "--cacert",
+        "--capath", "-E", "--cert", "--key", "-K", "--config", "-r", "--range",
+        "-z", "--time-cond", "-D", "--dump-header", "--output-dir",
+        "--limit-rate", "-C", "--continue-at", "--max-filesize",
+        "--max-redirs", "-Y", "--speed-limit", "-y", "--speed-time",
+    },
+    "wget": {
+        "-O", "--output-document", "-o", "--output-file", "-a",
+        "--append-output", "-P", "--directory-prefix", "--header", "-U",
+        "--user-agent", "-t", "--tries", "-T", "--timeout", "--post-data",
+        "--post-file", "--user", "--password", "-e", "--execute", "-i",
+        "--input-file", "--ca-certificate", "--certificate",
+        "--private-key", "-w", "--wait", "-Q", "--quota", "--limit-rate",
+    },
+}
+
+
+def _takes_value(arg, options):
+    if arg in options:
+        return True
+    # -sSo out.json: bundled short flags, the last of which takes a value.
+    return (len(arg) > 2 and arg[0] == "-" and arg[1] != "-"
+            and "=" not in arg and f"-{arg[-1]}" in options)
+
+
+def unread_destination(program, args, arg_nodes=(), sets=None):
+    """Whether curl or wget is given a destination whose host cannot be read.
+
+    A literal URL names its host. Anything else in a destination's position,
+    a bare `evil.example/x` or a value built at runtime, is a destination too,
+    and one that cannot be shown to be anywhere in particular. Its host is not
+    guessed at: a manifest that invents hosts is not one to trust. It is
+    reported as unreadable, which a `require reaching only` refuses.
+    """
+    options = VALUE_OPTIONS.get(program_name(program))
+    if options is None:
+        return False
+    skip = False
+    for i, arg in enumerate(args):
+        if skip:
+            skip = False
+            continue
+        if arg is not None and arg.startswith("-"):
+            skip = _takes_value(arg, options)
+            continue
+        if arg is not None:
+            values = [arg]
+        else:
+            node = arg_nodes[i] if i < len(arg_nodes) else None
+            if sets and isinstance(node, A.Var) and sets.get(node.name):
+                values = list(sets[node.name])
+            elif node is not None and any(
+                    _URL_PREFIX.search(f) for f in literal_fragments(node)):
+                continue                    # a join whose host is settled
+            else:
+                return True
+        if not all(v and (_URL.match(v) or _SCP.match(v)) for v in values):
+            return True
+    return False
 
 
 def hosts_in(command, arg_nodes=(), sets=None):
@@ -710,7 +807,13 @@ class Auditor:
         hosts = hosts_in(command, arg_nodes, self.sets)
         for host in hosts:
             self.caps.reaches.append((host, command.line))
-        if not hosts and command.program in NETWORK_PROGRAMS:
+        # A literal URL settles one destination, not all of them: `curl
+        # https://a.example/x target` fetches both. Recording only the literal
+        # let a script under `require reaching only "a.example"` send to
+        # whatever target held.
+        if program_name(command.program) in NETWORK_PROGRAMS and (
+                not hosts or unread_destination(
+                    command.program, command.args, arg_nodes, self.sets)):
             self.caps.reaches.append((RUNTIME_HOST, command.line))
 
     def on_RepeatForever(self, node):
@@ -1411,10 +1514,10 @@ def count_lines(caps, key, subject=None):
         return [c.line for c in caps.commands]
     if key == "network commands":
         return [c.line for c in caps.commands
-                if c.program in NETWORK_PROGRAMS]
+                if program_name(c.program) in NETWORK_PROGRAMS]
     if key == "runs":
         return [c.line for c in caps.commands
-                if c.program and fnmatch.fnmatchcase(c.program, subject)]
+                if names_program(c.program, subject)]
     if key == "unchecked":
         return [c.line for c in caps.commands
                 if not c.checked and not c.result_examined]
@@ -1453,7 +1556,7 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
             for c in caps.commands:
                 if c.program is None:
                     continue
-                if not fnmatch.fnmatchcase(c.program, rule.subject):
+                if not names_program(c.program, rule.subject):
                     continue
                 if rule.detail is not None:
                     if not any(a is not None
@@ -1473,7 +1576,7 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
             for path, line in source:
                 if path is None:
                     continue
-                if fnmatch.fnmatchcase(path, rule.subject):
+                if matches_path(path, rule.subject):
                     findings.append((rule.severity, f"{verb} {path}", line))
 
         elif rule.kind == "setenv":
@@ -1610,8 +1713,7 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
 
         elif rule.kind == "timeout_bound":
             for c in caps.commands:
-                if not (c.program
-                        and fnmatch.fnmatchcase(c.program, rule.subject)):
+                if not names_program(c.program, rule.subject):
                     continue
                 if c.timeout_seconds is None:
                     what = ("has no timeout" if not c.timeout
@@ -1635,7 +1737,7 @@ def _check_rules(caps, rules, defer_unknown_hosts=False):
 
         elif rule.kind == "timeout":
             for c in caps.commands:
-                if c.program and fnmatch.fnmatchcase(c.program, rule.subject) \
+                if names_program(c.program, rule.subject) \
                         and not c.timeout:
                     findings.append(
                         ("forbid",
@@ -1745,7 +1847,7 @@ def shell_escapes(caps):
     """
     found = []
     for c in caps.commands:
-        prog = c.program
+        prog = program_name(c.program)
         args = [a for a in c.args if a is not None]
         if prog in SHELL_PROGRAMS and "-c" in args:
             found.append((
@@ -1862,9 +1964,29 @@ class Finding:
     source: str = "built-in"
 
 
+def resolved_path(path):
+    """An absolute path as the kernel will read it, for matching and sorting.
+
+    `/tmp/../etc/hosts` is /etc/hosts and `//etc/hosts` is too. Matched as
+    written, the first was classed as temporary and neither was caught by
+    `forbid writing to "/etc/*"`. Only absolute paths: a relative one depends
+    on a folder that is not known until the script runs, and `~` is not a
+    directory normpath understands.
+    """
+    if not path or not path.startswith("/"):
+        return path
+    return "/" + posixpath.normpath(path).lstrip("/")
+
+
+def matches_path(path, pattern):
+    return (fnmatch.fnmatchcase(path, pattern)
+            or fnmatch.fnmatchcase(resolved_path(path), pattern))
+
+
 def classify_path(path):
     if path is None:
         return "runtime"
+    path = resolved_path(path)
     if path.startswith(SYSTEM_PREFIXES):
         return "system"
     if path.startswith(("/tmp", "/var/tmp", "/private/tmp")):
@@ -1929,7 +2051,7 @@ def find_dangers(caps):
             line))
 
     for c in caps.commands:
-        prog = c.program
+        prog = program_name(c.program)
         args = [a for a in c.args if a is not None]
         lowered = [a.lower() for a in args]
 
@@ -1997,11 +2119,12 @@ def find_dangers(caps):
                 "examined, so a failure passes silently.", c.line))
 
     # remote code execution: a network fetch piped into an interpreter
-    pipe_progs = [c.program for c in caps.commands if c.in_pipe]
+    pipe_progs = [program_name(c.program) for c in caps.commands
+                  if c.in_pipe]
     if any(p in NETWORK_PROGRAMS for p in pipe_progs) and \
             any(p in SHELL_PROGRAMS for p in pipe_progs):
         line = next(c.line for c in caps.commands
-                    if c.in_pipe and c.program in SHELL_PROGRAMS)
+                    if c.in_pipe and program_name(c.program) in SHELL_PROGRAMS)
         out.append(Finding(
             "danger", "Downloaded code piped into a shell",
             "Whatever the server returns is executed. The script's behaviour "
@@ -2093,7 +2216,7 @@ def find_dangers(caps):
     reads_secrets = bool(flagged_secret_lines) or any(
         n in SECRET_ENV for n, _ in caps.env_reads)
     net_lines = [c.line for c in caps.commands
-                 if c.program in NETWORK_PROGRAMS]
+                 if program_name(c.program) in NETWORK_PROGRAMS]
     if reads_secrets and net_lines:
         out.append(Finding(
             "danger", "Secrets read, then the network is contacted",
@@ -2124,7 +2247,7 @@ def summarise(caps):
         parts.append(f"runs {shown}{more}")
 
     net = sorted({c.program for c in caps.commands
-                  if c.program in NETWORK_PROGRAMS})
+                  if program_name(c.program) in NETWORK_PROGRAMS})
     if net:
         hosts = sorted({h for h, _ in caps.reaches if h != RUNTIME_HOST})
         where = f" ({', '.join(hosts[:3])})" if hosts else ""

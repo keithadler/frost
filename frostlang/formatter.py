@@ -87,8 +87,11 @@ def quote(value):
             out.append("\\0")
         elif c == "\\":
             nxt = value[i + 1] if i + 1 < len(value) else None
+            # The control characters count too: each is written back out as
+            # an escape, so a single backslash in front of one would read as
+            # an escaped backslash followed by a letter.
             out.append("\\\\" if nxt is None or nxt in SPECIAL_ESCAPES
-                       else "\\")
+                       or nxt in "\n\t\r\0" else "\\")
         else:
             out.append(c)
         i += 1
@@ -118,8 +121,18 @@ def normalise_spacing(code):
         elif t.kind == "NUM":
             # str() round-trips through the lexer to the same value, which is
             # the point: rewriting 5.0 as 5 would swap a float literal for an
-            # int one and break the identical-tree guarantee above.
-            pieces.append(str(t.value))
+            # int one and break the identical-tree guarantee above. Except
+            # where str() reaches for an exponent, as it does for 0.00001 or
+            # a twenty-digit float, which the lexer has no syntax for: there
+            # the digits as written are the only safe spelling.
+            text = str(t.value)
+            if "e" in text or "n" in text:
+                end = t.col
+                while end < len(code) and (code[end].isdigit()
+                                           or code[end] == "."):
+                    end += 1
+                text = code[t.col:end]
+            pieces.append(text)
         else:
             pieces.append(str(t.value))
 

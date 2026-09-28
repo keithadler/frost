@@ -222,6 +222,22 @@ def corpus():
         "the json of \"not json at all\"",
         "the keys of \"plain text\"",
         "the values of 5",
+        # What counts as a number. Python's float() and JavaScript's Number()
+        # are each loose in their own way, so both sides hold one pattern and
+        # these are where the two parsers used to disagree.
+        '"1e3" + 1',
+        '"-2.5" * 2',
+        '".5" + 1',
+        '"inf" + 1',
+        '"Infinity" + 1',
+        '"nan" is "nan"',
+        '"1_000" is "1000"',
+        '"0x10" + 1',
+        '"10" is greater than "9"',
+        "10 ^ 400",
+        "0 ^ -1",
+        "(0 - 8) ^ 0.5",
+        "2 ^ 10",
     ]
     return out
 

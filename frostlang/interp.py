@@ -10,8 +10,10 @@ Two rules do most of the safety work here:
 # SPDX-License-Identifier: MIT
 
 import datetime
+import errno
 import fnmatch
 import hmac
+import math
 import os
 import random
 import re
@@ -34,6 +36,19 @@ class FrostError(Exception):
 
 
 TIMEOUT_STATUS = 124
+
+
+def not_startable(program, e, line):
+    """An OSError from the spawn itself, other than a missing program.
+
+    The usual one is a file marked executable with no `#!` line, which the
+    kernel refuses with ENOEXEC. That reached the terminal as a traceback.
+    """
+    hint = None
+    if e.errno == errno.ENOEXEC:
+        hint = "give the file a first line such as #!/bin/sh"
+    return FrostError(f"{program!r} could not be started: {e.strerror}",
+                      line, hint=hint)
 
 
 def run_capped(argv, cwd, env, input_text, timeout, cap):
@@ -264,30 +279,53 @@ def to_argument(v):
     return to_text(v)
 
 
+# What counts as a number when it arrives as text. Python's own int() and
+# float() also take "inf", "nan", "1_000" and digits from other scripts, so
+# "Infinity" compared equal to "inf", "nan" was not equal to itself, and
+# `repeat "inf" times` escaped as an OverflowError. web/chunks.js holds the
+# same pattern, because Number() is loose in different ways.
+NUMBER_TEXT = re.compile(r"[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?")
+
+
+def finite(value, line=None):
+    """A number the language can hold, or a FrostError saying why not.
+
+    The ceiling is a float's, for ints too: past it Python keeps an exact int
+    that JavaScript cannot, and a big enough one cannot even be printed.
+    """
+    if isinstance(value, complex):
+        raise FrostError("that has no real-number answer", line)
+    if isinstance(value, float):
+        ok = math.isfinite(value)
+    else:
+        try:
+            float(value)
+            ok = True
+        except OverflowError:
+            ok = False
+    if not ok:
+        raise FrostError("that number is too large to work with", line)
+    return value
+
+
 def to_number(v, line=None):
     if isinstance(v, bool):
         return 1 if v else 0
     if isinstance(v, (int, float)):
-        return v
+        return finite(v, line)
     text = to_text(v).strip()
-    try:
-        return int(text)
-    except ValueError:
-        pass
-    try:
-        return float(text)
-    except ValueError:
+    if not NUMBER_TEXT.fullmatch(text):
         raise FrostError(f"{text!r} is not a number", line)
+    try:
+        return finite(int(text), line)
+    except ValueError:
+        return finite(float(text), line)
 
 
 def is_numberish(v):
     if isinstance(v, (int, float, bool)):
         return True
-    try:
-        float(to_text(v).strip())
-        return True
-    except (ValueError, AttributeError):
-        return False
+    return bool(NUMBER_TEXT.fullmatch(to_text(v).strip()))
 
 
 def _read_clock(which):
@@ -806,7 +844,8 @@ class Interpreter:
                         hint="raise the limit, or ask the command for less")
                 return (out, err, code)
             done = subprocess.run(argv, capture_output=not node.streaming,
-                                  text=True, cwd=folder, env=self.env,
+                                  text=True, errors="replace", cwd=folder,
+                                  env=self.env,
                                   input=stdin_text, timeout=seconds)
             return (done.stdout or "", done.stderr or "", done.returncode)
 
@@ -826,6 +865,10 @@ class Interpreter:
             raise FrostError(f"there is no program named {program!r}",
                              node.line,
                              hint="check the name, or that it is on your PATH")
+        except PermissionError:
+            raise FrostError(f"{program!r} is not executable", node.line)
+        except OSError as e:
+            raise not_startable(program, e, node.line) from None
         except ValueError as e:
             raise FrostError(
                 f"{program!r} was given an argument that cannot be passed to "
@@ -936,7 +979,8 @@ class Interpreter:
         """
         if self.host_rules is None:
             return
-        from .audit import Command, hosts_in, NETWORK_PROGRAMS
+        from .audit import (Command, hosts_in, NETWORK_PROGRAMS,
+                            unread_destination)
 
         forbidden, allowed = self.host_rules
         program = os.path.basename(argv[0]) if argv else ""
@@ -966,6 +1010,16 @@ class Interpreter:
                 hint="the allow-list is: " + ", ".join(allowed) +
                      ". Put the URL in the command rather than somewhere only "
                      "the program can see.")
+
+        if allowed is not None and unread_destination(program, argv[1:]):
+            # One readable URL beside one that is not: `curl
+            # https://allowed.example evil.example/x` fetches both.
+            raise FrostError(
+                f"{program!r} is given a destination with no scheme, whose "
+                f"host frost cannot confirm, and the policy allows only a "
+                f"named list", line,
+                hint="write each destination as a full URL, "
+                     "https://host/path")
 
     def guard(self, action, path, line):
         """Check one of frost's own file operations against the boundary.
@@ -1048,9 +1102,14 @@ class Interpreter:
                         hint="raise the limit, or ask the command for less")
                 proc = subprocess.CompletedProcess(argv, code, out, err)
             else:
+                # Undecodable output is replaced rather than refused, as
+                # run_capped already does: whether a script can read a
+                # command's answer should not depend on whether a volume
+                # limit happens to be set.
                 proc = subprocess.run(argv,
                                       capture_output=not node.streaming,
-                                      text=True, cwd=folder,
+                                      text=True, errors="replace",
+                                      cwd=folder,
                                       env=self.env, input=stdin_text,
                                       timeout=seconds)
         except subprocess.TimeoutExpired as e:
@@ -1074,6 +1133,8 @@ class Interpreter:
                              hint="check the name, or that it is on your PATH")
         except PermissionError:
             raise FrostError(f"{program!r} is not executable", node.line)
+        except OSError as e:
+            raise not_startable(program, e, node.line) from None
         except ValueError as e:
             # An argument holding a NUL cannot be passed to execve, and the
             # standard library reports it by raising out of the fork. That
@@ -1133,7 +1194,10 @@ class Interpreter:
         # classic way to deadlock a pipeline on a large input.
         feed = None
         if node.stdin is not None:
-            text = to_text(self.eval(node.stdin))
+            # to_argument, as `run ... reading` does: a program reading its
+            # input genuinely needs the plaintext, and to_text would have fed
+            # it the redaction marker instead.
+            text = to_argument(self.eval(node.stdin))
             if not text.endswith("\n"):
                 text += "\n"
             feed = tempfile.TemporaryFile(mode="w+")
@@ -1152,12 +1216,24 @@ class Interpreter:
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE if last else None,
                         text=True,
+                        errors="replace",
                         cwd=folder,
                         env=self.env,
                     )
                 except FileNotFoundError:
                     raise FrostError(
                         f"there is no program named {cmd[0]!r}", line)
+                except PermissionError:
+                    raise FrostError(f"{cmd[0]!r} is not executable", line)
+                except OSError as e:
+                    raise not_startable(cmd[0], e, line) from None
+                except ValueError as e:
+                    raise FrostError(
+                        f"{cmd[0]!r} was given an argument that cannot be "
+                        f"passed to a program: {e}", line,
+                        hint="a NUL byte cannot appear in an argument; pass "
+                             "the data on standard input with 'reading' "
+                             "instead") from None
                 if prev_stdout is not None:
                     prev_stdout.close()
                 prev_stdout = p.stdout
@@ -1195,7 +1271,7 @@ class Interpreter:
             sys.stderr.flush()
 
         self.it = self.mask((out or "").rstrip("\n"))
-        self.error_output = self.mask(err or "").rstrip("\n")
+        self.error_output = self.mask((err or "").rstrip("\n"))
 
         # pipefail by default: the first failing stage wins.
         failed = None
@@ -1353,6 +1429,14 @@ class Interpreter:
 
     def exec_HandlerDef(self, node):
         self.handlers[node.name] = node
+        # A handler defined inside a block exists once the block has run, as
+        # it does in a single file. The per-file tables only list top-level
+        # definitions, so without this a script lost its nested handlers the
+        # moment it gained a `use`.
+        if self.current_file is not None:
+            self.handler_tables.setdefault(
+                self.current_file, {})[node.name] = node
+            self.handler_home.setdefault(id(node), self.current_file)
 
     def exec_Return(self, node):
         raise ReturnSignal(self.eval(node.expr) if node.expr else "")
@@ -1681,18 +1765,30 @@ class Interpreter:
             return to_text(left) + separator + to_text(right)
         a = to_number(left, node.line)
         b = to_number(right, node.line)
-        if node.op == "+":
-            return a + b
-        if node.op == "-":
-            return a - b
-        if node.op == "*":
-            return a * b
-        if node.op == "^":
-            return a ** b
+        try:
+            if node.op == "+":
+                return finite(a + b, node.line)
+            if node.op == "-":
+                return finite(a - b, node.line)
+            if node.op == "*":
+                return finite(a * b, node.line)
+            if node.op == "^":
+                if a == 0 and b < 0:
+                    raise FrostError("cannot divide by zero", node.line)
+                # Decided before computing: an int raised to an int is exact
+                # in Python, so 2 ^ 100000000 would spend minutes building a
+                # number finite() then refuses. Past 2 ^ 1100 no base of 2 or
+                # more fits in a float.
+                if abs(a) >= 2 and b > 1100:
+                    raise OverflowError
+                return finite(a ** b, node.line)
+        except OverflowError:
+            raise FrostError("that number is too large to work with",
+                             node.line) from None
         if node.op == "/":
             if b == 0:
                 raise FrostError("cannot divide by zero", node.line)
-            return a / b
+            return finite(a / b, node.line)
         raise FrostError(f"unknown operator {node.op!r}", node.line)
 
     def eval_Compare(self, node):

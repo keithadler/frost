@@ -105,6 +105,9 @@ class Parser:
     def __init__(self, src):
         self.toks = tokenize(src)
         self.i = 0
+        # Whether the `if` just parsed was the single-line form, which is how
+        # an `else if` chain knows whether its `end if` is still owed.
+        self.last_if_was_single_line = False
         # How many `repeat` blocks enclose the statement being parsed. Reset
         # to zero inside a handler body, so loop control cannot reach across a
         # call boundary and break the caller's loop.
@@ -519,9 +522,7 @@ class Parser:
         if isinstance(program, A.Lit) and isinstance(program.value, str):
             text = program.value
             if not args and (" " in text.strip()):
-                parts = text.split()
-                suggestion = 'run "%s" with %s' % (
-                    parts[0], ", ".join('"%s"' % p for p in parts[1:]))
+                suggestion = suggest_run(text)
                 raise ParseError(
                     "run takes a program name, not a command line",
                     line,
@@ -597,6 +598,7 @@ class Parser:
         # Single-line form: if X then <statement>
         if not self.end_of_statement():
             stmt = self.parse_statement()
+            self.last_if_was_single_line = True
             return A.If(cond, [stmt], None, line)
 
         self.expect_end_of_statement()
@@ -607,13 +609,20 @@ class Parser:
             self.advance()
             if self.at_word("if"):
                 else_block = [self.parse_if()]
-                return A.If(cond, then_block, else_block, line)
-            self.expect_end_of_statement()
-            else_block = self.parse_block("if")
+                # A block-form `else if` closes the whole chain with its own
+                # `end if`. A single-line one has no `end if` of its own, so
+                # the chain's is still owed: returning here accepted the chain
+                # with none, and refused it with one.
+                if not self.last_if_was_single_line:
+                    return A.If(cond, then_block, else_block, line)
+            else:
+                self.expect_end_of_statement()
+                else_block = self.parse_block("if")
 
         self.expect_word("end")
         self.expect_word("if")
         self.expect_end_of_statement()
+        self.last_if_was_single_line = False
         return A.If(cond, then_block, else_block, line)
 
     # repeat ---------------------------------------------------------------
@@ -1522,6 +1531,19 @@ def resolve_fields(stmts):
     return stmts
 
 
+def suggest_run(command_line):
+    """`run "ls -la"` as it was meant: a program and a list of arguments.
+
+    Each part is written back as a literal with the formatter's own quoting.
+    Wrapping it in bare quotes turned an escaped backslash into an escape, so
+    `a\\\\tb` came back as a tab, in a line `--repair` applies with confidence.
+    """
+    from .formatter import quote          # the formatter imports this module
+    parts = command_line.split()
+    return "run %s with %s" % (
+        quote(parts[0]), ", ".join(quote(p) for p in parts[1:]))
+
+
 def parse(src, resolve=True):
     """Parse one file. `resolve=False` leaves handler names unchecked.
 
@@ -1529,7 +1551,17 @@ def parse(src, resolve=True):
     so the module loader parses without resolution and checks names once the
     whole import graph is known.
     """
-    tree = Parser(src).parse_program()
+    try:
+        tree = Parser(src).parse_program()
+    except RecursionError:
+        # The parser is recursive descent, so a deep enough expression runs
+        # out of Python stack before it runs out of grammar. That is still a
+        # script frost will not read, and it should be told as one: the front
+        # end promises an error with a line number, never a traceback.
+        raise ParseError(
+            "this is nested too deeply to read", 1,
+            hint="split the expression across several statements with put "
+                 "... into ...") from None
     # Field shapes are a fact about one file, so they are checked whether or
     # not handler names can be: a module is parsed without resolution, and a
     # typo inside it is still a typo.

@@ -112,6 +112,11 @@ Conversion is automatic and predictable. `"10" is greater than "9"` is true,
 because both sides look like numbers, so both are compared as numbers. If
 either side does not look like a number, both are compared as text.
 
+Looking like a number means digits, with an optional sign, decimal point and
+exponent: `42`, `-3.5`, `1e3`. Not `inf`, `nan`, `Infinity`, `1_000` or `0x10`,
+which are text. Arithmetic that leaves the range a number can hold, such as
+`10 ^ 400`, stops with an error rather than carrying on with infinity.
+
 Truthiness: `false`, `0`, `""`, `"false"`, and `"no"` are false. Everything
 else is true.
 
@@ -456,6 +461,20 @@ choosing between two hosts is two known hosts rather than an unknown one.
 A destination that genuinely cannot be read fails both rules. "Cannot be shown
 to be allowed" is not "is allowed", and an allow-list that quietly passed the
 one case nobody can check would be worth nothing.
+
+That includes one sitting beside a URL that can be read: `curl
+https://api.github.com/zen target` fetches both, and the first vouches for
+nothing about the second. For `curl` and `wget`, every argument in a
+destination's position counts, and one written without a scheme,
+`api.github.com/zen`, is refused by an allow-list rather than guessed at:
+write it as `https://api.github.com/zen`. The values of options such as `-o`,
+`-H` and `--data` are not destinations.
+
+Programs and paths are matched where they really point. `forbid running
+"sudo"` refuses `run "/usr/bin/sudo"` as well, and `forbid writing to
+"/etc/*"` refuses `/tmp/../etc/hosts` and `//etc/hosts`. An allow-list is the
+exception, in the safe direction: `require running only "git"` does not admit
+`/tmp/x/git`.
 
 ### Checking the destination that only exists at runtime
 

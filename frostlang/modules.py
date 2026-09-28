@@ -185,6 +185,19 @@ def resolve(importing_path, spec, root, line):
             hint="a module must live with the script that uses it, so that "
                  "reviewing the repository reviews the whole program")
 
+    # The same boundary, where the file really is. A spelling check alone let
+    # `vendor/lib.frost` through when `vendor` was a symlink to somewhere
+    # above the script, which is the escape the rule exists to prevent, and
+    # one a reviewer reading the import line would never see.
+    real, real_root = os.path.realpath(absolute), os.path.realpath(root)
+    if not (real == real_root or real.startswith(real_root + os.sep)):
+        raise ModuleError(
+            f"{spec!r} leads outside the script's own directory, through a "
+            f"symbolic link", line=line,
+            hint="copy the module in beside the script rather than linking "
+                 "to it, so that reviewing the repository reviews the whole "
+                 "program")
+
     relative = os.path.relpath(absolute, root_absolute)
     return relative.replace(os.sep, "/"), absolute
 
@@ -254,6 +267,9 @@ def read_source(absolute, spec, line):
         raise ModuleError(f"{spec!r} is a folder, not a module", line=line)
     except OSError as e:
         raise ModuleError(f"cannot read {spec!r}: {e}", line=line)
+    except UnicodeDecodeError as e:
+        raise ModuleError(f"{spec!r} is not UTF-8 text: {e.reason} at byte "
+                          f"{e.start}", line=line)
 
 
 def load(entry_path, source=None):

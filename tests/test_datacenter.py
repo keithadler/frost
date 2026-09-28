@@ -51,6 +51,29 @@ def must(result, what):
     return out
 
 
+def unreadable(path):
+    """Make a site policy that is present and cannot be read, and undo it.
+
+    Permission bits do not bind root, so a container running the suite as
+    root would read the file anyway and the test would fail for a reason that
+    has nothing to do with frost. A directory where the file should be fails
+    the same `open` with the same OSError, whoever is asking.
+    """
+    path = str(path)
+    os.chmod(path, 0o000)
+    if os.access(path, os.R_OK):
+        os.chmod(path, 0o644)
+        os.remove(path)
+        os.mkdir(path)
+
+    def restore():
+        if os.path.isdir(path):
+            os.rmdir(path)
+        else:
+            os.chmod(path, 0o644)
+    return restore
+
+
 @pytest.fixture
 def project(tmp_path):
     (tmp_path / "pol").mkdir()
@@ -119,8 +142,7 @@ def test_the_project_policy_still_applies_alongside(project):
 def test_an_unreadable_site_policy_fails_closed(project):
     """Present and unreadable is not the same as absent, and treating it as
     absent is how a machine quietly stops being governed."""
-    path = project("pol/00.policy", 'forbid running "curl"\n')
-    os.chmod(path, 0o000)
+    restore = unreadable(project("pol/00.policy", 'forbid running "curl"\n'))
     try:
         script = project("s.frost", HARMLESS)
         status, _, err = frost(script, cwd=str(project.root),
@@ -128,7 +150,7 @@ def test_an_unreadable_site_policy_fails_closed(project):
         assert status == 2, err
         assert "cannot be read" in err
     finally:
-        os.chmod(path, 0o644)
+        restore()
 
 
 def test_a_broken_site_policy_fails_closed(project):
@@ -420,14 +442,14 @@ def test_load_with_nothing_present_is_empty():
 def test_load_refuses_an_unreadable_file(tmp_path):
     path = tmp_path / "00.policy"
     path.write_text('forbid running "a"\n')
-    os.chmod(path, 0o000)
+    restore = unreadable(path)
     try:
         with pytest.raises(site.SitePolicyError) as e:
             site.load({site.EXTRA_DIR_ENV: str(tmp_path)})
         assert "cannot be read" in e.value.msg
         assert "not the same as no site policy" in e.value.hint
     finally:
-        os.chmod(path, 0o644)
+        restore()
 
 
 def test_load_refuses_a_file_that_does_not_parse(tmp_path):

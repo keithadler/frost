@@ -1175,7 +1175,7 @@ editors/              syntax highlighting
 
 ## Status
 
-Version 0.10.0. The language runs, the examples are real, and 2267 tests cover
+Version 0.10.0. The language runs, the examples are real, and 2329 tests cover
 lexing, parsing, chunk semantics, pattern matching, timeouts, process
 execution, pipe failure, static analysis, policy enforcement, and the
 injection property.

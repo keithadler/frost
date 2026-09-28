@@ -139,6 +139,27 @@ def indent_of(text):
     return text[:len(text) - len(text.lstrip())]
 
 
+RUN_LITERAL = re.compile(r'\brun\s+("(?:[^"\\\n]|\\.)*")', re.IGNORECASE)
+
+
+def replace_run_literal(text, suggestion):
+    """`text` with the one `run "a b c"` that yields `suggestion` rewritten.
+
+    None when no span on the line yields exactly that suggestion, since a
+    repair that has to guess which one was meant is not a confident repair.
+    """
+    from .parser import suggest_run
+    from .lexer import tokenize
+    for found in RUN_LITERAL.finditer(text):
+        try:
+            value = tokenize(found.group(1))[0].value
+        except LexError:
+            continue
+        if " " in value.strip() and suggest_run(value) == suggestion:
+            return text[:found.start()] + suggestion + text[found.end():]
+    return None
+
+
 def repairs_for(code, error, source_lines):
     """Every repair we can justify for one error.
 
@@ -153,11 +174,16 @@ def repairs_for(code, error, source_lines):
     out = []
 
     if code == "run-takes-a-program-name":
-        # The parser computed the corrected command line for the hint.
+        # The parser computed the corrected command for the hint. Only the
+        # `run "..."` it was computed from is replaced: putting the hint in
+        # place of the whole line turned `if ready then run "rm -rf build"`
+        # into an unconditional delete, and dropped any `within`, `reading`
+        # or `in folder` after it.
         match = re.search(r"did you mean:\s+(.*)$", hint)
-        if match and text:
-            out.append(Repair("replace-line", line,
-                              indent_of(text) + match.group(1).strip(), HIGH,
+        fixed = match and text and replace_run_literal(
+            text, match.group(1).strip())
+        if fixed:
+            out.append(Repair("replace-line", line, fixed, HIGH,
                               "run takes a program and a list of arguments, "
                               "never a command line"))
 

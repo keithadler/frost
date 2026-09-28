@@ -72,7 +72,12 @@ def tokenize(src):
             while True:
                 if i >= n or src[i] == "\n":
                     raise LexError("unterminated string literal", lineno)
-                if src[i] == "\\" and i + 1 < n:
+                # A backslash before the newline is not an escape. Taking it as
+                # one ran the string on to the next line without counting it,
+                # so every later error pointed one line early, and the
+                # formatter wrote the two characters back out as a string it
+                # could not read again.
+                if src[i] == "\\" and i + 1 < n and src[i + 1] != "\n":
                     esc = src[i + 1]
                     # Known escapes are translated. Anything else keeps its
                     # backslash, so regex patterns like "\d+" survive intact.

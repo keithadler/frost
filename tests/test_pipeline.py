@@ -116,7 +116,7 @@ def test_exit_codes_as_json():
     status, out, _ = frost("--exit-codes", "--json")
     payload = json.loads(out)
     assert {c["code"] for c in payload["exit_codes"]} == \
-        {0, 1, 2, 3, 4, 130, 141}
+        {0, 1, 2, 3, 4, 124, 125, 130, 141}
 
 
 def test_every_published_code_has_a_meaning():
